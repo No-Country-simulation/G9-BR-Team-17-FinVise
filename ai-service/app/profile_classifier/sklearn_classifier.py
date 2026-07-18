@@ -7,8 +7,8 @@ import numpy as np
 from app.core.config import settings
 from app.core.exceptions import ModelNotLoadedError
 from app.core.logging import get_logger
-from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse
 from app.profile_classifier.base import BaseProfileClassifier
+from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse
 
 logger = get_logger(__name__)
 

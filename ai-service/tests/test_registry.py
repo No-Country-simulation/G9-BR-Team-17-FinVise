@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from app.model_registry.registry import ModelRegistry
 

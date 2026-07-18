@@ -1,5 +1,5 @@
-from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse
 from app.profile_classifier.base import BaseProfileClassifier
+from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse
 
 
 class FallbackProfileClassifier(BaseProfileClassifier):

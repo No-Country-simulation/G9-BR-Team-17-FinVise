@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.agent import AgentRequest, AgentContext
+from app.schemas.agent import AgentContext, AgentRequest
 from app.schemas.profile import ProfileAnalyzeRequest, ProfileIndicators
 from app.schemas.transaction import TransactionClassifyRequest, TransactionItem
 

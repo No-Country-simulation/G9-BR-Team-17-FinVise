@@ -1,5 +1,6 @@
 import csv
 from pathlib import Path
+
 from app.core.config import settings
 from app.preprocessing.text import extract_tokens, normalize_text
 from app.schemas.transaction import TransactionItem, TransactionPrediction

@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Any
 
@@ -6,7 +5,7 @@ from app.agent import tools as tool_module
 from app.agent.llm_provider import LLMProvider, get_llm_provider
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.schemas.agent import AgentContext, AgentRequest, AgentResponse, ToolCall
+from app.schemas.agent import AgentRequest, AgentResponse, ToolCall
 from app.schemas.common import Message
 
 logger = get_logger(__name__)

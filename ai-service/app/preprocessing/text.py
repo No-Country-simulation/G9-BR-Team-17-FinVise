@@ -1,7 +1,6 @@
 import re
 import unicodedata
 
-
 KEYWORD_SEPARATORS = re.compile(r"[|,/;\n]+")
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 

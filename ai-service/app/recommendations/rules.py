@@ -1,4 +1,4 @@
-from app.schemas.profile import ProfileAnalyzeRequest, ProfileIndicators
+from app.schemas.profile import ProfileAnalyzeRequest
 
 
 class RecommendationEngine:

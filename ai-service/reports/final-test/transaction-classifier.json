@@ -1,0 +1,243 @@
+{
+  "model": "transaction-classifier",
+  "model_version": "1.1.0",
+  "model_type": "TfidfVectorizer + LogisticRegression",
+  "evaluation_split": "TEST",
+  "dataset": "finance_ai_dataset/transacoes.csv",
+  "independence": {
+    "unit": "usuario_id",
+    "users_by_split": {
+      "TRAIN": 1050,
+      "VALIDATION": 225,
+      "TEST": 225
+    },
+    "overlap_users": {
+      "TRAIN_vs_VALIDATION": 0,
+      "TRAIN_vs_TEST": 0,
+      "VALIDATION_vs_TEST": 0
+    },
+    "passed": true,
+    "test_set_fingerprint_sha256": "db78b22764b2d177080af80939ea6941c8600dfb048fc4d297ddc9b6fd660481"
+  },
+  "metrics": {
+    "samples": 19692,
+    "correct_predictions": 19690,
+    "incorrect_predictions": 2,
+    "accuracy": 0.999898,
+    "balanced_accuracy": 0.999961,
+    "macro_precision": 0.999765,
+    "macro_recall": 0.999961,
+    "macro_f1": 0.999863,
+    "weighted_f1": 0.999898,
+    "confidence_intervals_95": {
+      "accuracy": {
+        "lower": 0.999746,
+        "upper": 1.0
+      },
+      "macro_f1": {
+        "lower": 0.999654,
+        "upper": 1.0
+      },
+      "weighted_f1": {
+        "lower": 0.999746,
+        "upper": 1.0
+      }
+    },
+    "per_class": {
+      "ALIMENTACAO": {
+        "precision": 1.0,
+        "recall": 0.999612,
+        "f1": 0.999806,
+        "support": 5150
+      },
+      "COMPRAS": {
+        "precision": 0.997653,
+        "recall": 1.0,
+        "f1": 0.998825,
+        "support": 850
+      },
+      "DIVIDAS": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 700
+      },
+      "EDUCACAO": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 707
+      },
+      "LAZER": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 966
+      },
+      "MORADIA": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5275
+      },
+      "OUTROS": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 240
+      },
+      "SAUDE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 851
+      },
+      "SERVICOS": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 3576
+      },
+      "TRANSPORTE": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 1377
+      }
+    },
+    "labels": [
+      "ALIMENTACAO",
+      "COMPRAS",
+      "DIVIDAS",
+      "EDUCACAO",
+      "LAZER",
+      "MORADIA",
+      "OUTROS",
+      "SAUDE",
+      "SERVICOS",
+      "TRANSPORTE"
+    ],
+    "confusion_matrix": [
+      [
+        5148,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        850,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        700,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        707,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        966,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        5275,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        240,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        851,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3576,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1377
+      ]
+    ]
+  }
+}

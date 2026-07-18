@@ -1,0 +1,23 @@
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+
+logging:
+  level:
+    com.financeai.backend: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{ISO8601} [%t] %-5p %c{1} - %m%n"
+
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+
+finance-ai:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}

@@ -1,0 +1,11 @@
+flowchart TD
+    A[Usuário envia dados de análise] --> B[Frontend valida formulário]
+    B --> C[POST /api/v1/financial-analyses]
+    C --> D[Backend valida DTO]
+    D --> E[Classifica transações no AI Service]
+    E --> F[Backend calcula indicadores]
+    F --> G[Classifica perfil no AI Service]
+    G --> H[Backend gera recomendações]
+    H --> I[Persiste análise no PostgreSQL]
+    I --> J[Retorna JSON]
+    J --> K[Frontend exibe resultado]

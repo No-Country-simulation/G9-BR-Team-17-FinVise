@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# Data and models (keep structure, ignore large artifacts if needed)
+data/processed/*.parquet
+models/*/model.joblib
+models/*/preprocessor.joblib
+
+# pytest
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/

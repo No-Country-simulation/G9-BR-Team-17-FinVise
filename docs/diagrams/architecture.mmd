@@ -1,0 +1,8 @@
+graph LR
+    U[Usuário] -->|HTTPS| N[Nginx]
+    N -->|/| F[Frontend React]
+    N -->|/api| B[Backend Spring Boot]
+    B -->|HTTP interno| A[AI Service FastAPI]
+    B -->|JDBC| P[(PostgreSQL)]
+    A -->|Joblib| M[Modelos ML]
+    F -.->|PWA| C[Service Worker]

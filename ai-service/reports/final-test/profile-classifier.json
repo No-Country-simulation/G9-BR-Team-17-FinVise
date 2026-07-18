@@ -1,0 +1,100 @@
+{
+  "model": "profile-classifier",
+  "model_version": "1.0.0",
+  "model_type": "RandomForest",
+  "evaluation_split": "TEST",
+  "dataset": "finance_ai_dataset/perfis_mensais.csv",
+  "features": [
+    "percentual_renda_comprometida",
+    "nivel_endividamento_pct",
+    "taxa_poupanca_pct",
+    "percentual_despesas_fixas",
+    "percentual_gastos_nao_essenciais",
+    "quantidade_despesas_recorrentes",
+    "quantidade_transacoes_despesa",
+    "variacao_despesas_pct",
+    "reserva_em_meses"
+  ],
+  "independence": {
+    "unit": "usuario_id",
+    "users_by_split": {
+      "TRAIN": 1050,
+      "VALIDATION": 225,
+      "TEST": 225
+    },
+    "overlap_users": {
+      "TRAIN_vs_VALIDATION": 0,
+      "TRAIN_vs_TEST": 0,
+      "VALIDATION_vs_TEST": 0
+    },
+    "passed": true,
+    "test_set_fingerprint_sha256": "756029b30bdb4e9d767ec1aa95f65d01e9dc6e4b887d7ebe75a52e9762e33eb7"
+  },
+  "metrics": {
+    "samples": 2700,
+    "correct_predictions": 2667,
+    "incorrect_predictions": 33,
+    "accuracy": 0.987778,
+    "balanced_accuracy": 0.988322,
+    "macro_precision": 0.986917,
+    "macro_recall": 0.988322,
+    "macro_f1": 0.987541,
+    "weighted_f1": 0.987819,
+    "confidence_intervals_95": {
+      "accuracy": {
+        "lower": 0.983704,
+        "upper": 0.991481
+      },
+      "macro_f1": {
+        "lower": 0.983331,
+        "upper": 0.991282
+      },
+      "weighted_f1": {
+        "lower": 0.983739,
+        "upper": 0.991503
+      }
+    },
+    "per_class": {
+      "EM_OBSERVACAO": {
+        "precision": 0.967742,
+        "recall": 0.992647,
+        "f1": 0.980036,
+        "support": 816
+      },
+      "EM_RISCO": {
+        "precision": 0.993976,
+        "recall": 0.990396,
+        "f1": 0.992183,
+        "support": 833
+      },
+      "SAUDAVEL": {
+        "precision": 0.999032,
+        "recall": 0.981922,
+        "f1": 0.990403,
+        "support": 1051
+      }
+    },
+    "labels": [
+      "EM_OBSERVACAO",
+      "EM_RISCO",
+      "SAUDAVEL"
+    ],
+    "confusion_matrix": [
+      [
+        810,
+        5,
+        1
+      ],
+      [
+        8,
+        825,
+        0
+      ],
+      [
+        19,
+        0,
+        1032
+      ]
+    ]
+  }
+}

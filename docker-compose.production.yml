@@ -1,0 +1,48 @@
+# Production override for a single OCI Compute Instance.
+# Use with: docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+# HTTP is exposed on port 80. Terminate TLS at the cloud load balancer
+# or add a dedicated Nginx TLS configuration with real certificates.
+
+services:
+  postgres:
+    restart: always
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  backend:
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  ai-service:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  nginx:
+    restart: always
+    ports: !override
+      - "80:80"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M

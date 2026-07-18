@@ -1,0 +1,48 @@
+﻿categoria,subcategoria,tipo_padrao,exemplos_estabelecimentos
+ALIMENTACAO,SUPERMERCADO,DESPESA,Carrefour | Assai Atacadista | Atacadao | Pao de Acucar | Mercado Sao Jose | Supermercado BH
+ALIMENTACAO,RESTAURANTE,DESPESA,iFood | Restaurante Sabor Caseiro | Burger King | McDonalds | Outback | Padaria Central
+ALIMENTACAO,CAFETERIA,DESPESA,Starbucks | Cafe do Ponto | Cafeteria Brasil | Casa do Pao de Queijo
+TRANSPORTE,COMBUSTIVEL,DESPESA,Posto Shell | Posto Ipiranga | Posto Petrobras | Posto Avenida
+TRANSPORTE,APLICATIVO,DESPESA,Uber | 99 App | Indrive
+TRANSPORTE,TRANSPORTE_PUBLICO,DESPESA,Metro | Bilhete Unico | Onibus Municipal
+TRANSPORTE,MANUTENCAO_VEICULO,DESPESA,Auto Center | Oficina do Carlos | Pneus Center | Lava Jato Premium
+SAUDE,FARMACIA,DESPESA,Drogasil | Pague Menos | Raia | Drogaria Sao Paulo
+SAUDE,CONSULTA,DESPESA,Clinica Vida | Centro Medico Popular | Consulta Particular
+SAUDE,PLANO_SAUDE,DESPESA,Unimed | Hapvida | Amil | SulAmerica Saude
+SAUDE,EXAMES,DESPESA,Laboratorio Exame | Diagnosticos Brasil | Lab Saude
+MORADIA,ALUGUEL,DESPESA,Imobiliaria Central | Aluguel Residencial | Locador Residencial
+MORADIA,ENERGIA,DESPESA,Conta de Energia | Enel | EDP | Cemig
+MORADIA,AGUA,DESPESA,Conta de Agua | Saneamento Municipal | Sabesp
+MORADIA,CONDOMINIO,DESPESA,Condominio Residencial | Administradora Condominial
+MORADIA,GAS,DESPESA,Conta de Gas | Ultragaz | Supergasbras
+EDUCACAO,CURSO,DESPESA,Udemy | Alura | Coursera | Curso Online Tech
+EDUCACAO,MENSALIDADE,DESPESA,Faculdade | Escola Particular | Universidade
+EDUCACAO,LIVROS,DESPESA,Amazon Livros | Saraiva | Livraria Cultura
+EDUCACAO,IDIOMAS,DESPESA,Open English | Wizard | Cultura Inglesa
+LAZER,STREAMING,DESPESA,Netflix | Spotify | Disney Plus | Max | Amazon Prime
+LAZER,CINEMA,DESPESA,Cinemark | UCI Cinema | Kinoplex
+LAZER,GAMES,DESPESA,Steam | PlayStation Store | Xbox | Nintendo
+LAZER,VIAGEM,DESPESA,Decolar | Booking | Hotel Urbano | Airbnb
+LAZER,EVENTOS,DESPESA,Sympla | Ingresso.com | Ticketmaster
+SERVICOS,INTERNET,DESPESA,Claro Internet | Vivo Fibra | Oi Fibra | TIM Ultrafibra
+SERVICOS,TELEFONIA,DESPESA,Vivo Movel | Claro Movel | TIM | Oi
+SERVICOS,SEGURO,DESPESA,Porto Seguro | Azul Seguros | Tokio Marine
+SERVICOS,ASSINATURA,DESPESA,Google One | Microsoft 365 | Adobe | Dropbox
+COMPRAS,ROUPAS,DESPESA,Renner | C&A | Riachuelo | Zara | Shein
+COMPRAS,ELETRONICOS,DESPESA,Kabum | Magazine Luiza | Casas Bahia | Amazon
+COMPRAS,CASA,DESPESA,Leroy Merlin | Tok Stok | MadeiraMadeira | Havan
+COMPRAS,BELEZA,DESPESA,O Boticario | Natura | Sephora | Salao de Beleza
+DIVIDAS,CARTAO,DESPESA,Pagamento Fatura Cartao | Fatura Nubank | Fatura Itaucard | Fatura Inter
+DIVIDAS,EMPRESTIMO,DESPESA,Parcela Emprestimo | Credito Pessoal | Emprestimo Consignado
+DIVIDAS,FINANCIAMENTO,DESPESA,Financiamento Veiculo | Financiamento Imovel | Parcela Financiamento
+INVESTIMENTOS,RENDA_FIXA,INVESTIMENTO,Aplicacao CDB | Tesouro Direto | LCI Investimento
+INVESTIMENTOS,FUNDO,INVESTIMENTO,Fundo de Investimento | Aplicacao Fundo
+INVESTIMENTOS,PREVIDENCIA,INVESTIMENTO,Previdencia Privada | Plano PGBL
+TRANSFERENCIAS,PIX,TRANSFERENCIA,Pix Enviado | Transferencia Pix | Pix para Contato
+TRANSFERENCIAS,TED,TRANSFERENCIA,TED Enviada | Transferencia Bancaria
+OUTROS,TAXA,DESPESA,Tarifa Bancaria | Taxa de Servico | Anuidade
+OUTROS,DOACAO,DESPESA,Doacao Instituicao | Contribuicao
+OUTROS,SAQUE,DESPESA,Saque Banco 24 Horas | Saque ATM
+RENDA,SALARIO,RECEITA,Salario Empresa | Credito Salario | Folha de Pagamento
+RENDA,FREELANCE,RECEITA,Pagamento Freelance | Servico Prestado | Projeto Autonomo
+RENDA,REEMBOLSO,RECEITA,Reembolso | Estorno Recebido | Restituicao

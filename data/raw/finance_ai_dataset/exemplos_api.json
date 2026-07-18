@@ -1,0 +1,172 @@
+{
+  "exemplo_1_analise_financeira": {
+    "method": "POST",
+    "endpoint": "/api/v1/financial-analyses",
+    "authentication": "Authorization: Bearer <token>",
+    "request": {
+      "monthlyIncome": 3282.53,
+      "debtLevelPercentage": 11.0,
+      "savingFrequency": "HIGH",
+      "financialReserve": 6000.0,
+      "transactions": [
+        {
+          "description": "TOKIO-MARINE SEGU",
+          "amount": 826.72,
+          "date": "2026-06-02",
+          "type": "EXPENSE",
+          "paymentMethod": "DIRECT_DEBIT",
+          "recurrent": true
+        },
+        {
+          "description": "Indrive",
+          "amount": 362.89,
+          "date": "2026-06-05",
+          "type": "EXPENSE",
+          "paymentMethod": "CREDIT_CARD",
+          "recurrent": false
+        },
+        {
+          "description": "DECOLAR",
+          "amount": 49.49,
+          "date": "2026-06-05",
+          "type": "EXPENSE",
+          "paymentMethod": "CREDIT_CARD",
+          "recurrent": false
+        },
+        {
+          "description": "Assai Atacadista",
+          "amount": 44.92,
+          "date": "2026-06-07",
+          "type": "EXPENSE",
+          "paymentMethod": "DEBIT_CARD",
+          "recurrent": false
+        },
+        {
+          "description": "Supergasbras",
+          "amount": 177.61,
+          "date": "2026-06-13",
+          "type": "EXPENSE",
+          "paymentMethod": "PIX",
+          "recurrent": false
+        }
+      ]
+    },
+    "response_esperada_aproximada": {
+      "success": true,
+      "data": {
+        "analysisId": "00000000-0000-0000-0000-000000000001",
+        "userId": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+        "financialProfile": {
+          "classification": "EM_OBSERVACAO",
+          "score": 68.0,
+          "confidence": 0.85,
+          "mainFactors": [
+            "Comprometimento da renda",
+            "Reserva financeira"
+          ]
+        },
+        "indicators": {
+          "monthlyIncome": 3282.53,
+          "totalExpenses": 1461.63,
+          "incomeCommitmentPercentage": 44.53,
+          "debtLevelPercentage": 11.0,
+          "estimatedSavingsRate": 10.0,
+          "recurringExpensesCount": 1,
+          "fixedExpensesPercentage": 56.56,
+          "nonEssentialExpensesPercentage": 28.24,
+          "reserveInMonths": 4.1
+        },
+        "spendingSummary": {
+          "TRANSPORTE": {
+            "amount": 362.89,
+            "percentage": 24.83
+          }
+        },
+        "classifiedTransactions": [],
+        "recommendations": [],
+        "modelVersions": {
+          "transactionClassifier": "FALLBACK",
+          "profileClassifier": "1.0.0"
+        },
+        "createdAt": "2026-07-16T20:00:00Z"
+      },
+      "message": null,
+      "timestamp": "2026-07-16T20:00:00Z"
+    },
+    "notes": "analysisId, timestamps, classificação, indicadores, recomendações e confiança variam conforme os dados e as versões dos modelos."
+  },
+  "exemplo_2_classificacao_transacao": {
+    "method": "POST",
+    "endpoint": "/api/v1/transactions/classify",
+    "authentication": "Authorization: Bearer <token>",
+    "request": {
+      "transactions": [
+        {
+          "description": "PGTO POSTO SHELL 0234",
+          "amount": 250.0,
+          "date": "2026-06-05",
+          "type": "EXPENSE",
+          "paymentMethod": "CREDIT_CARD",
+          "recurrent": false
+        }
+      ]
+    },
+    "response_esperada": {
+      "success": true,
+      "data": {
+        "classifiedTransactions": [
+          {
+            "id": null,
+            "description": "PGTO POSTO SHELL 0234",
+            "amount": 250.0,
+            "date": "2026-06-05",
+            "type": "EXPENSE",
+            "categoryCode": "TRANSPORTE",
+            "categoryName": "TRANSPORTE",
+            "confidence": 0.9913
+          }
+        ],
+        "modelVersion": "1.1.0"
+      },
+      "message": null,
+      "timestamp": "2026-07-16T20:00:00Z"
+    }
+  },
+  "exemplo_3_classificacao_transacao": {
+    "method": "POST",
+    "endpoint": "/api/v1/transactions/classify",
+    "authentication": "Authorization: Bearer <token>",
+    "request": {
+      "transactions": [
+        {
+          "description": "NETFLIX BR 8392",
+          "amount": 44.9,
+          "date": "2026-06-10",
+          "type": "EXPENSE",
+          "paymentMethod": "CREDIT_CARD",
+          "recurrent": true
+        }
+      ]
+    },
+    "response_esperada": {
+      "success": true,
+      "data": {
+        "classifiedTransactions": [
+          {
+            "id": null,
+            "description": "NETFLIX BR 8392",
+            "amount": 44.9,
+            "date": "2026-06-10",
+            "type": "EXPENSE",
+            "categoryCode": "LAZER",
+            "categoryName": "LAZER",
+            "confidence": 0.9176
+          }
+        ],
+        "modelVersion": "1.1.0"
+      },
+      "message": null,
+      "timestamp": "2026-07-16T20:00:00Z"
+    }
+  }
+}

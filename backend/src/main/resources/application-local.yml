@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/financeai}
+    username: ${DATABASE_USERNAME:financeai}
+    password: ${DATABASE_PASSWORD:financeai}
+  jpa:
+    show-sql: true
+  flyway:
+    clean-disabled: false
+
+logging:
+  level:
+    com.financeai.backend: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+
+finance-ai:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:local-development-secret-do-not-use-in-production-256-bits}

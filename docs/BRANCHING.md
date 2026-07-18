@@ -1,0 +1,69 @@
+# Estratégia de branches
+
+O projeto usa um fluxo de promoção com três branches permanentes:
+
+| Branch | Ambiente | Finalidade |
+| --- | --- | --- |
+| `dev` | Desenvolvimento | Integração contínua do trabalho da equipe |
+| `homolog` | Homologação | Validação funcional e aceite antes da produção |
+| `main` | Produção | Código aprovado e pronto para publicação |
+
+## Fluxo de desenvolvimento
+
+1. Atualize `dev` e crie uma branch curta a partir dela.
+2. Use um dos prefixos: `feature/`, `fix/`, `chore/`, `docs/`, `refactor/` ou `hotfix/`.
+3. Abra um PR da branch de trabalho para `dev`.
+4. Depois da integração e dos testes, abra um PR de `dev` para `homolog`.
+5. Após o aceite em homologação, abra um PR de `homolog` para `main`.
+6. O PR para `main` exige aprovação de `@lucasabreuzip`. Não é permitido push direto.
+
+Fluxo resumido:
+
+```text
+feature/* ou fix/* -> dev -> homolog -> main (produção)
+```
+
+## Regras de proteção recomendadas
+
+### `dev`
+
+- Alterações somente por pull request.
+- CI obrigatória.
+- Conversas do review devem estar resolvidas.
+
+### `homolog`
+
+- Aceitar PR somente de `dev`.
+- Alterações somente por pull request.
+- CI obrigatória.
+- Conversas do review devem estar resolvidas.
+
+### `main`
+
+- Aceitar PR somente de `homolog`.
+- Alterações somente por pull request.
+- Exigir pelo menos uma aprovação.
+- Exigir revisão do `CODEOWNERS` (`@lucasabreuzip`).
+- Invalidar aprovação quando novos commits forem enviados.
+- CI obrigatória e conversas resolvidas.
+- Bloquear force push e exclusão da branch.
+
+O workflow `Branch policy` valida automaticamente o caminho de promoção. O arquivo
+`CODEOWNERS` define o proprietário responsável pela aprovação de produção.
+
+## Convenção de commits
+
+Use mensagens objetivas no formato Conventional Commits:
+
+```text
+feat: adiciona importação de extrato
+fix: corrige cálculo do saldo mensal
+docs: documenta processo de homologação
+```
+
+## Correção urgente em produção
+
+Crie `hotfix/<descricao>` a partir de `dev`, valide normalmente e promova pelo mesmo
+caminho. Se a urgência exigir exceção ao fluxo, registre a justificativa no PR e faça
+a mudança somente com aprovação explícita do proprietário.
+

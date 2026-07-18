@@ -1,0 +1,84 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Secrets
+*.pem
+*.key
+*.crt
+config.*.json
+!config.example.json
+
+# Java / Maven
+backend/target/
+backend/*.log
+backend/.idea/
+backend/*.iml
+backend/.classpath
+backend/.project
+backend/.settings/
+
+# Python
+ai-service/__pycache__/
+ai-service/*.py[cod]
+ai-service/*$py.class
+ai-service/.venv/
+ai-service/venv/
+ai-service/.env
+ai-service/.pytest_cache/
+ai-service/.mypy_cache/
+ai-service/htmlcov/
+ai-service/coverage.xml
+ai-service/*.egg-info/
+ai-service/dist/
+ai-service/build/
+.ipynb_checkpoints/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/coverage/
+frontend/*.log
+frontend/.env
+
+# Datasets (large files)
+data/raw/**/*.csv
+data/raw/**/*.xlsx
+data/raw/**/*.zip
+data/processed/**/*.csv
+data/processed/**/*.joblib
+data/processed/**/*.pkl
+data/processed/**/*.parquet
+
+# Keep sample CSVs small (optional)
+!data/samples/*.csv
+
+# Models
+ai-service/models/**/*.joblib
+ai-service/models/**/*.pkl
+ai-service/models/**/*.json
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Backup files
+backups/
+*.dump
+*.sql.gz

@@ -1,0 +1,21 @@
+﻿arquivo,campo,tipo,descricao
+usuarios.csv,usuario_id,string,Identificador anônimo do usuário.
+usuarios.csv,renda_mensal_base,decimal,Renda mensal usada como base para geração dos meses.
+usuarios.csv,perfil_sintetico_base,categoria,Arquétipo usado apenas para controlar a geração sintética.
+usuarios.csv,split,categoria,"TRAIN, VALIDATION ou TEST; divisão feita por usuário."
+transacoes.csv,descricao_original,string,Descrição ruidosa semelhante a extratos bancários.
+transacoes.csv,descricao_normalizada,string,Descrição limpa para iniciar modelos de NLP.
+transacoes.csv,valor,decimal,Valor positivo da transação em reais.
+transacoes.csv,tipo,categoria,"DESPESA, RECEITA, INVESTIMENTO ou TRANSFERENCIA."
+transacoes.csv,categoria,target,Rótulo principal para classificação de transações.
+transacoes.csv,subcategoria,target,Rótulo mais específico da transação.
+transacoes.csv,recorrente,inteiro,1 para recorrente e 0 para não recorrente.
+perfis_mensais.csv,percentual_renda_comprometida,decimal,Total de despesas dividido pela renda mensal.
+perfis_mensais.csv,nivel_endividamento_pct,decimal,Percentual sintético de endividamento.
+perfis_mensais.csv,taxa_poupanca_pct,decimal,Investimento do mês dividido pela renda.
+perfis_mensais.csv,reserva_em_meses,decimal,Reserva financeira dividida pelas despesas essenciais.
+perfis_mensais.csv,score_financeiro,decimal,Score sintético de 0 a 100. Evite usar como feature ao prever perfil.
+perfis_mensais.csv,perfil_financeiro,target,"SAUDAVEL, EM_OBSERVACAO ou EM_RISCO."
+perfis_mensais.csv,confianca_perfil,decimal,Confiança sintética; evite usar como feature ao prever perfil.
+perfis_mensais.csv,fatores_risco,string,Explicações geradas pela regra sintética.
+perfis_mensais.csv,split,categoria,Mesma divisão do usuário para evitar vazamento.

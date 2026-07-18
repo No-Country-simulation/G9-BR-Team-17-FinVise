@@ -1,0 +1,48 @@
+name: Branch policy
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - homolog
+      - main
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-promotion-path:
+    name: Validate promotion path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate source and destination branches
+        shell: bash
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          case "$BASE_BRANCH" in
+            main)
+              test "$HEAD_BRANCH" = "homolog" || {
+                echo "PRs para main devem vir exclusivamente de homolog."
+                exit 1
+              }
+              ;;
+            homolog)
+              test "$HEAD_BRANCH" = "dev" || {
+                echo "PRs para homolog devem vir exclusivamente de dev."
+                exit 1
+              }
+              ;;
+            dev)
+              case "$HEAD_BRANCH" in
+                feature/*|fix/*|chore/*|docs/*|refactor/*|hotfix/*) ;;
+                *)
+                  echo "PRs para dev devem vir de uma branch de trabalho válida."
+                  exit 1
+                  ;;
+              esac
+              ;;
+          esac
+

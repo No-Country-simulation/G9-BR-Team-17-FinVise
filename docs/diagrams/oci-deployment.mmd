@@ -1,0 +1,11 @@
+graph TB
+    U[Usuário] -->|HTTPS 443| IG[Internet Gateway]
+    IG -->|80/443| NSG[Security List / NSG]
+    NSG --> VM[OCI Compute Instance Ubuntu]
+    VM -->|Docker Compose| N[Nginx]
+    N --> F[Frontend]
+    N --> B[Backend]
+    B --> P[(PostgreSQL)]
+    B --> A[AI Service]
+    A --> M[Modelos]
+    B -.->|opcional| OBS[OCI Object Storage]

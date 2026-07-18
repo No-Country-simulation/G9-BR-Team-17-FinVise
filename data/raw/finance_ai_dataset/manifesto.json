@@ -1,0 +1,39 @@
+{
+  "nome": "Finance AI Synthetic Dataset",
+  "versao": "1.0.0",
+  "seed": 20260715,
+  "periodo": {
+    "inicio": "2025-07",
+    "fim": "2026-06"
+  },
+  "quantidades": {
+    "usuarios": 1500,
+    "transacoes": 169546,
+    "perfis_mensais": 18000,
+    "categorias_subcategorias": 47
+  },
+  "categorias": {
+    "MORADIA": 34927,
+    "ALIMENTACAO": 34431,
+    "SERVICOS": 23917,
+    "RENDA": 20474,
+    "INVESTIMENTOS": 17759,
+    "OUTROS": 1571,
+    "COMPRAS": 5886,
+    "DIVIDAS": 4352,
+    "SAUDE": 5973,
+    "EDUCACAO": 4831,
+    "TRANSPORTE": 8984,
+    "LAZER": 6441
+  },
+  "perfis": {
+    "SAUDAVEL": 7276,
+    "EM_OBSERVACAO": 5518,
+    "EM_RISCO": 5206
+  },
+  "splits_transacoes": {
+    "TRAIN": 118636,
+    "VALIDATION": 25478,
+    "TEST": 25432
+  }
+}

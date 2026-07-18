@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant B as Backend Spring Boot
+    participant AI as AI Service FastAPI
+    participant M as Modelos
+
+    B->>AI: POST /internal/v1/transactions/classify
+    AI->>M: predict(text)
+    M-->>AI: category, confidence
+    AI-->>B: TransactionClassificationResult
+
+    B->>AI: POST /internal/v1/profiles/analyze
+    AI->>M: predict(features)
+    M-->>AI: profile, score, confidence
+    AI-->>B: ProfileAnalysisResult

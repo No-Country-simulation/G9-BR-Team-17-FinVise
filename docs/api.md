@@ -76,12 +76,36 @@ análise. As datas são opcionais.
 | GET | `/api/v1/transactions?source=CSV_IMPORT` | Lista transações paginadas por origem |
 | GET | `/api/v1/transactions/summary?source=CSV_IMPORT` | Retorna totais por origem |
 | GET | `/api/v1/transactions/monthly-summary?source=CSV_IMPORT` | Retorna a série mensal usada nos gráficos |
+| GET | `/api/v1/transactions/category-summary` | Retorna totais agrupados por categoria |
+| POST | `/api/v1/transactions/reclassify-imported` | Reclassifica transações importadas usando o AI Service |
 
 ### Importação
 
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
+| GET | `/api/v1/imports/sources` | Lista as fontes de importação disponíveis |
 | POST | `/api/v1/imports/transactions/csv` | Importa transações de CSV |
+
+#### Detalhes da importação de CSV
+
+Envie o arquivo CSV como `multipart/form-data` com o campo `file`:
+
+```bash
+curl -X POST -H "Authorization: Bearer <token>" \
+  -F "file=@transacoes.csv" \
+  http://localhost:8080/api/v1/imports/transactions/csv
+```
+
+**Formato esperado do CSV:**
+
+```csv
+descricao,valor,data,tipo,categoria
+Supermercado ABC,150.50,2026-07-01,EXPENSE,ALIMENTACAO
+Salário,3500.00,2026-07-01,INCOME,SALARIO
+```
+
+**Colunas obrigatórias:** `descricao`, `valor`, `data`, `tipo`  
+**Colunas opcionais:** `categoria`, `subcategoria`, `forma_pagamento`, `recorrente`, `canal`
 
 ### Open Finance
 
@@ -108,12 +132,21 @@ Corpo da sincronização:
 | GET | `/api/v1/users/{userId}/recommendations` | Recomendações ativas |
 | POST | `/api/v1/users/{userId}/simulations/savings` | Simula plano de poupança |
 
+### Relatórios
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/api/v1/reports/financial/{userId}` | Gera relatório financeiro completo do usuário |
+| POST | `/api/v1/reports/financial/{userId}/export` | Exporta relatório em PDF ou Excel |
+
 ### Agente financeiro
 
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
 | POST | `/api/v1/agent/conversations` | Cria uma conversa |
+| GET | `/api/v1/agent/conversations/{conversationId}` | Retorna detalhes da conversa |
 | POST | `/api/v1/agent/conversations/{conversationId}/messages` | Envia mensagem |
+| GET | `/api/v1/agent/conversations` | Lista todas as conversas do usuário |
 
 Ao criar uma conversa, envie a mesma origem selecionada na interface:
 

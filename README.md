@@ -100,11 +100,19 @@ python -m training.train_profile_classifier
 O notebook completo da entrega está em
 [`notebooks/finance_ai_data_science.ipynb`](notebooks/finance_ai_data_science.ipynb).
 
-Ele contém EDA, limpeza, tratamento textual e financeiro, prevenção de vazamento,
-engenharia de atributos, comparação de modelos, avaliação final em `TEST`, matrizes
-de confusão, explicabilidade e serialização. Para preservar os modelos usados pela
-aplicação, os artefatos experimentais são gravados separadamente em
-`ai-service/models/notebook-experiments/`.
+Ele contém:
+- **Análise Exploratória (EDA)** dos dados financeiros
+- **Limpeza e normalização** de transações
+- **Tratamento textual** de descrições normalizadas
+- **Engenharia de atributos** para ML
+- **Comparação de modelos** (Logistic Regression, Random Forest, SVM)
+- **Avaliação no split TEST** com métricas completas
+- **Matrizes de confusão** e análise de erros
+- **Explicabilidade** das classificações (SHAP, importância de features)
+- **Serialização** dos modelos em produção
+
+Para preservar os modelos usados pela aplicação, os artefatos experimentais são
+gravados separadamente em `ai-service/models/notebook-experiments/`.
 
 ```bash
 cd ai-service

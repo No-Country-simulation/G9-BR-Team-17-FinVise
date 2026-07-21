@@ -15,7 +15,18 @@ O projeto usa um fluxo de promoção com três branches permanentes:
 3. Abra um PR da branch de trabalho para `dev`.
 4. Depois da integração e dos testes, abra um PR de `dev` para `homolog`.
 5. Após o aceite em homologação, abra um PR de `homolog` para `main`.
-6. O PR para `main` exige aprovação de `@lucasabreuzip`. Não é permitido push direto.
+6. O PR para `main` exige aprovação exclusiva de `@lucasabreuzip`. Não é permitido push direto.
+
+## Fluxo operacional do time
+
+Para três desenvolvedores, o fluxo recomendado é:
+
+1. Cada dev cria sua branch de trabalho a partir de `dev`.
+2. O dev implementa a tarefa e abre PR para `dev`.
+3. O time revisa e integra em `dev`.
+4. Quando `dev` estiver estável, abre-se PR de `dev` para `homolog`.
+5. Após validação em `homolog`, abre-se PR de `homolog` para `main`.
+6. O PR para `main` fica aguardando a aprovação de `@lucasabreuzip`.
 
 Fluxo resumido:
 
@@ -43,7 +54,7 @@ feature/* ou fix/* -> dev -> homolog -> main (produção)
 - Aceitar PR somente de `homolog`.
 - Alterações somente por pull request.
 - Exigir pelo menos uma aprovação.
-- Exigir revisão do `CODEOWNERS` (`@lucasabreuzip`).
+- Exigir revisão do `CODEOWNERS` (`@lucasabreuzip`) como único aprovador permitido.
 - Invalidar aprovação quando novos commits forem enviados.
 - CI obrigatória e conversas resolvidas.
 - Bloquear force push e exclusão da branch.

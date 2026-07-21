@@ -16,6 +16,8 @@ Descreva resumidamente o que este PR entrega e por que a alteração é necessá
 - [ ] Sem segredos ou credenciais no código
 - [ ] Documentação atualizada, quando aplicável
 - [ ] PR aponta para a branch correta (`dev`, `homolog` ou `main`)
+- [ ] PR respeita o fluxo `feature/*|fix/*|chore/*|docs/*|refactor/*|hotfix/* -> dev -> homolog -> main`
+- [ ] Se o PR for para `main`, a aprovação será feita por `@lucasabreuzip`
 
 ## Evidências e riscos
 

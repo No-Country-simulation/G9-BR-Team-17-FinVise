@@ -115,6 +115,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", message, request, null);
     }
 
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleEmailAlreadyExists(EmailAlreadyExistsException ex,
+                                                             HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), request, null);
+    }
+
     private ResponseEntity<ApiError> buildResponse(HttpStatus status, String code, String message,
                                                    HttpServletRequest request, Map<String, String> details) {
         String traceId = UUID.randomUUID().toString();

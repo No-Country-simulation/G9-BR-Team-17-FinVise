@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml ./
 COPY app ./app
 COPY training ./training
-COPY models ./models
+RUN mkdir -p ./models
 COPY tests ./tests
 
 RUN pip install --upgrade pip && \

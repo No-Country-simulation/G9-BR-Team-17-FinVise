@@ -2,6 +2,9 @@ package com.financeai.backend.user;
 
 import com.financeai.backend.analysis.FinancialAnalysis;
 import com.financeai.backend.analysis.FinancialAnalysisRepository;
+import com.financeai.backend.auth.RegisterRequest;
+import com.financeai.backend.auth.RegisterResponse;
+import com.financeai.backend.common.exception.EmailAlreadyExistsException;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
 import com.financeai.backend.indicator.FinancialIndicator;
 import com.financeai.backend.indicator.FinancialIndicatorRepository;
@@ -10,6 +13,7 @@ import com.financeai.backend.indicator.SpendingSummaryRepository;
 import com.financeai.backend.recommendation.Recommendation;
 import com.financeai.backend.recommendation.RecommendationDto;
 import com.financeai.backend.recommendation.RecommendationRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,17 +37,21 @@ public class UserService {
     private final FinancialIndicatorRepository indicatorRepository;
     private final SpendingSummaryRepository spendingSummaryRepository;
     private final RecommendationRepository recommendationRepository;
+    private final PasswordEncoder passwordEncoder;
+
 
     public UserService(UserRepository userRepository,
                        FinancialAnalysisRepository analysisRepository,
                        FinancialIndicatorRepository indicatorRepository,
                        SpendingSummaryRepository spendingSummaryRepository,
-                       RecommendationRepository recommendationRepository) {
+                       RecommendationRepository recommendationRepository,
+                       PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.analysisRepository = analysisRepository;
         this.indicatorRepository = indicatorRepository;
         this.spendingSummaryRepository = spendingSummaryRepository;
         this.recommendationRepository = recommendationRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
@@ -141,6 +149,24 @@ public class UserService {
             additionalMonthlyEffort,
             projectedAnnualDifference
         );
+    }
+
+    @Transactional
+    public RegisterResponse register(RegisterRequest req) {
+        String normalizedEmail = req.email().trim().toLowerCase();
+
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            throw new EmailAlreadyExistsException(normalizedEmail);
+        }
+
+        User user = new User();
+        user.setName(req.fullName().trim());
+        user.setEmail(normalizedEmail);
+        user.setPasswordHash(passwordEncoder.encode(req.password()));
+
+        User saved = userRepository.save(user);
+
+        return RegisterResponse.from(saved);
     }
 
     private User findUser(UUID userId) {

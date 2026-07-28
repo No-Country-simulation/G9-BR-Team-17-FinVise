@@ -1,0 +1,22 @@
+name: Sync to Privado Repository
+
+on:
+  push:
+    branches:
+      - dev
+      - homolog
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Privado Repo
+        run: |
+          git remote add privado https://x-access-token:${{ secrets.PRIVADO_PAT || github.token }}@github.com/lucasabreuzip/G9-BR-Team-17-PRIVADO.git || true
+          git push privado HEAD:${{ github.ref_name }} --force || true

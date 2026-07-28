@@ -20,8 +20,8 @@ public class ResendPasswordResetEmailSender implements PasswordResetEmailSender 
     private final String fromAddress;
 
     public ResendPasswordResetEmailSender(
-            @Value("${resend-email.api-key}") String apiKey,
-            @Value("${resend-email.from-address}") String fromAddress
+            @Value("${resend-email.api-key:re_dummy_key}") String apiKey,
+            @Value("${resend-email.from-address:onboarding@resend.dev}") String fromAddress
     ) {
         this.fromAddress = fromAddress;
         this.restClient = RestClient.builder()

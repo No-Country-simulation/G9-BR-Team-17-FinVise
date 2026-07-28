@@ -1,4 +1,4 @@
-<h1 align="center">Plataforma de Inteligência Financeira IA</h1>
+<h1 align="center">FinVise — Plataforma de Inteligência Financeira IA</h1>
 
 <p align="center">
   <b>Transforme planilhas de transações e extratos em decisões estratégicas — diagnóstico executivo automático, ciência de dados e agente inteligente conversacional.</b>
@@ -26,13 +26,13 @@
 
 ---
 
-> *"O Finance AI não mostra apenas para onde o dinheiro foi. Ele explica o que está acontecendo e indica o próximo passo."*
+> *"O FinVise não mostra apenas para onde o dinheiro foi. Ele explica o que está acontecendo e indica o próximo passo."*
 
 ---
 
 ## 📌 Visão Geral
 
-O **Finance AI** é uma solução Fintech end-to-end desenvolvida para transformar transações financeiras brutas em diagnósticos executivos explicáveis e acionáveis. Através de algoritmos de Machine Learning, regras financeiras determinísticas e um Agente Conversacional (LLM), a plataforma capacita o usuário a entender seu comportamento financeiro e evoluir sua saúde financeira.
+O **FinVise** é uma solução Fintech end-to-end desenvolvida para transformar transações financeiras brutas em diagnósticos executivos explicáveis e acionáveis. Através de algoritmos de Machine Learning, regras financeiras determinísticas e um Agente Conversacional (LLM), a plataforma capacita o usuário a entender seu comportamento financeiro e evoluir sua saúde financeira.
 
 ### 🌟 Funcionalidades Principais
 
@@ -144,7 +144,7 @@ A plataforma inclui um `Makefile` configurado para automatizar todo o ciclo de v
 
 ## 🤖 Ciência de Dados & Machine Learning
 
-O pipeline de inteligência do **Finance AI** inclui EDA reproduzível, tratamento de linguagem natural para extratos bancários e explicabilidade de modelos.
+O pipeline de inteligência do **FinVise** inclui EDA reproduzível, tratamento de linguagem natural para extratos bancários e explicabilidade de modelos.
 
 ### Treinamento dos Modelos via Makefile
 

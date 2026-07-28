@@ -6,7 +6,7 @@ Aceito
 
 ## Contexto
 
-O Finance AI envolve frontend, backend, AI service, infraestrutura e documentação. Precisávamos decidir se usaríamos repositórios separados ou um monorepo.
+O FinVise envolve frontend, backend, AI service, infraestrutura e documentação. Precisávamos decidir se usaríamos repositórios separados ou um monorepo.
 
 ## Decisão
 

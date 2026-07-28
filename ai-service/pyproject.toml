@@ -1,9 +1,9 @@
 [project]
-name = "finance-ai-service"
+name = "finvise-ai-service"
 version = "1.0.0"
-description = "AI service for Finance AI — transaction/profile classification and financial assistant agent."
+description = "AI service for FinVise — transaction/profile classification and financial assistant agent."
 requires-python = ">=3.11"
-authors = [{ name = "Finance AI Team" }]
+authors = [{ name = "FinVise Team" }]
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",

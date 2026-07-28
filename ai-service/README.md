@@ -1,4 +1,4 @@
-# ai-service — Finance AI
+# ai-service — FinVise
 
 Serviço Python (FastAPI) responsável por:
 

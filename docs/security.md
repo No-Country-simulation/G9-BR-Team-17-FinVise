@@ -1,4 +1,4 @@
-# Segurança do Finance AI
+# Segurança do FinVise
 
 ## Visão geral
 

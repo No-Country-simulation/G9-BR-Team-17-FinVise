@@ -1,6 +1,6 @@
-# Dataset sintético — Finance AI
+# Dataset sintético — FinVise
 
-Dataset criado para iniciar o desenvolvimento e os testes do projeto **Finance AI — Assistente Inteligente de Saúde Financeira**.
+Dataset criado para iniciar o desenvolvimento e os testes do projeto **FinVise — Assistente Inteligente de Saúde Financeira**.
 
 ## Volume
 

@@ -1,4 +1,4 @@
-# Data Science no Finance AI
+# Data Science no FinVise
 
 ## Objetivos
 

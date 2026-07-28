@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Finance AI Service",
+    title="FinVise AI Service",
     version="1.0.0",
     description="AI service for transaction classification, profile analysis and financial assistant.",
     lifespan=lifespan,

@@ -1,6 +1,6 @@
-# Finance AI - Frontend
+# FinVise - Frontend
 
-Frontend da Fintech Finance AI construído com React 19.2, TypeScript, Vite e PWA.
+Frontend da Fintech FinVise construído com React 19.2, TypeScript, Vite e PWA.
 
 ## Tecnologias
 
@@ -48,7 +48,7 @@ Copie `.env.example` para `.env.local` e ajuste conforme necessário.
 
 ## Acesso demo
 
-- E-mail: `demo@financeai.com`
+- E-mail: `demo@finvise.com`
 - Senha: `demo123`
 
 O frontend espera o backend em `/api/v1` via Nginx. Em desenvolvimento, o Vite proxya requisições para o alvo configurado em `VITE_API_PROXY_TARGET`.

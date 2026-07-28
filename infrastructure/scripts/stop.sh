@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 cd "${PROJECT_ROOT}"
 
-echo "=== Stopping Finance AI ==="
+echo "=== Stopping FinVise ==="
 docker compose -f docker-compose.yml down
 
-echo "=== Finance AI stopped ==="
+echo "=== FinVise stopped ==="

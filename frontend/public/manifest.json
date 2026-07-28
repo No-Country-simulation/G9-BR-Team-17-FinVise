@@ -1,6 +1,6 @@
 {
-  "name": "Finance AI",
-  "short_name": "FinanceAI",
+  "name": "FinVise",
+  "short_name": "FinVise",
   "description": "Assistente inteligente para finanças pessoais",
   "start_url": "/",
   "display": "standalone",

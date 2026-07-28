@@ -1,6 +1,6 @@
-# Dados do Finance AI
+# Dados do FinVise
 
-Este diretório contém os dados utilizados pelo projeto Finance AI.
+Este diretório contém os dados utilizados pelo projeto FinVise.
 
 ## Estrutura
 

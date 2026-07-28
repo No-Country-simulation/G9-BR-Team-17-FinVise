@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 cd "${PROJECT_ROOT}"
 
-echo "=== Starting Finance AI ==="
+echo "=== Starting FinVise ==="
 
 if [[ ! -f .env ]]; then
     echo ".env file not found. Creating from .env.example..."
@@ -20,5 +20,5 @@ echo "=== Waiting for services ==="
 sleep 5
 bash "${SCRIPT_DIR}/health-check.sh"
 
-echo "=== Finance AI started ==="
+echo "=== FinVise started ==="
 echo "Local URL: http://localhost:8080"

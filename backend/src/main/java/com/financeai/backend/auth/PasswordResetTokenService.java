@@ -22,7 +22,7 @@ public class PasswordResetTokenService {
 
     private final SecretKey signingKey;
 
-    public PasswordResetTokenService(@Value("${security.jwt.secret}") String jwtSecret) {
+    public PasswordResetTokenService(@Value("${finance-ai.security.jwt.secret}") String jwtSecret) {
         this.signingKey = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 

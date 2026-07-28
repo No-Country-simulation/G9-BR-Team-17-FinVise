@@ -53,6 +53,8 @@ services:
       OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-false}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
       OBJECT_STORAGE_NAMESPACE: ${OBJECT_STORAGE_NAMESPACE:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS:-onboarding@resend.dev}
     networks:
       - finvise_internal
     healthcheck:

@@ -22,7 +22,7 @@ export function SettingsPage() {
     <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
-        <p className="text-slate-500">Personalize sua experiência no Finance AI</p>
+        <p className="text-slate-500">Personalize sua experiência no FinVise</p>
       </div>
 
       {saved && (

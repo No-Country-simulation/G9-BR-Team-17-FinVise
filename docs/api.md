@@ -1,4 +1,4 @@
-# API do Finance AI
+# API do FinVise
 
 ## Base URL
 

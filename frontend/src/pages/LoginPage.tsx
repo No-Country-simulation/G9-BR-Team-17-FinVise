@@ -34,7 +34,7 @@ export function LoginPage() {
   });
 
   const fillDemoCredentials = () => {
-    setValue('email', 'demo@financeai.com');
+    setValue('email', 'demo@finvise.com');
     setValue('password', 'demo123');
   };
 
@@ -63,7 +63,7 @@ export function LoginPage() {
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-600 text-white">
             <Wallet className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Finance AI</h1>
+          <h1 className="text-2xl font-bold text-slate-900">FinVise</h1>
           <p className="text-sm text-slate-500">Assistente inteligente para suas finanças</p>
         </div>
 
@@ -79,7 +79,7 @@ export function LoginPage() {
             <label className="mb-1 block text-sm font-medium text-slate-700">E-mail</label>
             <Input
               type="email"
-              placeholder="demo@financeai.com"
+              placeholder="demo@finvise.com"
               autoComplete="email"
               {...register('email')}
               error={errors.email?.message}
@@ -115,7 +115,7 @@ export function LoginPage() {
         <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
           <p className="text-xs text-slate-500">Acesso de demonstração</p>
           <p className="text-sm font-medium text-slate-700">
-            E-mail: demo@financeai.com / Senha: demo123
+            E-mail: demo@finvise.com / Senha: demo123
           </p>
           <Button
             type="button"

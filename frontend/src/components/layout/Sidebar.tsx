@@ -57,7 +57,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
       >
         <div className="mobile-safe-top flex min-h-16 items-center justify-between border-b border-slate-200 px-5 lg:px-6">
-          <span className="text-xl font-bold text-primary-600">Finance AI</span>
+          <span className="text-xl font-bold text-primary-600">FinVise</span>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose} aria-label="Fechar menu">
             <X className="h-5 w-5" />
           </Button>

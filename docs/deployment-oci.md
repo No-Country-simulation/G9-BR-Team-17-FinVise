@@ -2,7 +2,7 @@
 
 ## Visão geral
 
-A produção do Finance AI roda em uma única OCI Compute Instance Ubuntu com Docker Compose.
+A produção do FinVise roda em uma única OCI Compute Instance Ubuntu com Docker Compose.
 
 ## Infraestrutura na OCI
 

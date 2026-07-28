@@ -1,8 +1,10 @@
-# Arquitetura do Finance AI
+# Arquitetura do FinVise
+
+> Documentação oficial de arquitetura, fluxo de dados e comunicação entre componentes do **FinVise**.
 
 ## Visão geral
 
-O Finance AI é um assistente inteligente de saúde financeira. A proposta central é ir além de mostrar para onde o dinheiro foi: ele explica o que está acontecendo e indica o próximo passo.
+O FinVise é um assistente inteligente de saúde financeira. A proposta central é ir além de mostrar para onde o dinheiro foi: ele explica o que está acontecendo e indica o próximo passo.
 
 A solução é composta por três aplicações principais:
 

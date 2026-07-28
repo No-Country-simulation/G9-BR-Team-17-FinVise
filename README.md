@@ -1,229 +1,250 @@
-# Finance AI — Assistente Inteligente de Saúde Financeira
+<h1 align="center">Plataforma de Inteligência Financeira IA</h1>
 
-> "O Finance AI não mostra apenas para onde o dinheiro foi. Ele explica o que está acontecendo e indica o próximo passo."
+<p align="center">
+  <b>Transforme planilhas de transações e extratos em decisões estratégicas — diagnóstico executivo automático, ciência de dados e agente inteligente conversacional.</b>
+</p>
 
-## Visão geral
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+" />
+  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Java_21-Spring_Boot_3-6DB33F?style=for-the-badge&logo=spring&logoColor=white" alt="Java 21 Spring Boot 3" />
+  <img src="https://img.shields.io/badge/React_19-Vite_7-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 16" />
+  <img src="https://img.shields.io/badge/OpenAI_/_LLM-412991?style=for-the-badge&logo=openai&logoColor=white" alt="OpenAI" />
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose" />
+</p>
 
-O Finance AI é uma aplicação Fintech que transforma transações e informações financeiras em:
+<p align="center">
+  <a href="#-visão-geral">Visão Geral</a> •
+  <a href="#%EF%B8%8F-arquitetura">Arquitetura</a> •
+  <a href="#-tecnologias">Tecnologias</a> •
+  <a href="#-instalação-rápida">Instalação Rápida</a> •
+  <a href="#-ciência-de-dados--machine-learning">Machine Learning</a> •
+  <a href="#-endpoints-da-api">Endpoints</a> •
+  <a href="#-documentação">Documentação</a>
+</p>
 
-1. Classificação automática de transações
-2. Resumo de gastos por categoria
-3. Identificação de padrões de consumo
-4. Indicadores de saúde financeira
-5. Classificação do perfil financeiro
-6. Recomendações simples e explicáveis
-7. Interação com um agente financeiro inteligente
-8. Histórico mensal da evolução financeira
+---
 
-## Arquitetura
+> *"O Finance AI não mostra apenas para onde o dinheiro foi. Ele explica o que está acontecendo e indica o próximo passo."*
 
-Monorepo com três aplicações principais:
+---
 
-- **frontend** — React + TypeScript + Vite + PWA
-- **backend** — Java 21 + Spring Boot 3 + PostgreSQL
-- **ai-service** — Python + FastAPI + Pandas + Scikit-learn
+## 📌 Visão Geral
 
+O **Finance AI** é uma solução Fintech end-to-end desenvolvida para transformar transações financeiras brutas em diagnósticos executivos explicáveis e acionáveis. Através de algoritmos de Machine Learning, regras financeiras determinísticas e um Agente Conversacional (LLM), a plataforma capacita o usuário a entender seu comportamento financeiro e evoluir sua saúde financeira.
+
+### 🌟 Funcionalidades Principais
+
+- 🏷️ **Classificação Automática de Transações**: Categorização inteligente baseada em modelos de ML treinados e processamento de texto.
+- 📊 **Resumo de Gastos e Séries Temporais**: Visão consolidada por categoria, origem de dados (CSV ou Open Finance) e evolução mensal.
+- 📈 **Indicadores de Saúde Financeira**: Cálculo de pontuação e métricas de sustentabilidade orçamentária.
+- 👤 **Classificação de Perfil Financeiro**: Identificação automática do perfil do usuário por ML ou Regras Financeiras.
+- 💡 **Recomendações Explicáveis e Personalizadas**: Dicas acionáveis orientadas ao perfil e hábitos de consumo identificados.
+- 💬 **Agente Financeiro Inteligente (LLM)**: Chat em tempo real que conversa contextualmente com os dados financeiros do usuário.
+- 🔗 **Open Finance (Pluggy Integration)**: Conexão direta com instituições bancárias mantendo credenciais protegidas server-side.
+- 🛑 **Anti-Duplicação por Hash SHA-256**: Bloqueio de importações repetidas de planilhas CSV para garantia da integridade dos dados.
+
+---
+
+## 🏗️ Arquitetura
+
+O projeto é estruturado como um **Monorepo** desacoplado, resiliente e escalável:
+
+```text
+                           ┌───────────────────────────┐
+                           │          Usuário          │
+                           └─────────────┬─────────────┘
+                                         │ HTTPS
+                                         ▼
+                           ┌───────────────────────────┐
+                           │     Nginx Reverse Proxy   │
+                           └──────┬─────────────┬──────┘
+                                  │             │
+                    ┌─────────────┘             └─────────────┐
+                    ▼                                         ▼
+   ┌─────────────────────────────────┐       ┌─────────────────────────────────┐
+   │        frontend (React 19)      │       │     backend (Spring Boot 3)     │
+   │      TypeScript + Vite + PWA    │       │     Java 21 + PostgreSQL 16    │
+   └─────────────────────────────────┘       └────────────────┬────────────────┘
+                                                              │
+                                                              ▼
+                                             ┌─────────────────────────────────┐
+                                             │     ai-service (FastAPI)        │
+                                             │  Python + Scikit-Learn + LLM    │
+                                             └─────────────────────────────────┘
 ```
-Usuário
-   ↓ HTTPS
-Nginx
-   ├── /                 → frontend
-   └── /api              → backend Spring Boot
-                                ↓
-                         ai-service FastAPI
-                                ↓
-                         modelos de ML
-```
 
-A comunicação detalhada está em `docs/architecture.md`.
+### Componentes
 
-## Pré-requisitos
+- **`frontend`**: Interface reativa e moderna construída com React 19, Vite 7, TypeScript e suporte a Progressive Web App (PWA).
+- **`backend`**: API RESTful robusta desenvolvida em Java 21 com Spring Boot 3, JPA/Hibernate, segurança JWT e banco PostgreSQL 16.
+- **`ai-service`**: Microserviço em Python (FastAPI) responsável pela inferência de ML, engenharia de atributos, explicabilidade (SHAP) e agente LLM.
 
-- Docker e Docker Compose
-- Java 21+ (para backend local)
-- Maven (wrapper incluído)
-- Python 3.11+ (para ai-service local)
-- Node.js 22.12+ (para frontend local com React 19.2 e Vite 7)
+---
 
-## Instalação rápida
+## 🛠️ Tecnologias
+
+| Camada | Tecnologia | Versão | Descrição |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | React, Vite, TypeScript | React 19 / Vite 7 | Interface SPA e PWA responsiva e dinâmica |
+| **Backend** | Java, Spring Boot | Java 21 / Spring 3.x | Regras de negócio, autenticação JWT e integrações |
+| **Database** | PostgreSQL | 16 | Banco de dados relacional e persistência financeira |
+| **AI / ML** | Python, FastAPI, Scikit-Learn | Python 3.11+ / FastAPI | Classificação de transações, perfis e inteligência |
+| **LLM / Agente** | OpenAI API / LangChain | GPT-4o / GPT-3.5 | Agente conversacional que analisa dados em tempo real |
+| **Infraestrutura** | Docker, Docker Compose, Nginx | Latest | Conteinerização completa e roteamento seguro |
+
+---
+
+## ⚡ Instalação Rápida
+
+### Pré-requisitos
+
+- **Docker** e **Docker Compose** instalados
+- *(Opcional para desenvolvimento local sem Docker)*: Java 21+, Python 3.11+, Node.js 22.12+
+
+### Passos para Execução
 
 ```bash
-# Clone o repositório
-git clone <repo>
-cd finance-ai
+# 1. Clone o repositório
+git clone https://github.com/No-Country-simulation/G9-BR-Team-17-FinVise.git
+cd G9-BR-Team-17-FinVise
 
-# Crie o .env a partir do exemplo
+# 2. Configure as variáveis de ambiente
 cp .env.example .env
 
-# Gere amostras do dataset
+# 3. Gere as amostras do dataset de treino
 python data/scripts/create_samples.py
 
-# Suba a aplicação
+# 4. Inicie todos os serviços via Docker Compose
 make up
 ```
 
-Acesse: http://localhost:8080
+Acesse a aplicação no navegador em: **`http://localhost:8080`**
 
-## Comandos úteis
+---
 
-```bash
-make setup     # Cria .env e amostras
-make build     # Builda todos os containers
-make up        # Sobe a aplicação
-make down      # Para a aplicação
-make logs      # Acompanha logs
-make test      # Executa todos os testes
-make health    # Verifica saúde dos serviços
-make backup    # Backup do PostgreSQL
-make restore   # Restore do PostgreSQL
-```
+## 🛠️ Comandos Úteis (`Makefile`)
 
-## Treinamento dos modelos
+A plataforma inclui um `Makefile` configurado para automatizar todo o ciclo de vida do desenvolvimento:
 
-```bash
-make train-transaction-model
-make train-profile-model
-make evaluate-models
-```
+| Comando | Descrição |
+| :--- | :--- |
+| `make setup` | Cria o arquivo `.env` e gera os dados de amostra iniciais |
+| `make build` | Constrói todas as imagens Docker dos microserviços |
+| `make up` | Inicia os containers em segundo plano |
+| `make down` | Interrompe e remove os containers ativos |
+| `make logs` | Exibe os logs unificados em tempo real |
+| `make test` | Executa a suíte completa de testes (Backend, Frontend e AI) |
+| `make health` | Verifica a saúde operacional de todas as APIs |
+| `make backup` | Executa backup do banco PostgreSQL |
+| `make restore` | Restaura o banco PostgreSQL a partir de um backup |
 
-Ou manualmente:
+---
 
-```bash
-cd ai-service
-python -m training.prepare_dataset
-python -m training.train_transaction_classifier
-python -m training.train_profile_classifier
-```
+## 🤖 Ciência de Dados & Machine Learning
 
-## Notebook de Ciência de Dados
+O pipeline de inteligência do **Finance AI** inclui EDA reproduzível, tratamento de linguagem natural para extratos bancários e explicabilidade de modelos.
 
-O notebook completo da entrega está em
-[`notebooks/finance_ai_data_science.ipynb`](notebooks/finance_ai_data_science.ipynb).
-
-Ele contém:
-- **Análise Exploratória (EDA)** dos dados financeiros
-- **Limpeza e normalização** de transações
-- **Tratamento textual** de descrições normalizadas
-- **Engenharia de atributos** para ML
-- **Comparação de modelos** (Logistic Regression, Random Forest, SVM)
-- **Avaliação no split TEST** com métricas completas
-- **Matrizes de confusão** e análise de erros
-- **Explicabilidade** das classificações (SHAP, importância de features)
-- **Serialização** dos modelos em produção
-
-Para preservar os modelos usados pela aplicação, os artefatos experimentais são
-gravados separadamente em `ai-service/models/notebook-experiments/`.
+### Treinamento dos Modelos via Makefile
 
 ```bash
-cd ai-service
-pip install -e .
-pip install jupyter matplotlib
-jupyter lab ../notebooks/finance_ai_data_science.ipynb
+make train-transaction-model   # Treina o classificador de transações
+make train-profile-model       # Treina o classificador de perfil financeiro
+make evaluate-models           # Executa a avaliação completa de métricas
 ```
 
-## Testes
+### Notebook de Ciência de Dados
 
-### Backend
+O notebook oficial da entrega está localizado em [`notebooks/finance_ai_data_science.ipynb`](notebooks/finance_ai_data_science.ipynb).
+
+**O notebook cobre:**
+- **Análise Exploratória de Dados (EDA)** detalhada de transações e padrões de gastos
+- **Limpeza e Normalização Textual** das descrições de lançamentos bancários
+- **Engenharia de Atributos (Feature Engineering)** para extração de sinais financeiros
+- **Benchmark de Algoritmos**: Regressão Logística, Random Forest e SVM
+- **Avaliação em Split de Teste** com matrizes de confusão e métricas F1-Score
+- **Explicabilidade de Decisão** utilizando SHAP (*SHapley Additive exPlanations*) e Feature Importance
+- **Serialização de Modelos** e empacotamento de artefatos para a API de produção
+
+---
+
+## 🔌 Open Finance & Importação CSV
+
+A aplicação oferece duas formas independentes de ingestão de dados financeiros:
+
+1. **Importação via Planilhas CSV**:
+   - Suporte a extratos bancários padrão.
+   - Bloqueio de arquivos duplicados por verificação de **Hash SHA-256**.
+2. **Conexão Direta Open Finance (Pluggy)**:
+   - O backend gera o token seguro (`Connect Token`) sem expor credenciais no cliente.
+   - Sincronização automática de contas e transações via webhook ou polling.
+   - Evita dados duplicados por mapeamento de identificadores externos únicos.
+
+---
+
+## 🌐 Endpoints da API
+
+A documentação detalhada de endpoints está em [`docs/api.md`](docs/api.md). Principais rotas:
+
+| Método | Endpoint | Descrição |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/login` | Autenticação de usuário e emissão de JWT |
+| `POST` | `/api/v1/financial-analyses` | Solicita nova análise financeira |
+| `GET` | `/api/v1/financial-analyses/models` | Lista os modelos de perfil disponíveis (`MACHINE_LEARNING` / `FINANCIAL_RULES`) |
+| `POST` | `/api/v1/financial-analyses/from-transactions` | Analisa a base de transações persistidas |
+| `GET` | `/api/v1/transactions/monthly-summary` | Resumo mensal segregado por origem (CSV / Open Finance) |
+| `POST` | `/api/v1/open-finance/connect-token` | Gera token para o widget Pluggy Connect |
+| `POST` | `/api/v1/agent/conversations` | Inicia conversa com o Agente Financeiro IA |
+| `POST` | `/api/v1/agent/conversations/{id}/messages` | Envia mensagem para o Agente |
+| `GET` | `/api/v1/model-status` | Status de prontidão dos modelos de ML |
+| `GET` | `/actuator/health` | Health Check da aplicação |
+
+---
+
+## 🧪 Suíte de Testes
+
+Para garantir a qualidade e estabilidade do código, execute os testes por componente:
 
 ```bash
-cd backend
-./mvnw test
+# Testes do Backend (Spring Boot / Maven)
+cd backend && ./mvnw test
+
+# Testes do AI Service (pytest)
+cd ai-service && python -m pytest tests/ -v
+
+# Testes do Frontend (Vitest / React Testing Library)
+cd frontend && npm run test -- --run
 ```
 
-### AI Service
+---
 
-```bash
-cd ai-service
-python -m pytest tests/ -v
-```
+## 📚 Documentação Técnica
 
-### Frontend
+- 📐 **[Arquitetura do Sistema](docs/architecture.md)** — Relações entre serviços e diagramas
+- 📑 **[Documentação da API](docs/api.md)** — Especificação OpenAPI e contratos DTO
+- 🔬 **[Ciência de Dados](docs/data-science.md)** — Detalhes dos hiperparâmetros e métricas dos modelos
+- 📓 **[Jupyter Notebook](notebooks/finance_ai_data_science.ipynb)** — Experimentos de ML reproduzíveis
+- ☁️ **[Guia de Deploy OCI](docs/deployment-oci.md)** — Implantação em instância Ubuntu na Oracle Cloud
+- 🔒 **[Práticas de Segurança](docs/security.md)** — Criptografia, autenticação e proteção de dados
 
-```bash
-cd frontend
-npm run test -- --run
-```
+---
 
-## Endpoints principais
+## 🛡️ Segurança
 
-- `POST /api/v1/auth/login` — Login
-- `POST /api/v1/financial-analyses` — Nova análise
-- `GET /api/v1/financial-analyses/models` — Modelos de perfil disponíveis
-- `POST /api/v1/financial-analyses/from-transactions` — Analisa as transações persistidas
-- `GET /api/v1/transactions/monthly-summary?source=CSV_IMPORT` — Série mensal separada por origem
-- `GET /api/v1/financial-analyses/{analysisId}` — Detalhes da análise
-- `GET /api/v1/open-finance/status` — Status da integração Open Finance
-- `POST /api/v1/open-finance/connect-token` — Token para abrir o Pluggy Connect
-- `POST /api/v1/open-finance/items/{itemId}/sync` — Sincroniza e analisa um item conectado
-- `GET /api/v1/users/{userId}/dashboard` — Dashboard
-- `GET /api/v1/users/{userId}/recommendations` — Recomendações
-- `POST /api/v1/agent/conversations` — Criar conversa
-- `POST /api/v1/agent/conversations/{conversationId}/messages` — Enviar mensagem
-- `GET /api/v1/model-status` — Status dos modelos
-- `GET /actuator/health` — Health check
+- 🔑 **Senhas Protegidas**: Criptografia forte com algoritmos BCrypt.
+- 🛂 **Autenticação JWT**: Controle de sessão via tokens assinados e expiráveis.
+- 🛡️ **Proteção Nginx**: Rate limiting e adição de headers HTTP de segurança.
+- 🔒 **Isolamento de Credenciais**: Váriaveis sensíveis gerenciadas estritamente via `.env` (ignorado no versionamento).
 
-Documentação completa da API em `docs/api.md`.
+---
 
-## Variáveis de ambiente
+## 📜 Licença
 
-Veja `.env.example` para a lista completa. Principais:
+Distribuído sob a licença **MIT**. Veja o arquivo [`LICENSE`](LICENSE) para mais detalhes.
 
-- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
-- `JWT_SECRET`
-- `AI_SERVICE_URL`
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-- `ENABLE_LLM`, `LLM_API_KEY`, `LLM_MODEL`
-- `OBJECT_STORAGE_ENABLED`, `OBJECT_STORAGE_BUCKET`
-- `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` — credenciais server-side do Open Finance
-- `OPEN_FINANCE_WEBHOOK_URL`, `OPEN_FINANCE_OAUTH_REDIRECT_URL` — URLs públicas opcionais do fluxo Pluggy
+---
 
-## Análise de perfil e Open Finance
-
-Depois da importação CSV, o sistema persiste e classifica as transações e executa automaticamente o modelo de perfil escolhido. CSV e Open Finance são origens independentes em transações, indicadores, gráficos, análises e conversas do agente. Arquivos CSV idênticos são bloqueados por hash SHA-256 para evitar totais duplicados. Também é possível reanalisar a base existente, com período opcional, usando um dos modelos:
-
-- `MACHINE_LEARNING` — modelo treinado para combinar padrões financeiros.
-- `FINANCIAL_RULES` — regras determinísticas e explicáveis de saúde financeira.
-
-Para habilitar o Open Finance, crie uma aplicação na Pluggy e preencha `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` no `.env`. O backend mantém as credenciais fora do navegador, emite o Connect Token, sincroniza contas e transações, evita duplicatas pelo identificador externo e gera a análise escolhida ao concluir a conexão.
-
-## Deploy
-
-O deploy em produção é feito em uma única OCI Compute Instance Ubuntu com Docker Compose.
-
-Veja o guia completo em `docs/deployment-oci.md`.
-
-## Documentação
-
-- `docs/architecture.md` — Arquitetura e diagramas
-- `docs/api.md` — Documentação da API
-- `docs/data-science.md` — Modelos de ML
-- `notebooks/finance_ai_data_science.ipynb` — EDA, treinamento e avaliação reproduzível
-- `docs/deployment-oci.md` — Deploy na OCI
-- `docs/security.md` — Práticas de segurança
-- `docs/adr/` — Registro de decisões arquiteturais
-
-## Segurança
-
-- Senhas hasheadas com BCrypt
-- Autenticação JWT
-- CORS configurável
-- Rate limiting no Nginx
-- Headers de segurança
-- Logs estruturados sem dados sensíveis
-- Segredos via `.env` (ignorado pelo Git)
-
-Mais detalhes em `docs/security.md`.
-
-## Dataset
-
-O dataset sintético está em `data/raw/finance_ai_dataset/`.
-
-Arquivos grandes estão ignorados pelo Git. Amostras pequenas estão em `data/samples/`.
-
-## Licença
-
-MIT — veja `LICENSE`.
-
-## Disclaimer
-
-As respostas do agente financeiro possuem caráter educacional e não substituem aconselhamento financeiro profissional.
+<p align="center">
+  <sub><i>Disclaimer: As orientações e respostas geradas pelo Agente Financeiro possuem caráter puramente educacional e informativo, não substituindo o aconselhamento de um profissional financeiro certificado.</i></sub>
+</p>

@@ -11,10 +11,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
@@ -26,15 +23,20 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final PasswordResetService passwordResetService;
+
 
     public AuthController(AuthenticationManager authenticationManager,
                           JwtUtil jwtUtil,
                           UserRepository userRepository,
-                          UserService userService) {
+                          UserService userService,
+                          PasswordResetService passwordResetService) {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
         this.userService = userService;
+        this.passwordResetService = passwordResetService;
+
     }
 
     @PostMapping("/register")
@@ -69,4 +71,32 @@ public class AuthController {
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<GenericMessageResponse> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+        passwordResetService.requestPasswordReset(request.email());
+        return ResponseEntity.ok(GenericMessageResponse.forgotPasswordDefault());
+    }
+
+    @PostMapping("/validate-reset-code")
+    public ResponseEntity<ValidateResetCodeResponse> validateResetCode(
+            @Valid @RequestBody ValidateResetCodeRequest request
+    ) {
+        ValidateResetCodeResponse response =
+                passwordResetService.validateResetCode(request.email(), request.code());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<GenericMessageResponse> resetPassword(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+        String resetToken = authorizationHeader.replaceFirst("(?i)^Bearer\\s+", "");
+        passwordResetService.resetPassword(resetToken, request.newPassword());
+        return ResponseEntity.ok(new GenericMessageResponse("Senha atualizada com sucesso."));
+    }
+
 }

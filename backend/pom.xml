@@ -121,6 +121,12 @@
             <artifactId>oci-java-sdk-common</artifactId>
             <version>${oci-sdk.version}</version>
         </dependency>
+        <!--RESEND-->
+        <dependency>
+            <groupId>com.resend</groupId>
+            <artifactId>resend-java</artifactId>
+            <version>LATEST</version>
+        </dependency>
 
         <!-- Testing -->
         <dependency>

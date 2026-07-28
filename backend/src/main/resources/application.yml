@@ -76,6 +76,9 @@ finance-ai:
       namespace: ${OCI_NAMESPACE:}
       bucket-name: ${OCI_BUCKET_NAME:}
       region: ${OCI_REGION:}
+  resend-email:
+    api-key: ${RESEND_API_KEY:}
+    from-address: ${RESEND_FROM_ADDRESS:}
 
 springdoc:
   api-docs:

@@ -4,6 +4,8 @@ package com.financeai.backend.auth;
 import com.financeai.backend.user.User;
 
 import java.time.Instant;
+import java.util.UUID;
+
 
 public record RegisterResponse(
         UUID userId,

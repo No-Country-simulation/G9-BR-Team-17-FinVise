@@ -18,3 +18,7 @@ finance-ai:
   security:
     jwt:
       secret: test-secret-key-min-256-bits-for-jwt-signing-only
+
+resend-email:
+  api-key: ${RESEND_API_KEY:re_dummy_test_key}
+  from-address: ${RESEND_FROM_ADDRESS:onboarding@resend.dev}

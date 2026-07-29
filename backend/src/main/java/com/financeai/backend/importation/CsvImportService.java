@@ -41,17 +41,20 @@ public class CsvImportService {
     private final ImportedFileRepository importedFileRepository;
     private final UserRepository userRepository;
     private final ObjectStorageService objectStorageService;
+    private final com.financeai.backend.rag.RagIngestionService ragIngestionService;
 
     public CsvImportService(TransactionRepository transactionRepository,
                             TransactionCategorizationService categorizationService,
                             ImportedFileRepository importedFileRepository,
                             UserRepository userRepository,
-                            ObjectStorageService objectStorageService) {
+                            ObjectStorageService objectStorageService,
+                            com.financeai.backend.rag.RagIngestionService ragIngestionService) {
         this.transactionRepository = transactionRepository;
         this.categorizationService = categorizationService;
         this.importedFileRepository = importedFileRepository;
         this.userRepository = userRepository;
         this.objectStorageService = objectStorageService;
+        this.ragIngestionService = ragIngestionService;
     }
 
     @Transactional
@@ -117,6 +120,7 @@ public class CsvImportService {
             TransactionCategorizationService.CategorizationResult categorization =
                 categorizationService.categorize(transactions);
             transactionRepository.saveAll(transactions);
+            ragIngestionService.ingestTransactions(userId, "CSV_IMPORT", importedFile.getId().toString(), transactions);
             processedCount = transactions.size();
             categorizedCount = categorization.categorizedCount();
             classificationModel = categorization.modelVersion();

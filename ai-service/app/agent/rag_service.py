@@ -211,17 +211,14 @@ class RAGService:
             logger.warning("Embedding indexing step skipped/failed: %s", exc)
         return total_updated
 
-    def retrieve_context(self, user_id: str, query: str, limit: int = 10) -> list[dict[str, Any]]:
+    def retrieve_context(self, user_id: str, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """
-        Retrieves relevant transaction/financial chunks for the user from PostgreSQL RAG store.
-        Uses pgvector similarity search (distance <=>) when available, falling back to timestamp ordering.
+        Fast, non-blocking retrieval of relevant transaction/financial chunks for the user from PostgreSQL RAG store.
+        Uses pgvector similarity search (distance <=>) when available, falling back to chronological ordering.
         """
         if not user_id:
             logger.warning("RAG search called without user_id")
             return []
-
-        # Tenta indexar vetores pendentes antes da busca
-        self.index_unembedded_chunks(user_id)
 
         try:
             with self._get_connection() as conn:

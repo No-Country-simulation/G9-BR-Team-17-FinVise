@@ -72,4 +72,9 @@ export const transactionService = {
       categorizedCount: response.data.categorizedCount,
     };
   },
+
+  async triggerRagIndexStep(): Promise<{ indexedCount: number; status: string }> {
+    const { data } = await api.post<{ indexedCount: number; status: string }>('/rag/index-step');
+    return data;
+  },
 };

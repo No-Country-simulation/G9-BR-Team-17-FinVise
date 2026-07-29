@@ -58,10 +58,11 @@ class RagIngestionServiceTest {
 
         verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
 
-        ArgumentCaptor<RagDocument> docCaptor = ArgumentCaptor.forClass(RagDocument.class);
-        verify(ragDocumentRepository).save(docCaptor.capture());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RagDocument>> listCaptor = ArgumentCaptor.forClass(List.class);
+        verify(ragDocumentRepository).saveAll(listCaptor.capture());
 
-        RagDocument savedDoc = docCaptor.getValue();
+        RagDocument savedDoc = listCaptor.getValue().get(0);
         assertThat(savedDoc.getUserId()).isEqualTo(userId);
         assertThat(savedDoc.getSourceType()).isEqualTo(sourceType);
         assertThat(savedDoc.getSourceId()).isEqualTo(sourceId);

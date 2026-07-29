@@ -40,6 +40,7 @@ public class RagIngestionService {
             ragDocumentRepository.deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
         }
 
+        List<RagDocument> docsToSave = new java.util.ArrayList<>(transactions.size());
         for (Transaction txn : transactions) {
             String chunkText = formatTransactionToChunk(txn, sourceType);
             String metadataJson = buildMetadataJson(txn, sourceType);
@@ -51,16 +52,24 @@ public class RagIngestionService {
             doc.setDocumentChunk(chunkText);
             doc.setMetadata(metadataJson);
 
-            ragDocumentRepository.save(doc);
+            docsToSave.add(doc);
         }
+        ragDocumentRepository.saveAll(docsToSave);
 
-        log.info("Ingestão RAG concluída com sucesso para o usuário {}. Solicitando indexação síncrona de embeddings no pgvector.", userId);
+        log.info("Ingestão de {} documentos RAG concluída com sucesso para o usuário {}.", docsToSave.size(), userId);
+    }
 
+    public int indexStep(UUID userId) {
+        if (userId == null) {
+            return 0;
+        }
         try {
-            int indexedCount = aiServiceClient.indexRagDocuments(userId.toString());
-            log.info("Indexação RAG concluída no pgvector com {} vetores para o usuário {}", indexedCount, userId);
+            int count = aiServiceClient.indexRagDocuments(userId.toString());
+            log.info("Passo de indexação RAG concluído no pgvector com {} vetores para o usuário {}", count, userId);
+            return count;
         } catch (Exception e) {
-            log.warn("Falha ao solicitar indexação de embeddings ao ai-service: {}", e.getMessage());
+            log.warn("Falha ao executar passo de indexação RAG para o usuário {}: {}", userId, e.getMessage());
+            return 0;
         }
     }
 

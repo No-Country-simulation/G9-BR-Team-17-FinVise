@@ -4,7 +4,7 @@ spring:
     username: ${DATABASE_USERNAME:financeai}
     password: ${DATABASE_PASSWORD:financeai}
   jpa:
-    show-sql: true
+    show-sql: false
   flyway:
     clean-disabled: false
 
@@ -12,7 +12,7 @@ logging:
   level:
     com.financeai.backend: DEBUG
     org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: INFO
 
 finance-ai:
   security:

@@ -58,38 +58,36 @@ export function ImportCsvPage() {
     if (!file) return;
     setIsLoading(true);
     setResult(null);
-    setProgress(15);
-    setStatusStep('Lendo arquivo e validando estrutura CSV...');
-    setBatchInfo('Carregando linhas da planilha...');
-
-    // Progress bar simulation for indexing stages
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev < 35) {
-          setStatusStep('Categorizando transações via Scikit-Learn...');
-          setBatchInfo('Classificando despesas e receitas...');
-          return prev + 5;
-        }
-        if (prev < 75) {
-          setStatusStep('Indexando lotes vetoriais no PostgreSQL (pgvector)...');
-          setBatchInfo('Processando lote 1/1 (embeddings OpenAI text-embedding-3-small)...');
-          return prev + 4;
-        }
-        if (prev < 90) {
-          setStatusStep('Gerando indicadores financeiros e diagnóstico...');
-          setBatchInfo('Calculando orçamento e perfil de usuário...');
-          return prev + 2;
-        }
-        return prev;
-      });
-    }, 300);
+    setProgress(10);
+    setStatusStep('1/4 Lendo arquivo e importando transações...');
+    setBatchInfo('Enviando dados do arquivo CSV...');
 
     try {
+      // 1. Upload CSV
       const { sourceId, importedCount, categorizedCount } = await transactionService.importCsv(file);
-      setProgress(85);
-      setStatusStep('Finalizando vetorização e persistência RAG...');
-      setBatchInfo(`Indexadas ${importedCount} transações em vetores RAG.`);
 
+      setProgress(30);
+      setStatusStep('2/4 Vetorizando em lotes no PostgreSQL (pgvector)...');
+
+      // 2. Real-Time Progressive Batch Vector Indexing (Stay on page & count batches)
+      let totalIndexed = 0;
+      let batchNumber = 1;
+      while (true) {
+        setBatchInfo(`Indexando lote ${batchNumber} (${totalIndexed} vetores RAG criados)...`);
+        const { indexedCount } = await transactionService.triggerRagIndexStep();
+        if (indexedCount <= 0) {
+          break;
+        }
+        totalIndexed += indexedCount;
+        batchNumber++;
+        setProgress((prev) => Math.min(prev + 15, 80));
+      }
+
+      setProgress(85);
+      setStatusStep('3/4 Gerando diagnóstico financeiro e perfil IA...');
+      setBatchInfo(`Vetorização RAG concluída: ${importedCount} transações salvas.`);
+
+      // 3. Generate Analysis
       const analysis = await analysisService.analyzeStoredTransactions(
         model,
         'CSV_IMPORT',
@@ -98,7 +96,7 @@ export function ImportCsvPage() {
       );
 
       setProgress(100);
-      setStatusStep('Concluído com sucesso! Redirecionando para o painel...');
+      setStatusStep('4/4 Sucesso! Redirecionando para o painel de análise...');
       rememberTransactionSource('CSV_IMPORT');
 
       await Promise.all([
@@ -109,14 +107,15 @@ export function ImportCsvPage() {
 
       setResult({
         success: true,
-        message: `${importedCount} transações importadas e vetorizadas no pgvector; ${categorizedCount} categorizadas automaticamente.`,
+        message: `${importedCount} transações importadas; ${categorizedCount} categorizadas e vetorizadas com sucesso.`,
       });
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
-      clearInterval(timer);
-      navigate(`/analyses/${analysis.id}`);
+
+      setTimeout(() => {
+        navigate(`/analyses/${analysis.id}`);
+      }, 700);
     } catch (err) {
-      clearInterval(timer);
       setProgress(0);
       setStatusStep('');
       setBatchInfo('');

@@ -48,6 +48,26 @@ class RAGService:
             dsn = dsn.replace("postgresql://", f"postgresql://{db_user}:{db_pass}@")
         return psycopg.connect(dsn)
 
+    def _ensure_embedding_column(self, conn: psycopg.Connection) -> bool:
+        """
+        Ensures pgvector extension is enabled and the embedding column exists on rag_documents.
+        """
+        try:
+            with conn.cursor() as cur:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                cur.execute(
+                    """
+                    ALTER TABLE rag_documents
+                    ADD COLUMN IF NOT EXISTS embedding vector(1536);
+                    """
+                )
+            conn.commit()
+            return True
+        except Exception as exc:  # noqa: BLE001
+            conn.rollback()
+            logger.warning("Could not auto-create vector column on rag_documents: %s", exc)
+            return False
+
     def generate_embedding(self, text: str) -> list[float]:
         """
         Generates 1536-dimensional embedding vector for RAG similarity indexing and search.
@@ -100,6 +120,9 @@ class RAGService:
         updated_count = 0
         try:
             with self._get_connection() as conn:
+                if not self._ensure_embedding_column(conn):
+                    return 0
+
                 with conn.cursor() as cur:
                     cur.execute(
                         """
@@ -144,9 +167,12 @@ class RAGService:
 
         try:
             with self._get_connection() as conn:
+                # Garante que a coluna de embedding existe antes de executar a query vetorial
+                has_vector = self._ensure_embedding_column(conn)
+
                 with conn.cursor() as cur:
                     # 1. Tentar busca por similaridade vetorial via pgvector (distância cosseno <=> )
-                    if query and query.strip():
+                    if has_vector and query and query.strip():
                         query_vec = self.generate_embedding(query)
                         query_vec_str = json.dumps(query_vec)
                         try:
@@ -176,6 +202,7 @@ class RAGService:
                                 logger.info("pgvector similarity search retrieved %d chunks for user_id=%s", len(results), user_id)
                                 return results
                         except Exception as vec_exc:  # noqa: BLE001
+                            conn.rollback()  # Reseta o estado da transação abortada!
                             logger.warning("pgvector similarity search query error, falling back to chronological query: %s", vec_exc)
 
                     # 2. Fallback para ordenação temporal padrão se os vetores não estiverem preenchidos

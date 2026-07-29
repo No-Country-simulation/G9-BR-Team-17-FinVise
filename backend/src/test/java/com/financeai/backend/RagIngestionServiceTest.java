@@ -21,17 +21,22 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+import com.financeai.backend.integration.ai.AiServiceClient;
+
 @ExtendWith(MockitoExtension.class)
 class RagIngestionServiceTest {
 
     @Mock
     private RagDocumentRepository ragDocumentRepository;
 
+    @Mock
+    private AiServiceClient aiServiceClient;
+
     private RagIngestionService ragIngestionService;
 
     @BeforeEach
     void setUp() {
-        ragIngestionService = new RagIngestionService(ragDocumentRepository);
+        ragIngestionService = new RagIngestionService(ragDocumentRepository, aiServiceClient);
     }
 
     @Test

@@ -16,34 +16,35 @@ Caso o usuário pergunte algo fora dos dados financeiros recuperados, o agente �
 
 ```text
   ┌─────────────────────────────────────────────────────────────┐
-  │ Ingestão (CSV Import / Open Finance Sync)                  │
+  │ 1. Ingestão (CSV Import / Open Finance Sync)   [Java]      │
+  │    Salva chunks na tabela rag_documents (sem embedding)     │
   └──────────────────────────────┬──────────────────────────────┘
                                  │
                                  ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │ Chunking & Metadata JSONB                                   │
-  │ (Data, Descrição, Valor, Categoria, Origem, User ID)        │
+  │ 2. Trigger: POST /internal/v1/rag/index        [Java→Py]   │
+  │    Backend chama ai-service para indexar embeddings         │
   └──────────────────────────────┬──────────────────────────────┘
                                  │
                                  ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │ Batch Embeddings (OpenAI API text-embedding-3-small)        │
-  │ 1 única chamada HTTP POST com N textos (1536 dimensões)      │
+  │ 3. Batch Embeddings (OpenAI text-embedding-3-small) [Py]   │
+  │    Processa em batches de 100 textos (1536 dimensões)       │
   └──────────────────────────────┬──────────────────────────────┘
                                  │
                                  ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │ Persistência em PostgreSQL 16 (Tabela rag_documents)        │
-  │ Coluna: embedding vector(1536) com Índice HNSW / IVFFlat    │
+  │ 4. Persistência em PostgreSQL 16 (Tabela rag_documents)    │
+  │    Coluna: embedding vector(1536) com Índice HNSW (V15)    │
   └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1. Estrutura da Tabela `rag_documents` (`Flyway V13 & V14`)
+### 1. Estrutura da Tabela `rag_documents` (`Flyway V13, V14 & V15`)
 
 - **Tabela**: `rag_documents`
-- **Coluna Vetorial**: `embedding vector(1536)`
-- **Metadados JSONB**: `metadata jsonb` (armazena `user_id`, `source`, `type`, `amount`, `category`, `date`)
-- **Texto Chave**: `content text` (representação textual formatada da transação)
+- **Coluna Vetorial**: `embedding vector(1536)` (adicionada em V14, índice HNSW em V15)
+- **Metadados JSONB**: `metadata jsonb` (armazena `transactionId`, `source`, `type`, `amount`, `category`, `date`, `description`)
+- **Texto Chave**: `document_chunk text` (representação textual formatada da transação)
 
 ### 2. Busca por Similaridade de Cosseno
 
@@ -54,10 +55,10 @@ $$\text{Similaridade} = 1 - (\mathbf{u} \cdot \mathbf{v})$$
 Query executada no banco PostgreSQL:
 
 ```sql
-SELECT id, content, metadata, 1 - (embedding <=> :queryEmbedding) AS similarity
+SELECT id, document_chunk, metadata, 1 - (embedding <=> :queryEmbedding) AS similarity
 FROM rag_documents
 WHERE user_id = :userId
-  AND (metadata->>'source' = :source OR :source = 'ALL')
+  AND embedding IS NOT NULL
 ORDER BY embedding <=> :queryEmbedding ASC
 LIMIT :topK;
 ```

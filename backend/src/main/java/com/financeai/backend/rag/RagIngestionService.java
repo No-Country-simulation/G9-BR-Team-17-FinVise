@@ -1,5 +1,6 @@
 package com.financeai.backend.rag;
 
+import com.financeai.backend.integration.ai.AiServiceClient;
 import com.financeai.backend.transaction.Transaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,9 +18,12 @@ public class RagIngestionService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final RagDocumentRepository ragDocumentRepository;
+    private final AiServiceClient aiServiceClient;
 
-    public RagIngestionService(RagDocumentRepository ragDocumentRepository) {
+    public RagIngestionService(RagDocumentRepository ragDocumentRepository,
+                               AiServiceClient aiServiceClient) {
         this.ragDocumentRepository = ragDocumentRepository;
+        this.aiServiceClient = aiServiceClient;
     }
 
     @Transactional
@@ -38,14 +42,7 @@ public class RagIngestionService {
 
         for (Transaction txn : transactions) {
             String chunkText = formatTransactionToChunk(txn, sourceType);
-            String metadataJson = String.format(
-                    java.util.Locale.US,
-                    "{\"transactionId\":\"%s\",\"amount\":%.2f,\"type\":\"%s\",\"source\":\"%s\"}",
-                    txn.getId() != null ? txn.getId() : "",
-                    txn.getAmount() != null ? txn.getAmount().doubleValue() : 0.0,
-                    txn.getType() != null ? txn.getType().name() : "",
-                    sourceType
-            );
+            String metadataJson = buildMetadataJson(txn, sourceType);
 
             RagDocument doc = new RagDocument();
             doc.setUserId(userId);
@@ -57,7 +54,38 @@ public class RagIngestionService {
             ragDocumentRepository.save(doc);
         }
 
-        log.info("Ingestão RAG concluída com sucesso para o usuário {}.", userId);
+        log.info("Ingestão RAG concluída com sucesso para o usuário {}. Solicitando indexação de embeddings.", userId);
+
+        // Trigger embedding generation in ai-service (async, best-effort)
+        try {
+            aiServiceClient.indexRagDocuments(userId.toString());
+        } catch (Exception e) {
+            log.warn("Falha ao solicitar indexação de embeddings ao ai-service (será retentada na próxima consulta RAG): {}",
+                    e.getMessage());
+        }
+    }
+
+    private String buildMetadataJson(Transaction txn, String sourceType) {
+        // Escape description for safe JSON embedding
+        String description = txn.getDescription() != null
+                ? txn.getDescription().replace("\\", "\\\\").replace("\"", "\\\"")
+                : "";
+        String dateStr = txn.getTransactionDate() != null
+                ? txn.getTransactionDate().format(DATE_FORMATTER)
+                : "";
+        String categoryId = txn.getCategoryId() != null ? txn.getCategoryId().toString() : "";
+
+        return String.format(
+                java.util.Locale.US,
+                "{\"transactionId\":\"%s\",\"amount\":%.2f,\"type\":\"%s\",\"source\":\"%s\",\"date\":\"%s\",\"category\":\"%s\",\"description\":\"%s\"}",
+                txn.getId() != null ? txn.getId() : "",
+                txn.getAmount() != null ? txn.getAmount().doubleValue() : 0.0,
+                txn.getType() != null ? txn.getType().name() : "",
+                sourceType,
+                dateStr,
+                categoryId,
+                description
+        );
     }
 
     private String formatTransactionToChunk(Transaction txn, String sourceType) {

@@ -71,6 +71,12 @@ services:
     container_name: finvise-ai-service
     restart: unless-stopped
     environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/finvise}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-${POSTGRES_USER:-finvise}}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-${POSTGRES_PASSWORD:-change_me_in_production}}
+      POSTGRES_USER: ${POSTGRES_USER:-finvise}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-finvise}
       MODELS_DIR: ${MODELS_DIR:-/app/models}
       TRANSACTION_MODEL_PATH: ${TRANSACTION_MODEL_PATH:-/app/models/transaction-classifier}
       PROFILE_MODEL_PATH: ${PROFILE_MODEL_PATH:-/app/models/profile-classifier}

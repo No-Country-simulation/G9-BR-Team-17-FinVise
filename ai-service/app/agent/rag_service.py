@@ -17,21 +17,35 @@ class RAGService:
     def __init__(self) -> None:
         self.db_url = os.getenv(
             "SPRING_DATASOURCE_URL",
-            "jdbc:postgresql://postgres:5432/finvise"
+            os.getenv("DATABASE_URL", "jdbc:postgresql://postgres:5432/finvise")
         )
         if self.db_url.startswith("jdbc:postgresql://"):
             self.dsn = self.db_url.replace("jdbc:postgresql://", "postgresql://")
         else:
             self.dsn = self.db_url
 
-        self.db_user = os.getenv("SPRING_DATASOURCE_USERNAME", "finvise")
-        self.db_pass = os.getenv("SPRING_DATASOURCE_PASSWORD", "change_me_in_production")
+        self.db_user = os.getenv(
+            "SPRING_DATASOURCE_USERNAME",
+            os.getenv("POSTGRES_USER", "finvise")
+        )
+        self.db_pass = os.getenv(
+            "SPRING_DATASOURCE_PASSWORD",
+            os.getenv("POSTGRES_PASSWORD", "change_me_in_production")
+        )
         self.dimension = 1536
 
     def _get_connection(self):
+        db_user = os.getenv(
+            "SPRING_DATASOURCE_USERNAME",
+            os.getenv("POSTGRES_USER", self.db_user)
+        )
+        db_pass = os.getenv(
+            "SPRING_DATASOURCE_PASSWORD",
+            os.getenv("POSTGRES_PASSWORD", self.db_pass)
+        )
         dsn = self.dsn
         if "postgresql://" in dsn and "@" not in dsn:
-            dsn = dsn.replace("postgresql://", f"postgresql://{self.db_user}:{self.db_pass}@")
+            dsn = dsn.replace("postgresql://", f"postgresql://{db_user}:{db_pass}@")
         return psycopg.connect(dsn)
 
     def generate_embedding(self, text: str) -> list[float]:

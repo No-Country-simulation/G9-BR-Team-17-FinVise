@@ -110,9 +110,41 @@ class RAGService:
             vec[0] = 1.0
         return vec
 
+    def generate_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
+        """
+        Generates 1536-dimensional embedding vectors for a batch of texts in 1 single HTTP request.
+        """
+        if not texts:
+            return []
+
+        if settings.enable_llm and settings.llm_api_key:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {settings.llm_api_key}",
+                    "Content-Type": "application/json",
+                }
+                payload = {
+                    "model": "text-embedding-3-small",
+                    "input": texts,
+                }
+                response = httpx.post(
+                    f"{settings.llm_base_url.rstrip('/')}/embeddings",
+                    headers=headers,
+                    json=payload,
+                    timeout=settings.llm_timeout_seconds,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    data_items = sorted(data["data"], key=lambda x: x["index"])
+                    return [item["embedding"] for item in data_items]
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("OpenAI Batch Embedding API call failed, falling back to per-item generation: %s", exc)
+
+        return [self.generate_embedding(t) for t in texts]
+
     def index_unembedded_chunks(self, user_id: str) -> int:
         """
-        Indexes any un-embedded document chunks in pgvector for the given user.
+        Indexes any un-embedded document chunks in pgvector for the given user in batch.
         """
         if not user_id:
             return 0
@@ -134,18 +166,21 @@ class RAGService:
                         (user_id,)
                     )
                     rows = cur.fetchall()
-                    for doc_id, chunk_text in rows:
-                        vector = self.generate_embedding(chunk_text)
-                        vector_str = json.dumps(vector)
-                        cur.execute(
-                            """
-                            UPDATE rag_documents
-                            SET embedding = %s::vector
-                            WHERE id = %s::uuid;
-                            """,
-                            (vector_str, doc_id)
-                        )
-                        updated_count += 1
+                    if rows:
+                        doc_ids = [r[0] for r in rows]
+                        texts = [r[1] for r in rows]
+                        vectors = self.generate_embeddings_batch(texts)
+                        for doc_id, vector in zip(doc_ids, vectors, strict=False):
+                            vector_str = json.dumps(vector)
+                            cur.execute(
+                                """
+                                UPDATE rag_documents
+                                SET embedding = %s::vector
+                                WHERE id = %s::uuid;
+                                """,
+                                (vector_str, doc_id)
+                            )
+                            updated_count += 1
                 conn.commit()
             if updated_count > 0:
                 logger.info("Indexed %d RAG vector embeddings for user_id=%s", updated_count, user_id)

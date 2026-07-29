@@ -82,13 +82,25 @@ class FallbackTemplateProvider(LLMProvider):
                 {
                     "message": {
                         "role": "assistant",
-                        "content": self._render(user_message, tools),
+                        "content": self._render(user_message, system_prompt, tools),
                     }
                 }
             ]
         }
 
-    def _render(self, user_message: str, tools: list[dict[str, Any]] | None) -> str:
+    def _render(self, user_message: str, system_prompt: str, tools: list[dict[str, Any]] | None) -> str:
+        if "[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:" in system_prompt:
+            rag_section = system_prompt.split("[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:")[-1].strip()
+            return (
+                f"Com base nos dados RAG das suas transações e extratos importados:\n\n{rag_section}\n\n"
+                "Essas informações representam o seu histórico financeiro registrado no sistema."
+            )
+
+        if "Nenhuma transacao ou extrato encontrado" in system_prompt:
+            return (
+                "Não encontrei informações suficientes no seu histórico financeiro para responder a esta pergunta. "
+                "Por favor, realize o upload do seu arquivo CSV de transações ou conecte sua conta via Open Finance."
+            )
         lower = user_message.lower()
 
         if any(word in lower for word in ["perfil", "situacao", "como estou"]):

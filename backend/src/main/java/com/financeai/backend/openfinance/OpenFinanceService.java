@@ -33,6 +33,7 @@ public class OpenFinanceService {
     private final TransactionCategorizationService categorizationService;
     private final UserRepository userRepository;
     private final AnalysisService analysisService;
+    private final com.financeai.backend.rag.RagIngestionService ragIngestionService;
 
     public OpenFinanceService(OpenFinanceProperties properties,
                               PluggyClient pluggyClient,
@@ -40,7 +41,8 @@ public class OpenFinanceService {
                               TransactionRepository transactionRepository,
                               TransactionCategorizationService categorizationService,
                               UserRepository userRepository,
-                              AnalysisService analysisService) {
+                              AnalysisService analysisService,
+                              com.financeai.backend.rag.RagIngestionService ragIngestionService) {
         this.properties = properties;
         this.pluggyClient = pluggyClient;
         this.connectionRepository = connectionRepository;
@@ -48,6 +50,7 @@ public class OpenFinanceService {
         this.categorizationService = categorizationService;
         this.userRepository = userRepository;
         this.analysisService = analysisService;
+        this.ragIngestionService = ragIngestionService;
     }
 
     public OpenFinanceStatusResponse status() {
@@ -114,6 +117,9 @@ public class OpenFinanceService {
 
         categorizationService.categorize(newTransactions);
         transactionRepository.saveAll(newTransactions);
+        if (!newTransactions.isEmpty()) {
+            ragIngestionService.ingestTransactions(userId, "OPEN_FINANCE", connection.getId().toString(), newTransactions);
+        }
 
         connection.setStatus("CONNECTED");
         connection.setLastSyncAt(Instant.now());

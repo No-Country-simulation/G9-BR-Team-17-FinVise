@@ -43,6 +43,8 @@ class CsvImportServiceTest {
     private UserRepository userRepository;
     @Mock
     private ObjectStorageService objectStorageService;
+    @Mock
+    private com.financeai.backend.rag.RagIngestionService ragIngestionService;
 
     @InjectMocks
     private CsvImportService csvImportService;

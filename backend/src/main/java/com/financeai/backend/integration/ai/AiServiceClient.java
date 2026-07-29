@@ -75,4 +75,22 @@ public class AiServiceClient {
             return null;
         }
     }
+
+    /**
+     * Triggers embedding generation for all un-embedded RAG document chunks of a user.
+     * Called after CSV import or Open Finance sync inserts new chunks.
+     */
+    public void indexRagDocuments(String userId) {
+        try {
+            restClient.post()
+                .uri("/internal/v1/rag/index")
+                .body(java.util.Map.of("user_id", userId))
+                .retrieve()
+                .toBodilessEntity();
+            log.info("Solicitação de indexação RAG enviada ao ai-service para user_id={}", userId);
+        } catch (RestClientException e) {
+            log.warn("Falha ao solicitar indexação RAG ao ai-service (será retentada na próxima consulta): {}",
+                    e.getMessage());
+        }
+    }
 }

@@ -82,11 +82,13 @@ public class AgentService {
             .map(m -> new AgentRespondRequest.MessageDto(m.getRole().toLowerCase(), m.getContent()))
             .toList();
 
+        AgentRespondRequest.AgentContextDto contextDto = buildAgentContext(userId, conversation);
+
         AgentRespondRequest aiRequest = new AgentRespondRequest(
             conversation.getId().toString(),
             userId.toString(),
             messageDtos,
-            new AgentRespondRequest.AgentContextDto(Map.of(), Map.of(), Map.of())
+            contextDto
         );
 
         AgentRespondResponse aiResponse = aiServiceClient.agentRespond(aiRequest);
@@ -125,6 +127,92 @@ public class AgentService {
             .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
         List<AgentMessage> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
         return toResponse(conversation, messages);
+    }
+
+    private AgentRespondRequest.AgentContextDto buildAgentContext(UUID userId, AgentConversation conversation) {
+        try {
+            String source = conversation.getTransactionSource() != null
+                ? conversation.getTransactionSource().name()
+                : null;
+
+            List<Transaction> transactions;
+            if (source != null) {
+                transactions = transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(userId, source);
+            } else {
+                transactions = transactionRepository.findByUserIdOrderByTransactionDateDesc(userId);
+            }
+
+            BigDecimal totalIncome = totalByType(transactions, TransactionType.INCOME);
+            BigDecimal totalExpenses = totalByType(transactions, TransactionType.EXPENSE);
+            BigDecimal balance = totalIncome.subtract(totalExpenses);
+
+            Map<String, Object> indicators = new HashMap<>();
+            indicators.put("total_income", totalIncome);
+            indicators.put("total_expenses", totalExpenses);
+            indicators.put("monthly_balance", balance);
+            indicators.put("transaction_count", transactions.size());
+            if (totalIncome.compareTo(BigDecimal.ZERO) > 0) {
+                indicators.put("savings_rate_pct",
+                    balance.multiply(BigDecimal.valueOf(100))
+                        .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP));
+                indicators.put("income_commitment_pct",
+                    totalExpenses.multiply(BigDecimal.valueOf(100))
+                        .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP));
+            }
+
+            // Category-based spending summary
+            Map<String, Object> spendingSummary = new HashMap<>();
+            Map<String, BigDecimal> categoryTotals = new HashMap<>();
+            for (Transaction txn : transactions) {
+                if (txn.getType() == TransactionType.EXPENSE) {
+                    String cat = txn.getCategoryId() != null ? txn.getCategoryId().toString() : "sem_categoria";
+                    categoryTotals.merge(cat, txn.getAmount(), BigDecimal::add);
+                }
+            }
+            spendingSummary.put("by_category", categoryTotals);
+            spendingSummary.put("total_expenses", totalExpenses);
+
+            // Recent transactions (max 20 for context)
+            List<Object> recentTxns = transactions.stream()
+                .limit(20)
+                .map(txn -> {
+                    Map<String, Object> t = new HashMap<>();
+                    t.put("description", txn.getDescription());
+                    t.put("amount", txn.getAmount());
+                    t.put("type", txn.getType().name());
+                    t.put("date", txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null);
+                    t.put("payment_method", txn.getPaymentMethod());
+                    t.put("recurrent", txn.getRecurrent());
+                    return (Object) t;
+                })
+                .toList();
+
+            // Recurring expenses
+            List<Object> recurring = transactions.stream()
+                .filter(txn -> txn.getType() == TransactionType.EXPENSE && Boolean.TRUE.equals(txn.getRecurrent()))
+                .map(txn -> {
+                    Map<String, Object> r = new HashMap<>();
+                    r.put("description", txn.getDescription());
+                    r.put("amount", txn.getAmount());
+                    r.put("date", txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null);
+                    return (Object) r;
+                })
+                .toList();
+
+            return new AgentRespondRequest.AgentContextDto(
+                Map.of("source", source != null ? source : "ALL",
+                        "total_transactions", transactions.size()),
+                indicators,
+                spendingSummary,
+                List.of(),
+                recentTxns,
+                recurring,
+                Map.of()
+            );
+        } catch (Exception e) {
+            log.warn("Falha ao construir contexto do agente, enviando contexto vazio: {}", e.getMessage());
+            return new AgentRespondRequest.AgentContextDto();
+        }
     }
 
     private String generateAssistantReply(String userContent, AgentConversation conversation) {

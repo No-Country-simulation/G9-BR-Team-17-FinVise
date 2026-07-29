@@ -15,14 +15,25 @@ logger = get_logger(__name__)
 
 class RAGService:
     def __init__(self) -> None:
-        self.db_url = os.getenv(
+        # Parse JDBC-style URL into host/port/dbname components
+        raw_url = os.getenv(
             "SPRING_DATASOURCE_URL",
             os.getenv("DATABASE_URL", "jdbc:postgresql://postgres:5432/finvise")
         )
-        if self.db_url.startswith("jdbc:postgresql://"):
-            self.dsn = self.db_url.replace("jdbc:postgresql://", "postgresql://")
+        # Strip jdbc: prefix if present
+        cleaned = raw_url.replace("jdbc:postgresql://", "").replace("postgresql://", "")
+        # Remove any userinfo (user:pass@) if embedded in URL
+        if "@" in cleaned:
+            cleaned = cleaned.split("@", 1)[1]
+        # Split host:port/dbname
+        host_port, _, dbname = cleaned.partition("/")
+        if ":" in host_port:
+            self.db_host, port_str = host_port.rsplit(":", 1)
+            self.db_port = int(port_str)
         else:
-            self.dsn = self.db_url
+            self.db_host = host_port
+            self.db_port = 5432
+        self.db_name = dbname.split("?")[0] if dbname else "finvise"
 
         self.db_user = os.getenv(
             "SPRING_DATASOURCE_USERNAME",
@@ -35,18 +46,14 @@ class RAGService:
         self.dimension = 1536
 
     def _get_connection(self):
-        db_user = os.getenv(
-            "SPRING_DATASOURCE_USERNAME",
-            os.getenv("POSTGRES_USER", self.db_user)
+        """Creates a psycopg connection using named parameters (safe for special chars in passwords)."""
+        return psycopg.connect(
+            host=self.db_host,
+            port=self.db_port,
+            dbname=self.db_name,
+            user=self.db_user,
+            password=self.db_pass,
         )
-        db_pass = os.getenv(
-            "SPRING_DATASOURCE_PASSWORD",
-            os.getenv("POSTGRES_PASSWORD", self.db_pass)
-        )
-        dsn = self.dsn
-        if "postgresql://" in dsn and "@" not in dsn:
-            dsn = dsn.replace("postgresql://", f"postgresql://{db_user}:{db_pass}@")
-        return psycopg.connect(dsn)
 
     def _ensure_embedding_column(self, conn: psycopg.Connection) -> bool:
         """
@@ -144,29 +151,34 @@ class RAGService:
 
     def index_unembedded_chunks(self, user_id: str) -> int:
         """
-        Indexes any un-embedded document chunks in pgvector for the given user in batch.
+        Indexes ALL un-embedded document chunks in pgvector for the given user.
+        Processes in batches of 100 to stay within API limits.
         """
         if not user_id:
             return 0
 
-        updated_count = 0
+        total_updated = 0
+        batch_size = 100
         try:
             with self._get_connection() as conn:
                 if not self._ensure_embedding_column(conn):
                     return 0
 
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        SELECT id, document_chunk
-                        FROM rag_documents
-                        WHERE user_id = %s::uuid AND embedding IS NULL
-                        LIMIT 50;
-                        """,
-                        (user_id,)
-                    )
-                    rows = cur.fetchall()
-                    if rows:
+                while True:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            SELECT id, document_chunk
+                            FROM rag_documents
+                            WHERE user_id = %s::uuid AND embedding IS NULL
+                            LIMIT %s;
+                            """,
+                            (user_id, batch_size)
+                        )
+                        rows = cur.fetchall()
+                        if not rows:
+                            break
+
                         doc_ids = [r[0] for r in rows]
                         texts = [r[1] for r in rows]
                         vectors = self.generate_embeddings_batch(texts)
@@ -180,13 +192,18 @@ class RAGService:
                                 """,
                                 (vector_str, doc_id)
                             )
-                            updated_count += 1
-                conn.commit()
-            if updated_count > 0:
-                logger.info("Indexed %d RAG vector embeddings for user_id=%s", updated_count, user_id)
+                            total_updated += 1
+                    conn.commit()
+
+                    # If we got fewer than batch_size, we're done
+                    if len(rows) < batch_size:
+                        break
+
+            if total_updated > 0:
+                logger.info("Indexed %d RAG vector embeddings for user_id=%s", total_updated, user_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Embedding indexing step skipped/failed: %s", exc)
-        return updated_count
+        return total_updated
 
     def retrieve_context(self, user_id: str, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """

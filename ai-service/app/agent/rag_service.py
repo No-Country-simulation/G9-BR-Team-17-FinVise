@@ -162,8 +162,8 @@ class RAGService:
             return 0
 
         total_updated = 0
-        batch_size = 250
-        max_batches = 3
+        batch_size = 1000
+        max_batches = 2
         batch_count = 0
         try:
             with self._get_connection() as conn:
@@ -188,17 +188,20 @@ class RAGService:
                         doc_ids = [r[0] for r in rows]
                         texts = [r[1] for r in rows]
                         vectors = self.generate_embeddings_batch(texts)
-                        for doc_id, vector in zip(doc_ids, vectors, strict=False):
-                            vector_str = json.dumps(vector)
-                            cur.execute(
-                                """
-                                UPDATE rag_documents
-                                SET embedding = %s::vector
-                                WHERE id = %s::uuid;
-                                """,
-                                (vector_str, doc_id)
-                            )
-                            total_updated += 1
+
+                        update_params = [
+                            (json.dumps(vector), doc_id)
+                            for doc_id, vector in zip(doc_ids, vectors, strict=False)
+                        ]
+                        cur.executemany(
+                            """
+                            UPDATE rag_documents
+                            SET embedding = %s::vector
+                            WHERE id = %s::uuid;
+                            """,
+                            update_params
+                        )
+                        total_updated += len(doc_ids)
                     conn.commit()
                     batch_count += 1
 

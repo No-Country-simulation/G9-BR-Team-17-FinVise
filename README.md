@@ -239,6 +239,18 @@ cd frontend && npm run test -- --run
 
 ---
 
+## 👥 Equipe & Contribuidores
+
+Agradecemos a todos os membros do **Team 17 (FinVise)** pela dedicação e contribuição no desenvolvimento desta plataforma:
+
+<p align="left">
+  <a href="https://github.com/No-Country-simulation/G9-BR-Team-17-FinVise/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=No-Country-simulation/G9-BR-Team-17-FinVise" alt="Contribuidores do FinVise" />
+  </a>
+</p>
+
+---
+
 ## 📜 Licença
 
 Distribuído sob a licença **MIT**. Veja o arquivo [`LICENSE`](LICENSE) para mais detalhes.

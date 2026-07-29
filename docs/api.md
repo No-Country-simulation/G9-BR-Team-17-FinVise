@@ -145,8 +145,10 @@ Corpo da sincronização:
 |--------|----------|-----------|
 | POST | `/api/v1/agent/conversations` | Cria uma conversa |
 | GET | `/api/v1/agent/conversations/{conversationId}` | Retorna detalhes da conversa |
-| POST | `/api/v1/agent/conversations/{conversationId}/messages` | Envia mensagem |
+| POST | `/api/v1/agent/conversations/{conversationId}/messages` | Envia mensagem com streaming de resposta |
 | GET | `/api/v1/agent/conversations` | Lista todas as conversas do usuário |
+| POST (Interno) | `/internal/v1/agent/respond/stream` | Endpoint FastAPI de Server-Sent Events (SSE) para respostas em tempo real |
+| POST (Interno) | `/internal/v1/rag/search` | Busca contextual de similaridade vetorial no `pgvector` |
 
 Ao criar uma conversa, envie a mesma origem selecionada na interface:
 

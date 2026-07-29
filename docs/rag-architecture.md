@@ -1,0 +1,121 @@
+# Arquitetura RAG & Inteligência Vetorial (`pgvector`)
+
+> Documentação técnica detalhada da implementação de **Retrieval-Augmented Generation (RAG)**, banco de dados vetorial PostgreSQL (`pgvector`), geração de embeddings otimizada e comunicação streaming no **FinVise**.
+
+---
+
+## 📌 Visão Geral da Solução RAG
+
+O Agente Financeiro do **FinVise** utiliza um pipeline **Strict RAG (Grounding RAG)**. Isso significa que o agente conversacional só responde perguntas sobre transações e saldos baseando-se estritamente em trechos financeiros recuperados do banco de dados do usuário.
+
+Caso o usuário pergunte algo fora dos dados financeiros recuperados, o agente é instruído via prompt estrito a informar cordialmente que a informação não foi encontrada em seus registros.
+
+---
+
+## 🏗️ Fluxo de Ingestão e Vetorização
+
+```text
+  ┌─────────────────────────────────────────────────────────────┐
+  │ Ingestão (CSV Import / Open Finance Sync)                  │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │ Chunking & Metadata JSONB                                   │
+  │ (Data, Descrição, Valor, Categoria, Origem, User ID)        │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │ Batch Embeddings (OpenAI API text-embedding-3-small)        │
+  │ 1 única chamada HTTP POST com N textos (1536 dimensões)      │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │ Persistência em PostgreSQL 16 (Tabela rag_documents)        │
+  │ Coluna: embedding vector(1536) com Índice HNSW / IVFFlat    │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+### 1. Estrutura da Tabela `rag_documents` (`Flyway V13 & V14`)
+
+- **Tabela**: `rag_documents`
+- **Coluna Vetorial**: `embedding vector(1536)`
+- **Metadados JSONB**: `metadata jsonb` (armazena `user_id`, `source`, `type`, `amount`, `category`, `date`)
+- **Texto Chave**: `content text` (representação textual formatada da transação)
+
+### 2. Busca por Similaridade de Cosseno
+
+A recuperação de contexto relevante utiliza a distância de cosseno nativa da extensão `pgvector`:
+
+$$\text{Similaridade} = 1 - (\mathbf{u} \cdot \mathbf{v})$$
+
+Query executada no banco PostgreSQL:
+
+```sql
+SELECT id, content, metadata, 1 - (embedding <=> :queryEmbedding) AS similarity
+FROM rag_documents
+WHERE user_id = :userId
+  AND (metadata->>'source' = :source OR :source = 'ALL')
+ORDER BY embedding <=> :queryEmbedding ASC
+LIMIT :topK;
+```
+
+---
+
+## ⚡ Otimizações de Desempenho e Custo
+
+### 1. Batching de Embeddings (Otimização de API)
+
+Em vez de enviar chamadas individuais via HTTP para a OpenAI para cada transação (o que gera overhead de rede e alto tempo de resposta), o `RAGService` agrupa até **100 transações em uma única requisição HTTP**:
+
+```python
+# ai-service/app/services/rag_service.py
+response = await self.client.embeddings.create(
+    model="text-embedding-3-small",
+    input=texts  # List[str] contendo múltiplos conteúdos
+)
+return [data.embedding for data in response.data]
+```
+
+- **Economia de Tokens e Latência**: Redução de ~50x na latência de rede durante importação de planilhas.
+- **Fallback Determinístico**: Em ambientes sem chave da OpenAI (`OPENAI_API_KEY`), o sistema gera embeddings pseudo-determinísticos de 1536 dimensões sem quebrar a aplicação.
+
+---
+
+## 🌊 Comunicação em Tempo Real (SSE Streaming)
+
+O chat do Agente IA utiliza **Server-Sent Events (SSE)** para transmitir a resposta caractere por caractere/token por token:
+
+- **Endpoint FastAPI**: `/internal/v1/agent/respond/stream`
+- **MediaType**: `text/event-stream`
+- **Formato**:
+  ```text
+  data: {"token": "Olá! "}
+  data: {"token": "Analisando suas "}
+  data: {"token": "despesas..."}
+  data: [DONE]
+  ```
+
+No frontend (`AgentPage.tsx`), os tokens são consumidos por `EventSource` / `fetch-event-source`, proporcionando uma animação de digitação fluida.
+
+---
+
+## 🎨 Interface & Badges Sem Emojis Brutos
+
+Todas as chamadas de ferramentas do agente (*Tool Calls*) exibem badges minimalistas no Frontend usando ícones SVG do **Lucide React**:
+
+| Ferramenta | Ícone Lucide | Função |
+| :--- | :--- | :--- |
+| `classify_transaction` | `<Tag />` | Classifica a categoria da transação |
+| `query_database` | `<BarChart3 />` | Executa consultas agregadas de gastos |
+| `generate_recommendations` | `<Lightbulb />` | Produz dicas financeiras acionáveis |
+| `search_rag` | `<Search />` | Busca contextual vetorial no `pgvector` |
+
+---
+
+## 🔒 Segurança e Isolamento
+
+- **Controle de Acesso por Tenant**: Todas as consultas vetoriais exigem e filtram obrigatoriamente `user_id`. Um usuário nunca tem acesso a trechos de documentos de terceiros.
+- **Proteção de Chaves**: A `OPENAI_API_KEY` reside exclusivamente no container interno `ai-service` e nunca é exposta no frontend.

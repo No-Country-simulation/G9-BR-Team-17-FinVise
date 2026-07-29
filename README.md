@@ -37,15 +37,17 @@ O **FinVise** é uma solução Fintech end-to-end desenvolvida para transformar 
 ### 🌟 Funcionalidades Principais
 
 - 🏷️ **Classificação Automática de Transações**: Categorização inteligente baseada em modelos de ML treinados e processamento de texto.
-- 📊 **Resumo de Gastos e Séries Temporais**: Visão consolidada por categoria, origem de dados (CSV ou Open Finance) e evolução mensal.
+- 🔍 **RAG & Banco Vetorial (`pgvector`)**: Busca por similaridade de cosseno em vetor de 1536 dimensões (`text-embedding-3-small`) para recuperação contextual exata de transações.
+- ⚡ **Processamento de Embeddings em Lote (Batching)**: Geração otimizada de embeddings em lote de 1 única chamada HTTP, reduzindo consumo de tokens, custo e latência de rede.
+- ⚡ **Chat ao Vivo via SSE (Server-Sent Events)**: Respostas em tempo real com efeito de digitação suave no Agente Conversacional.
+- 🎨 **Interface Limpa com Ícones Elegantes**: Subtituição de emojis por ícones minimalistas Lucide SVG (`Tag`, `BarChart3`, `Lightbulb`, `CreditCard`, `Search`, etc.) nos badges de ferramentas.
+- 📊 **Resumo de Gastos e Séries Temporais**: Visão consolidada por categoria, origem de dados (`CsvImport` ou `OpenFinance`) e evolução mensal.
 - 📈 **Indicadores de Saúde Financeira**: Cálculo de pontuação e métricas de sustentabilidade orçamentária.
 - 👤 **Classificação de Perfil Financeiro**: Identificação automática do perfil do usuário por ML ou Regras Financeiras.
 - 💡 **Recomendações Explicáveis e Personalizadas**: Dicas acionáveis orientadas ao perfil e hábitos de consumo identificados.
-- 💬 **Agente Financeiro Inteligente (LLM)**: Chat em tempo real que conversa contextualmente com os dados financeiros do usuário.
+- 💬 **Agente Financeiro Inteligente (LLM)**: Chat em tempo real com controle de grounding estrito (*Strict RAG*) para evitar alucinações.
 - 🔗 **Open Finance (Pluggy Integration)**: Conexão direta com instituições bancárias mantendo credenciais protegidas server-side.
 - 🛑 **Anti-Duplicação por Hash SHA-256**: Bloqueio de importações repetidas de planilhas CSV para garantia da integridade dos dados.
-
----
 
 ## 🏗️ Arquitetura
 

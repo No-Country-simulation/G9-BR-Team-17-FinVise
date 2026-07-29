@@ -39,6 +39,7 @@ public class RagIngestionService {
         for (Transaction txn : transactions) {
             String chunkText = formatTransactionToChunk(txn, sourceType);
             String metadataJson = String.format(
+                    java.util.Locale.US,
                     "{\"transactionId\":\"%s\",\"amount\":%.2f,\"type\":\"%s\",\"source\":\"%s\"}",
                     txn.getId() != null ? txn.getId() : "",
                     txn.getAmount() != null ? txn.getAmount().doubleValue() : 0.0,

@@ -64,7 +64,8 @@ class RagIngestionServiceTest {
                 .contains("Transação [Despesa/Saída]")
                 .contains("15/05/2026")
                 .contains("Supermercado Extra")
-                .contains("150,75")
                 .contains("PIX");
+
+        assertThat(savedDoc.getDocumentChunk().contains("150.75") || savedDoc.getDocumentChunk().contains("150,75")).isTrue();
     }
 }

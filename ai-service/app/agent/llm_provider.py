@@ -19,6 +19,15 @@ class LLMProvider(ABC):
     ) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def stream_complete(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        raise NotImplementedError
+
 
 class OpenAIProvider(LLMProvider):
     def __init__(self) -> None:
@@ -66,6 +75,49 @@ class OpenAIProvider(LLMProvider):
             logger.error("LLM request failed: %s", exc)
             raise
 
+    def stream_complete(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        if not self.api_key:
+            raise RuntimeError("OpenAI API key is not configured")
+
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system_prompt}, *messages],
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        with httpx.stream(
+            "POST",
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=self.timeout,
+        ) as response:
+            for line in response.iter_lines():
+                if line.startswith("data: ") and line != "data: [DONE]":
+                    import json
+                    try:
+                        chunk_data = json.loads(line[6:])
+                        delta = chunk_data["choices"][0]["delta"].get("content", "")
+                        if delta:
+                            yield delta
+                    except Exception:
+                        continue
+
 
 class FallbackTemplateProvider(LLMProvider):
     """Deterministic provider used when ENABLE_LLM=false or no API key is set."""
@@ -87,6 +139,18 @@ class FallbackTemplateProvider(LLMProvider):
                 }
             ]
         }
+
+    def stream_complete(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        user_message = messages[-1]["content"] if messages else ""
+        text = self._render(user_message, system_prompt, tools)
+        words = text.split(" ")
+        for i, word in enumerate(words):
+            yield word + (" " if i < len(words) - 1 else "")
 
     def _render(self, user_message: str, system_prompt: str, tools: list[dict[str, Any]] | None) -> str:
         lower = user_message.lower()

@@ -162,8 +162,8 @@ class RAGService:
             return 0
 
         total_updated = 0
-        batch_size = 100
-        max_batches = 50
+        batch_size = 250
+        max_batches = 3
         batch_count = 0
         try:
             with self._get_connection() as conn:

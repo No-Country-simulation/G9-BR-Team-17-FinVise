@@ -54,16 +54,14 @@ public class RagIngestionService {
             ragDocumentRepository.save(doc);
         }
 
-        log.info("Ingestão RAG concluída com sucesso para o usuário {}. Solicitando indexação de embeddings.", userId);
+        log.info("Ingestão RAG concluída com sucesso para o usuário {}. Solicitando indexação síncrona de embeddings no pgvector.", userId);
 
-        // Trigger embedding generation in ai-service asynchronously (non-blocking)
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-            try {
-                aiServiceClient.indexRagDocuments(userId.toString());
-            } catch (Exception e) {
-                log.warn("Falha ao solicitar indexação de embeddings ao ai-service: {}", e.getMessage());
-            }
-        });
+        try {
+            int indexedCount = aiServiceClient.indexRagDocuments(userId.toString());
+            log.info("Indexação RAG concluída no pgvector com {} vetores para o usuário {}", indexedCount, userId);
+        } catch (Exception e) {
+            log.warn("Falha ao solicitar indexação de embeddings ao ai-service: {}", e.getMessage());
+        }
     }
 
     private String buildMetadataJson(Transaction txn, String sourceType) {

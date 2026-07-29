@@ -95,6 +95,25 @@ def agent_respond(request: AgentRequest) -> AgentResponse:
         ) from exc
 
 
+@router.post("/internal/v1/agent/respond/stream")
+def agent_respond_stream(request: AgentRequest):
+    from fastapi.responses import StreamingResponse
+
+    agent = get_agent()
+
+    def event_generator():
+        try:
+            for chunk in agent.respond_stream(request):
+                import json
+                yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Agent streaming response failed")
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.post("/internal/v1/profiles/recommendations")
 def get_recommendations(request: ProfileAnalyzeRequest):
     engine = get_recommendation_engine()

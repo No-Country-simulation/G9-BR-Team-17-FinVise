@@ -63,7 +63,9 @@ class ResourceOwnershipTest {
             conversationRepository,
             mock(AgentMessageRepository.class),
             mock(UserRepository.class),
-            mock(TransactionRepository.class)
+            mock(TransactionRepository.class),
+            mock(com.financeai.backend.integration.ai.AiServiceClient.class),
+            new com.fasterxml.jackson.databind.ObjectMapper()
         );
 
         assertThatThrownBy(() -> service.sendMessage(

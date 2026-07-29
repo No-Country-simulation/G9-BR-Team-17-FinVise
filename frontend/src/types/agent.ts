@@ -3,6 +3,7 @@ export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  tools?: string[];
 }
 
 export interface AgentConversation {

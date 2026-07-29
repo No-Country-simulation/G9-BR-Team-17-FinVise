@@ -15,6 +15,7 @@ import { AgentMessage } from '@/types/agent';
 import { extractErrorMessage } from '@/lib/api';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { TransactionSourceSelector } from '@/components/transactions/TransactionSourceSelector';
+import { MarkdownText } from '@/components/ui/MarkdownText';
 
 const welcomeMessage: AgentMessage = {
   id: 'welcome',
@@ -162,7 +163,7 @@ export function AgentPage() {
                     </span>
                   </div>
 
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  <MarkdownText content={message.content} />
 
                   {/* Small Light Pill Badges - Rendered BELOW message content when tools were triggered */}
                   {message.role === 'assistant' && message.tools && message.tools.length > 0 && (

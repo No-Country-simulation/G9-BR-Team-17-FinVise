@@ -1,38 +1,54 @@
 package com.financeai.backend.agent;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
+import com.financeai.backend.integration.ai.AiServiceClient;
+import com.financeai.backend.integration.ai.AgentRespondRequest;
+import com.financeai.backend.integration.ai.AgentRespondResponse;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
-import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class AgentService {
 
+    private static final Logger log = LoggerFactory.getLogger(AgentService.class);
+
     private final AgentConversationRepository conversationRepository;
     private final AgentMessageRepository messageRepository;
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
+    private final AiServiceClient aiServiceClient;
+    private final ObjectMapper objectMapper;
 
     public AgentService(AgentConversationRepository conversationRepository,
                         AgentMessageRepository messageRepository,
                         UserRepository userRepository,
-                        TransactionRepository transactionRepository) {
+                        TransactionRepository transactionRepository,
+                        AiServiceClient aiServiceClient,
+                        ObjectMapper objectMapper) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
+        this.aiServiceClient = aiServiceClient;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -61,14 +77,46 @@ public class AgentService {
         userMessage.setContent(request.content());
         messageRepository.save(userMessage);
 
+        List<AgentMessage> history = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        List<AgentRespondRequest.MessageDto> messageDtos = history.stream()
+            .map(m -> new AgentRespondRequest.MessageDto(m.getRole().toLowerCase(), m.getContent()))
+            .toList();
+
+        AgentRespondRequest aiRequest = new AgentRespondRequest(
+            conversation.getId().toString(),
+            userId.toString(),
+            messageDtos,
+            new AgentRespondRequest.AgentContextDto(Map.of(), Map.of(), Map.of())
+        );
+
+        AgentRespondResponse aiResponse = aiServiceClient.agentRespond(aiRequest);
+
         AgentMessage assistantMessage = new AgentMessage();
         assistantMessage.setConversation(conversation);
         assistantMessage.setRole("ASSISTANT");
-        assistantMessage.setContent(generateAssistantReply(request.content(), conversation));
+
+        if (aiResponse != null && aiResponse.message() != null && aiResponse.message().content() != null) {
+            assistantMessage.setContent(aiResponse.message().content());
+            List<String> toolsExecuted = new ArrayList<>();
+            if (aiResponse.toolCalls() != null && !aiResponse.toolCalls().isEmpty()) {
+                toolsExecuted = aiResponse.toolCalls().stream().map(AgentRespondResponse.ToolCallDto::tool).toList();
+            }
+            try {
+                assistantMessage.setToolCalls(objectMapper.writeValueAsString(toolsExecuted));
+            } catch (Exception e) {
+                log.warn("Erro ao serializar tool_calls: {}", e.getMessage());
+            }
+        } else {
+            assistantMessage.setContent(generateAssistantReply(request.content(), conversation));
+            try {
+                assistantMessage.setToolCalls(objectMapper.writeValueAsString(List.of("regra_financeira_fallback")));
+            } catch (Exception ignored) {}
+        }
+
         messageRepository.save(assistantMessage);
 
-        List<AgentMessage> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        return toResponse(conversation, messages);
+        List<AgentMessage> allMessages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        return toResponse(conversation, allMessages);
     }
 
     @Transactional(readOnly = true)
@@ -114,7 +162,12 @@ public class AgentService {
     private ConversationResponse toResponse(AgentConversation conversation, List<AgentMessage> messages) {
         List<AgentMessageDto> messageDtos = messages.stream()
             .map(message -> new AgentMessageDto(
-                message.getId(), conversation.getId(), message.getRole(), message.getContent(), message.getCreatedAt()))
+                message.getId(),
+                conversation.getId(),
+                message.getRole(),
+                message.getContent(),
+                message.getToolCalls(),
+                message.getCreatedAt()))
             .toList();
 
         return new ConversationResponse(

@@ -51,6 +51,19 @@ public class AiServiceClient {
         }
     }
 
+    public AgentRespondResponse agentRespond(AgentRespondRequest request) {
+        try {
+            return restClient.post()
+                .uri("/internal/v1/agent/respond")
+                .body(request)
+                .retrieve()
+                .body(AgentRespondResponse.class);
+        } catch (RestClientException e) {
+            log.warn("Falha ao chamar ai-service para resposta do agente: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public ModelStatusResult getModelStatus() {
         try {
             return restClient.get()

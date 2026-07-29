@@ -1,5 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import {
+  Send,
+  Bot,
+  User,
+  Sparkles,
+  Tag,
+  BarChart3,
+  Lightbulb,
+  CreditCard,
+  Search,
+  TrendingUp,
+  Target,
+  Repeat,
+  Zap,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -25,21 +39,73 @@ const suggestionQuestions = [
   'Quais investimentos são seguros?',
 ];
 
+function ToolBadgeIcon({ toolName }: { toolName: string }) {
+  const iconClass = 'h-3.5 w-3.5 shrink-0';
+  switch (toolName) {
+    case 'get_financial_profile':
+    case 'profile_classifier':
+      return <Tag className={iconClass} />;
+    case 'get_financial_indicators':
+      return <BarChart3 className={iconClass} />;
+    case 'get_recommendations':
+      return <Lightbulb className={iconClass} />;
+    case 'get_spending_summary':
+    case 'get_transactions':
+      return <CreditCard className={iconClass} />;
+    case 'rag_retrieval':
+      return <Search className={iconClass} />;
+    case 'compare_periods':
+      return <TrendingUp className={iconClass} />;
+    case 'simulate_savings_plan':
+      return <Target className={iconClass} />;
+    case 'get_recurring_expenses':
+      return <Repeat className={iconClass} />;
+    default:
+      return <Zap className={iconClass} />;
+  }
+}
+
+function getToolBadgeDetails(toolName: string) {
+  switch (toolName) {
+    case 'get_financial_profile':
+    case 'profile_classifier':
+      return { label: 'Perfil Financeiro', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+    case 'get_financial_indicators':
+      return { label: 'Indicadores', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    case 'get_recommendations':
+      return { label: 'Recomendações IA', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+    case 'get_spending_summary':
+    case 'get_transactions':
+      return { label: 'Análise de Gastos', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+    case 'rag_retrieval':
+      return { label: 'Banco Vetorial RAG', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    case 'compare_periods':
+      return { label: 'Comparativo', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+    case 'simulate_savings_plan':
+      return { label: 'Simulação de Metas', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+    case 'get_recurring_expenses':
+      return { label: 'Gastos Recorrentes', color: 'bg-orange-50 text-orange-700 border-orange-200' };
+    default:
+      return { label: 'Ferramenta IA', color: 'bg-slate-100 text-slate-700 border-slate-200' };
+  }
+}
+
 export function AgentPage() {
   const { source, setSource } = useTransactionSource();
   const [messages, setMessages] = useState<AgentMessage[]>([welcomeMessage]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   const handleSend = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim() || isLoading || isStreaming) return;
 
     const userMessage: AgentMessage = {
       id: Date.now().toString(),
@@ -60,12 +126,41 @@ export function AgentPage() {
         source,
       });
       setConversationId(response.conversationId);
-      setMessages((prev) => [...prev, response.message]);
+
+      setIsLoading(false);
+      setIsStreaming(true);
+
+      const fullText = response.message.content;
+      const assistantId = response.message.id || Date.now().toString();
+
+      // Inicia com mensagem vazia para streaming
+      setMessages((prev) => [
+        ...prev,
+        { ...response.message, id: assistantId, content: '' },
+      ]);
+
+      let index = 0;
+      const chunkSize = 3;
+      const interval = setInterval(() => {
+        index += chunkSize;
+        if (index >= fullText.length) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
+          );
+          clearInterval(interval);
+          setIsStreaming(false);
+        } else {
+          const currentContent = fullText.slice(0, index);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: currentContent } : m))
+          );
+        }
+      }, 20);
     } catch (err) {
       setError(extractErrorMessage(err));
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
-    } finally {
       setIsLoading(false);
+      setIsStreaming(false);
     }
   };
 
@@ -78,8 +173,8 @@ export function AgentPage() {
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] max-w-3xl flex-col lg:h-[calc(100vh-12rem)]">
       <div className="mb-4 flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
-        <h1 className="text-2xl font-bold text-slate-900">Assistente Financeiro</h1>
-        <p className="text-slate-500">Tire dúvidas e receba dicas personalizadas</p>
+          <h1 className="text-2xl font-bold text-slate-900">Assistente Financeiro</h1>
+          <p className="text-slate-500">Tire dúvidas e receba dicas personalizadas com IA e RAG</p>
         </div>
         <TransactionSourceSelector
           value={source}
@@ -92,13 +187,13 @@ export function AgentPage() {
         />
       </div>
 
-      <Card className="flex flex-1 flex-col overflow-hidden">
+      <Card className="flex flex-1 flex-col overflow-hidden shadow-sm">
         <CardHeader className="border-b border-slate-100 bg-slate-50">
           <CardTitle className="flex items-center gap-2 text-base">
             <Bot className="h-5 w-5 text-primary-600" />
             FinVise Assistant
           </CardTitle>
-          <CardDescription>Powered by inteligência artificial</CardDescription>
+          <CardDescription>Powered by inteligência artificial e estrutura RAG</CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-1 flex-col overflow-hidden p-0">
@@ -109,31 +204,57 @@ export function AgentPage() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`flex max-w-[88%] gap-2.5 rounded-2xl px-3.5 py-2.5 sm:max-w-[80%] sm:gap-3 sm:px-4 sm:py-3 ${
+                  className={`flex max-w-[88%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[80%] ${
                     message.role === 'user'
                       ? 'bg-primary-600 text-white'
                       : 'bg-slate-100 text-slate-900'
                   }`}
                 >
-                  <div className="mt-0.5 shrink-0">
-                    {message.role === 'user' ? (
-                      <User className="h-4 w-4" />
-                    ) : (
-                      <Bot className="h-4 w-4 text-primary-600" />
-                    )}
+                  <div className="flex items-center gap-2">
+                    <div className="shrink-0">
+                      {message.role === 'user' ? (
+                        <User className="h-4 w-4" />
+                      ) : (
+                        <Bot className="h-4 w-4 text-primary-600" />
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold opacity-75">
+                      {message.role === 'user' ? 'Você' : 'FinVise Agent'}
+                    </span>
                   </div>
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+
+                  {/* Clean Visual Icon Badges for Executed Tools and RAG */}
+                  {message.role === 'assistant' && message.tools && message.tools.length > 0 && (
+                    <div className="my-1 flex flex-wrap gap-1.5">
+                      {message.tools.map((t, i) => {
+                        const badge = getToolBadgeDetails(t);
+                        return (
+                          <span
+                            key={i}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all ${badge.color}`}
+                          >
+                            <ToolBadgeIcon toolName={t} />
+                            <span>{badge.label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 </div>
               </div>
             ))}
+
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3">
                   <Spinner size="sm" />
-                  <span className="text-xs text-slate-500">Pensando...</span>
+                  <span className="text-xs text-slate-500">Consultando banco vetorial e executando ferramentas...</span>
                 </div>
               </div>
             )}
+
             {error && (
               <Alert variant="danger">
                 <AlertTitle>Erro</AlertTitle>
@@ -170,7 +291,7 @@ export function AgentPage() {
               onChange={(e) => setInput(e.target.value)}
               className="flex-1"
             />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
+            <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
               <Send className="h-4 w-4" />
             </Button>
           </form>

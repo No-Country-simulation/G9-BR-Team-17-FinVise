@@ -8,6 +8,7 @@ public record AgentMessageDto(
     UUID conversationId,
     String role,
     String content,
+    String toolCalls,
     Instant createdAt
 ) {
 }

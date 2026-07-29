@@ -2,24 +2,40 @@ import { api } from '@/lib/api';
 import { AgentRequest, AgentResponse, AgentConversation, AgentMessage } from '@/types/agent';
 import { ApiResponse } from '@/types/common';
 
-interface BackendConversation {
+interface BackendMessage {
   id: string;
-  source: 'CSV_IMPORT' | 'OPEN_FINANCE_PLUGGY';
-  messages: Array<{
-    id: string;
-    role: string;
-    content: string;
-    createdAt: string;
-  }>;
+  role: string;
+  content: string;
+  toolCalls?: string;
   createdAt: string;
 }
 
-function mapMessage(message: BackendConversation['messages'][number]): AgentMessage {
+interface BackendConversation {
+  id: string;
+  source: 'CSV_IMPORT' | 'OPEN_FINANCE_PLUGGY';
+  messages: BackendMessage[];
+  createdAt: string;
+}
+
+function mapMessage(message: BackendMessage): AgentMessage {
+  let tools: string[] | undefined;
+  if (message.toolCalls) {
+    try {
+      const parsed = JSON.parse(message.toolCalls);
+      if (Array.isArray(parsed)) {
+        tools = parsed;
+      }
+    } catch {
+      tools = undefined;
+    }
+  }
+
   return {
     id: message.id,
     role: message.role.toLowerCase() === 'user' ? 'user' : 'assistant',
     content: message.content,
     timestamp: message.createdAt,
+    tools,
   };
 }
 

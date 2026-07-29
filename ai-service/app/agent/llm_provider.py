@@ -89,49 +89,37 @@ class FallbackTemplateProvider(LLMProvider):
         }
 
     def _render(self, user_message: str, system_prompt: str, tools: list[dict[str, Any]] | None) -> str:
-        if "[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:" in system_prompt:
-            rag_section = system_prompt.split("[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:")[-1].strip()
-            return (
-                f"Com base nos dados RAG das suas transações e extratos importados:\n\n{rag_section}\n\n"
-                "Essas informações representam o seu histórico financeiro registrado no sistema."
-            )
-
-        if "Nenhuma transacao ou extrato encontrado" in system_prompt:
-            return (
-                "Não encontrei informações suficientes no seu histórico financeiro para responder a esta pergunta. "
-                "Por favor, realize o upload do seu arquivo CSV de transações ou conecte sua conta via Open Finance."
-            )
         lower = user_message.lower()
+        rag_context = ""
+        tool_context = ""
 
-        if any(word in lower for word in ["perfil", "situacao", "como estou"]):
-            return (
-                "Com base nos indicadores financeiros disponiveis, seu perfil reflete a combinacao "
-                "entre renda comprometida, nivel de endividamento, taxa de poupanca e reserva de emergencia. "
-                "Recomendo acompanhar a evolucao mensal desses indicadores."
-            )
+        if "[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:" in system_prompt:
+            rag_context = system_prompt.split("[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:")[-1].strip()
 
-        if any(word in lower for word in ["dica", "recomendacao", "sugestao", "melhorar"]):
-            return (
-                "As recomendacoes atuais priorizam o equilibrio entre poupanca, controle de dividas "
-                "e reducao de gastos nao essenciais. Comece pela acao de maior prioridade indicada."
-            )
+        if "[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:" in system_prompt:
+            tool_context = system_prompt.split("[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:")[1].split("[CONTEXTO RAG")[0].strip()
 
-        if any(word in lower for word in ["gasto", "despesa", "transacao"]):
-            return (
-                "Suas transacoes e despesas recorrentes estao disponiveis no contexto. "
-                "Analise categorias que mais comprometem o orcamento."
-            )
+        # Resposta inteligente combinada sem emojis
+        response_parts = []
 
-        if any(word in lower for word in ["poupanca", "economizar", "meta", "simular", "juntar"]):
-            return (
-                "Para formar uma reserva ou atingir uma meta, mantenha uma taxa de poupanca consistente "
-                "e revise gastos nao essenciais. Use a simulacao para ajustar prazo e valor mensal."
-            )
+        if rag_context:
+            response_parts.append(f"**Dados do Histórico Financeiro (RAG)**:\n{rag_context}")
 
-        return (
-            "Entendi sua pergunta. Posso ajudar com analise de perfil, indicadores, gastos, "
-            "recomendacoes e simulacoes de poupanca. Qual desses topicos voce gostaria de explorar?"
-        )
+        if tool_context:
+            response_parts.append(f"**Métricas e Indicadores Calculados**:\n{tool_context}")
+
+        if any(word in lower for word in ["pior", "piores", "mes", "meses", "alto", "maior"]):
+            response_parts.append("\n**Análise de Meses e Gastos Elevados**:\nCom base no seu histórico e categorias analisadas, recomendamos focar na redução de despesas variáveis não essenciais que apresentaram picos de gastos.")
+        elif any(word in lower for word in ["saude", "saúde", "situacao", "situação", "como estou"]):
+            response_parts.append("\n**Diagnóstico de Saúde Financeira**:\nSeus indicadores mostram a relação entre sua receita total, gastos e taxa de comprometimento. Mantenha sua taxa de poupança acima de 20% para garantir estabilidade.")
+        elif any(word in lower for word in ["poupan", "economizar", "meta", "simular", "juntar"]):
+            response_parts.append("\n**Estratégia de Poupança**:\nRecomendamos separar pelo menos 15% a 20% da sua receita mensal logo após o recebimento para construir sua reserva de emergência.")
+        elif any(word in lower for word in ["divida", "dívida", "endividamento"]):
+            response_parts.append("\n**Plano de Quitação de Dívidas**:\nPriorize o pagamento de modalidades com maiores juros nominais e evite novos parcelamentos até estabilizar seu saldo.")
+        else:
+            response_parts.append("\n**Análise Personalizada**:\nEstou à disposição para responder dúvidas específicas sobre seus extratos importados, calcular simuladores de reserva ou analisar seus piores meses de gastos.")
+
+        return "\n\n".join(response_parts)
 
 
 def get_llm_provider() -> LLMProvider:

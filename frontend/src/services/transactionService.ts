@@ -64,6 +64,7 @@ export const transactionService = {
       categorizedCount: number;
     }>>('/imports/transactions/csv', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
     });
     return {
       sourceId: response.data.id,

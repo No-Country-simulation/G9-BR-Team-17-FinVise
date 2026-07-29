@@ -243,11 +243,12 @@ cd frontend && npm run test -- --run
 
 Agradecemos a todos os membros do **Team 17 (FinVise)** pela dedicação e contribuição no desenvolvimento desta plataforma:
 
-<p align="left">
-  <a href="https://github.com/No-Country-simulation/G9-BR-Team-17-FinVise/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=No-Country-simulation/G9-BR-Team-17-FinVise" alt="Contribuidores do FinVise" />
-  </a>
-</p>
+| Contribuidor | GitHub |
+| :--- | :--- |
+| **Lucas Abreu** | [@lucasabreuzip](https://github.com/lucasabreuzip) |
+| **Gabriel Silva** | [@Gabrielsvdata](https://github.com/Gabrielsvdata) |
+| **Kauã Cantanhede** | [@kant-sdev](https://github.com/kant-sdev) |
+| **Patricia Queiroz** | [@PatQuei](https://github.com/PatQuei) |
 
 ---
 

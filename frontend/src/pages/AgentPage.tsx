@@ -133,7 +133,7 @@ export function AgentPage() {
             <Bot className="h-5 w-5 text-primary-600" />
             FinVise Assistant
           </CardTitle>
-          <CardDescription>Powered by inteligência artificial e estrutura RAG</CardDescription>
+          <CardDescription>Powered by inteligência artificial FinVise</CardDescription>
         </CardHeader>
 
         <CardContent className="flex flex-1 flex-col overflow-hidden p-0">
@@ -144,11 +144,10 @@ export function AgentPage() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`flex max-w-[88%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[80%] ${
-                    message.role === 'user'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-slate-100 text-slate-900'
-                  }`}
+                  className={`flex max-w-[88%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[80%] ${message.role === 'user'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-100 text-slate-900'
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <div className="shrink-0">
@@ -170,28 +169,29 @@ export function AgentPage() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="flex max-w-[88%] flex-col gap-2.5 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3.5 text-slate-100 shadow-md sm:max-w-[80%]">
+                <div className="flex max-w-[88%] flex-col gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-slate-900 sm:max-w-[80%]">
                   <div className="flex items-center gap-2">
-                    <Bot className="h-4 w-4 text-emerald-400" />
-                    <span className="text-xs font-semibold text-slate-300">FinVise Agent</span>
+                    <Bot className="h-4 w-4 shrink-0 text-primary-600" />
+                    <span className="text-xs font-semibold text-slate-700">FinVise Agent</span>
                   </div>
 
-                  {/* Claude Code Style Animated Tool Execution */}
-                  <div className="flex flex-col gap-2 font-mono text-xs">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400 shrink-0" />
-                      <span className="text-emerald-400 font-semibold tracking-wide uppercase text-[10px]">
-                        Executing Tool
-                      </span>
-                      <span className="rounded bg-slate-800 px-2 py-0.5 text-[11px] text-slate-200 border border-slate-700 font-mono">
-                        rag_retrieval & tools
-                      </span>
-                    </div>
+                  {/* Thinking Status Line */}
+                  <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600 shrink-0" />
+                    <span>Pensando...</span>
+                  </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                      <span>Consultando vetor RAG no PostgreSQL e calculando indicadores...</span>
-                    </div>
+                  {/* Compact Dark Pill Badges Below Pensando (Matching Image 2) */}
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-200 shadow-sm">
+                      <span className="h-1.5 w-1.5 shrink-0 animate-ping rounded-full bg-emerald-400" />
+                      <span>rag_retrieval</span>
+                    </span>
+
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-200 shadow-sm">
+                      <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+                      <span>financial_tools</span>
+                    </span>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,8 @@
 package com.financeai.backend.rag;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -29,6 +31,7 @@ public class RagDocument {
     @Column(name = "document_chunk", nullable = false, columnDefinition = "TEXT")
     private String documentChunk;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
     private String metadata;
 

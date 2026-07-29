@@ -1,5 +1,6 @@
 package com.financeai.backend.integration.ai;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.financeai.backend.config.AiServiceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,18 +80,26 @@ public class AiServiceClient {
     /**
      * Triggers embedding generation for all un-embedded RAG document chunks of a user.
      * Called after CSV import or Open Finance sync inserts new chunks.
+     * Returns the count of indexed vectors.
      */
-    public void indexRagDocuments(String userId) {
+    public int indexRagDocuments(String userId) {
         try {
-            restClient.post()
+            RagIndexResponse response = restClient.post()
                 .uri("/internal/v1/rag/index")
                 .body(java.util.Map.of("user_id", userId))
                 .retrieve()
-                .toBodilessEntity();
-            log.info("Solicitação de indexação RAG enviada ao ai-service para user_id={}", userId);
+                .body(RagIndexResponse.class);
+            int count = response != null ? response.indexedCount() : 0;
+            log.info("Indexação RAG concluída no ai-service com {} vetores para user_id={}", count, userId);
+            return count;
         } catch (RestClientException e) {
-            log.warn("Falha ao solicitar indexação RAG ao ai-service (será retentada na próxima consulta): {}",
-                    e.getMessage());
+            log.warn("Falha ao solicitar indexação RAG ao ai-service: {}", e.getMessage());
+            return 0;
         }
     }
+
+    public record RagIndexResponse(
+        @JsonProperty("indexed_count") int indexedCount,
+        @JsonProperty("user_id") String userId
+    ) {}
 }

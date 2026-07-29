@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, FileCheck, AlertTriangle, Landmark, Database, Cpu } from 'lucide-react';
+import { Upload, FileCheck, AlertTriangle, Landmark, Database, Cpu, Layers, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
@@ -23,6 +23,7 @@ export function ImportCsvPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusStep, setStatusStep] = useState('');
+  const [batchInfo, setBatchInfo] = useState<string>('');
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const [model, setModel] = useState<ProfileAnalysisModel>('MACHINE_LEARNING');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,30 +60,35 @@ export function ImportCsvPage() {
     setResult(null);
     setProgress(15);
     setStatusStep('Lendo arquivo e validando estrutura CSV...');
+    setBatchInfo('Carregando linhas da planilha...');
 
-    // Smooth progress bar simulation
+    // Progress bar simulation for indexing stages
     const timer = setInterval(() => {
       setProgress((prev) => {
-        if (prev < 40) {
-          setStatusStep('Categorizando transações e enviando ao banco...');
+        if (prev < 35) {
+          setStatusStep('Categorizando transações via Scikit-Learn...');
+          setBatchInfo('Classificando despesas e receitas...');
           return prev + 5;
         }
         if (prev < 75) {
-          setStatusStep('Gerando vetores & embeddings RAG (pgvector)...');
+          setStatusStep('Indexando lotes vetoriais no PostgreSQL (pgvector)...');
+          setBatchInfo('Processando lote 1/1 (embeddings OpenAI text-embedding-3-small)...');
           return prev + 4;
         }
         if (prev < 90) {
-          setStatusStep('Calculando análise financeira e perfil de IA...');
+          setStatusStep('Gerando indicadores financeiros e diagnóstico...');
+          setBatchInfo('Calculando orçamento e perfil de usuário...');
           return prev + 2;
         }
         return prev;
       });
-    }, 350);
+    }, 300);
 
     try {
       const { sourceId, importedCount, categorizedCount } = await transactionService.importCsv(file);
       setProgress(85);
-      setStatusStep('Gerando análise financeira executiva...');
+      setStatusStep('Finalizando vetorização e persistência RAG...');
+      setBatchInfo(`Indexadas ${importedCount} transações em vetores RAG.`);
 
       const analysis = await analysisService.analyzeStoredTransactions(
         model,
@@ -92,7 +98,7 @@ export function ImportCsvPage() {
       );
 
       setProgress(100);
-      setStatusStep('Concluído com sucesso! Redirecionando...');
+      setStatusStep('Concluído com sucesso! Redirecionando para o painel...');
       rememberTransactionSource('CSV_IMPORT');
 
       await Promise.all([
@@ -103,7 +109,7 @@ export function ImportCsvPage() {
 
       setResult({
         success: true,
-        message: `${importedCount} transações importadas; ${categorizedCount} categorizadas automaticamente.`,
+        message: `${importedCount} transações importadas e vetorizadas no pgvector; ${categorizedCount} categorizadas automaticamente.`,
       });
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
@@ -113,6 +119,7 @@ export function ImportCsvPage() {
       clearInterval(timer);
       setProgress(0);
       setStatusStep('');
+      setBatchInfo('');
       setResult({ success: false, message: extractErrorMessage(err) });
     } finally {
       setIsLoading(false);
@@ -177,32 +184,39 @@ export function ImportCsvPage() {
             </div>
 
             {isLoading && (
-              <div className="space-y-3 rounded-xl border border-primary-200 bg-primary-50/70 p-4 transition-all">
+              <div className="space-y-3 rounded-xl border border-primary-200 bg-primary-50/80 p-4 transition-all shadow-sm">
                 <div className="flex items-center justify-between text-xs font-semibold text-primary-900">
                   <div className="flex items-center gap-2">
                     <Spinner size="sm" className="text-primary-600" />
                     <span>{statusStep}</span>
                   </div>
-                  <span className="font-mono text-primary-700">{progress}%</span>
+                  <span className="font-mono text-xs font-bold text-primary-700">{progress}%</span>
                 </div>
                 
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-primary-200/80">
+                {/* Progress bar line */}
+                <div className="h-3 w-full overflow-hidden rounded-full bg-primary-200/80 p-0.5">
                   <div
-                    className="h-full bg-primary-600 transition-all duration-300 ease-out"
+                    className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-700 transition-all duration-300 ease-out"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
 
-                <div className="flex items-center gap-1.5 text-[11px] text-primary-700">
-                  <Cpu className="h-3.5 w-3.5 shrink-0 text-primary-600" />
-                  <span>Indexando transações e gerando embeddings RAG no PostgreSQL (pgvector) para a IA.</span>
+                <div className="flex items-center justify-between text-[11px] text-primary-800">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Layers className="h-3.5 w-3.5 shrink-0 text-primary-600" />
+                    <span>{batchInfo}</span>
+                  </div>
+                  <div className="flex items-center gap-1 font-mono text-[10px] text-primary-600">
+                    <Cpu className="h-3 w-3 text-primary-500" />
+                    <span>pgvector 1536d</span>
+                  </div>
                 </div>
               </div>
             )}
 
             {result && (
               <Alert variant={result.success ? 'success' : 'danger'}>
-                <AlertTriangle className="h-5 w-5" />
+                {result.success ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertTriangle className="h-5 w-5" />}
                 <AlertTitle>{result.success ? 'Sucesso' : 'Erro'}</AlertTitle>
                 <AlertDescription>{result.message}</AlertDescription>
               </Alert>
@@ -210,7 +224,7 @@ export function ImportCsvPage() {
 
             <Button type="submit" className="w-full" disabled={!file || isLoading} isLoading={isLoading}>
               {isLoading ? <Spinner size="sm" className="mr-2" /> : <Upload className="mr-2 h-4 w-4" />}
-              {isLoading ? 'Importando e vetorizando...' : 'Importar e analisar'}
+              {isLoading ? 'Indexando e vetorizando no pgvector...' : 'Importar e analisar'}
             </Button>
           </form>
         </CardContent>

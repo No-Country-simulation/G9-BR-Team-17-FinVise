@@ -162,22 +162,22 @@ export function AgentPage() {
                     </span>
                   </div>
 
-                  {/* Compact Dark Pill Badges (Matching Image 2) - Rendered ONLY when tools were actually triggered */}
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+
+                  {/* Small Light Pill Badges - Rendered BELOW message content when tools were triggered */}
                   {message.role === 'assistant' && message.tools && message.tools.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-1.5 border-t border-slate-200/60 pt-2">
                       {message.tools.map((toolName, i) => (
                         <span
                           key={i}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-200 shadow-sm"
+                          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs"
                         >
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                          <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-500" />
                           <span>{toolName}</span>
                         </span>
                       ))}
                     </div>
                   )}
-
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 </div>
               </div>
             ))}

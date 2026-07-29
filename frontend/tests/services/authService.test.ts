@@ -60,4 +60,33 @@ describe('authService', () => {
     ).rejects.toThrow('Credenciais inválidas');
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
   });
+
+  it('uses the backend register contract without storing a session', async () => {
+    mockedPost.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          email: 'novo@financeai.com',
+          isEmailVerified: false,
+          createdAt: '2026-07-23T20:00:00Z',
+        },
+        message: null,
+        timestamp: '2026-07-23T20:00:00Z',
+      },
+    });
+
+    const response = await authService.register({
+      fullName: 'Novo Usuario',
+      email: 'novo@financeai.com',
+      password: '12345678',
+    });
+
+    expect(mockedPost).toHaveBeenCalledWith('/auth/register', {
+      fullName: 'Novo Usuario',
+      email: 'novo@financeai.com',
+      password: '12345678',
+    });
+    expect(response.email).toBe('novo@financeai.com');
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+  });
 });

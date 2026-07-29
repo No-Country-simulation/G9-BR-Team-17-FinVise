@@ -14,8 +14,9 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('finance_ai_token');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const headers = config.headers as Record<string, string | undefined> | undefined;
+  if (token && headers && !headers.Authorization && !headers.authorization) {
+    headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });

@@ -75,6 +75,21 @@ class RAGService:
             logger.warning("Could not auto-create vector column on rag_documents: %s", exc)
             return False
 
+    def _generate_local_embedding(self, text: str) -> list[float]:
+        """Fallback local pseudo-embedding generation (1536-dimensional unit vector)."""
+        vec = [0.0] * self.dimension
+        tokens = text.lower().split()
+        for i, token in enumerate(tokens):
+            h = int(hashlib.md5(token.encode("utf-8")).hexdigest(), 16)
+            idx = h % self.dimension
+            vec[idx] += 1.0 / (i + 1)
+
+        norm = math.sqrt(sum(x * x for x in vec))
+        if norm > 0:
+            return [x / norm for x in vec]
+        vec[0] = 1.0
+        return vec
+
     def generate_embedding(self, text: str) -> list[float]:
         """
         Generates 1536-dimensional embedding vector for RAG similarity indexing and search.
@@ -102,24 +117,12 @@ class RAGService:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("OpenAI Embedding API call failed, falling back to local vector: %s", exc)
 
-        # Fallback local pseudo-embedding generation (1536-dimensional unit vector)
-        vec = [0.0] * self.dimension
-        tokens = text.lower().split()
-        for i, token in enumerate(tokens):
-            h = int(hashlib.md5(token.encode("utf-8")).hexdigest(), 16)
-            idx = h % self.dimension
-            vec[idx] += 1.0 / (i + 1)
-
-        norm = math.sqrt(sum(x * x for x in vec))
-        if norm > 0:
-            vec = [x / norm for x in vec]
-        else:
-            vec[0] = 1.0
-        return vec
+        return self._generate_local_embedding(text)
 
     def generate_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
         """
         Generates 1536-dimensional embedding vectors for a batch of texts in 1 single HTTP request.
+        Falls back to fast local pseudo-embeddings if OpenAI API is unavailable or fails.
         """
         if not texts:
             return []
@@ -138,33 +141,36 @@ class RAGService:
                     f"{settings.llm_base_url.rstrip('/')}/embeddings",
                     headers=headers,
                     json=payload,
-                    timeout=settings.llm_timeout_seconds,
+                    timeout=30.0,
                 )
                 if response.status_code == 200:
                     data = response.json()
                     data_items = sorted(data["data"], key=lambda x: x["index"])
                     return [item["embedding"] for item in data_items]
+                logger.warning("OpenAI Batch Embedding API returned status %d, using local embeddings", response.status_code)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("OpenAI Batch Embedding API call failed, falling back to per-item generation: %s", exc)
+                logger.warning("OpenAI Batch Embedding API call failed: %s", exc)
 
-        return [self.generate_embedding(t) for t in texts]
+        return [self._generate_local_embedding(t) for t in texts]
 
     def index_unembedded_chunks(self, user_id: str) -> int:
         """
-        Indexes ALL un-embedded document chunks in pgvector for the given user.
-        Processes in batches of 100 to stay within API limits.
+        Indexes un-embedded document chunks in pgvector for the given user in batch.
+        Processes up to 5 batches of 100 items per call.
         """
         if not user_id:
             return 0
 
         total_updated = 0
         batch_size = 100
+        max_batches = 5
+        batch_count = 0
         try:
             with self._get_connection() as conn:
                 if not self._ensure_embedding_column(conn):
                     return 0
 
-                while True:
+                while batch_count < max_batches:
                     with conn.cursor() as cur:
                         cur.execute(
                             """
@@ -194,8 +200,8 @@ class RAGService:
                             )
                             total_updated += 1
                     conn.commit()
+                    batch_count += 1
 
-                    # If we got fewer than batch_size, we're done
                     if len(rows) < batch_size:
                         break
 

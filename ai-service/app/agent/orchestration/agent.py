@@ -112,7 +112,11 @@ class FinancialAgent:
 
         from app.agent.rag_service import rag_service
 
-        user_id = str(request.context.user_id) if hasattr(request.context, "user_id") and request.context.user_id else ""
+        user_id = (
+            str(request.user_id)
+            if hasattr(request, "user_id") and request.user_id
+            else (str(request.context.user_id) if hasattr(request.context, "user_id") and request.context.user_id else "")
+        )
         last_query = request.messages[-1].content if request.messages else ""
         rag_chunks = rag_service.retrieve_context(user_id, last_query)
 
@@ -157,7 +161,11 @@ class FinancialAgent:
 
         from app.agent.rag_service import rag_service
 
-        user_id = str(request.context.user_id) if hasattr(request.context, "user_id") and request.context.user_id else ""
+        user_id = (
+            str(request.user_id)
+            if hasattr(request, "user_id") and request.user_id
+            else (str(request.context.user_id) if hasattr(request.context, "user_id") and request.context.user_id else "")
+        )
         last_query = request.messages[-1].content if request.messages else ""
         rag_chunks = rag_service.retrieve_context(user_id, last_query)
 

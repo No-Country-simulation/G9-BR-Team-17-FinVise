@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from app.schemas.common import Message
@@ -23,7 +25,7 @@ class AgentRequest(BaseModel):
 class ToolCall(BaseModel):
     tool: str
     arguments: dict
-    result: dict
+    result: dict | list | Any
 
 
 class AgentResponse(BaseModel):

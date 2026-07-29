@@ -72,15 +72,17 @@ export function ImportCsvPage() {
       // 2. Real-Time Progressive Batch Vector Indexing (Stay on page & count batches)
       let totalIndexed = 0;
       let batchNumber = 1;
-      while (true) {
+      let hasMoreChunks = true;
+      while (hasMoreChunks) {
         setBatchInfo(`Indexando lote ${batchNumber} (${totalIndexed} vetores RAG criados)...`);
         const { indexedCount } = await transactionService.triggerRagIndexStep();
         if (indexedCount <= 0) {
-          break;
+          hasMoreChunks = false;
+        } else {
+          totalIndexed += indexedCount;
+          batchNumber++;
+          setProgress((prev) => Math.min(prev + 15, 80));
         }
-        totalIndexed += indexedCount;
-        batchNumber++;
-        setProgress((prev) => Math.min(prev + 15, 80));
       }
 
       setProgress(85);

@@ -184,12 +184,26 @@ export function AgentPage() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="flex max-w-[88%] items-center gap-2.5 rounded-2xl bg-slate-100 px-4 py-3 text-slate-900 sm:max-w-[80%]">
-                  <Bot className="h-4 w-4 shrink-0 text-primary-600" />
-                  <span className="text-xs font-semibold text-slate-700">FinVise Agent</span>
-                  <div className="ml-1 flex items-center gap-1.5 text-xs text-slate-500">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600 shrink-0" />
-                    <span>Pensando...</span>
+                <div className="flex max-w-[88%] flex-col gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-slate-900 sm:max-w-[80%]">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4 shrink-0 text-primary-600" />
+                    <span className="text-xs font-semibold text-slate-700">FinVise Agent</span>
+                    <div className="ml-1 flex items-center gap-1.5 text-xs text-slate-500">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600 shrink-0" />
+                      <span>Pensando...</span>
+                    </div>
+                  </div>
+
+                  {/* Real-time executing tools with rotating spinner animation below Pensando... */}
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
+                      <Loader2 className="h-3 w-3 animate-spin text-primary-600 shrink-0" />
+                      <span>rag_retrieval</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
+                      <Loader2 className="h-3 w-3 animate-spin text-primary-600 shrink-0" />
+                      <span>financial_tools</span>
+                    </span>
                   </div>
                 </div>
               </div>

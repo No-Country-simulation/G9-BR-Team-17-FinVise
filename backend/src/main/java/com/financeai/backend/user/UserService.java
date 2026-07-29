@@ -152,7 +152,7 @@ public class UserService {
     }
 
     @Transactional
-    public RegisterResponse register(RegisterRequest req) {
+    public RegisterResponse register(RegisterRequest req)   {
         String normalizedEmail = req.email().trim().toLowerCase();
 
         if (userRepository.existsByEmail(normalizedEmail)) {

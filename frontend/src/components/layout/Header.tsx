@@ -14,7 +14,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
         <Button variant="ghost" size="icon" className="-ml-1 lg:hidden" onClick={onMenuClick} aria-label="Abrir menu">
           <Menu className="h-5 w-5" />
         </Button>
-        <span className="text-base font-bold tracking-tight text-primary-700 lg:hidden">Finance AI</span>
+        <span className="text-base font-bold tracking-tight text-primary-700 lg:hidden">FinVise</span>
       </div>
 
       <div className="flex items-center gap-3">

@@ -17,8 +17,8 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>Finance AI Backend</name>
-    <description>Backend Spring Boot do Finance AI</description>
+    <name>FinVise Backend</name>
+    <description>Backend Spring Boot do FinVise</description>
 
     <properties>
         <java.version>21</java.version>
@@ -120,6 +120,12 @@
             <groupId>com.oracle.oci.sdk</groupId>
             <artifactId>oci-java-sdk-common</artifactId>
             <version>${oci-sdk.version}</version>
+        </dependency>
+        <!--RESEND-->
+        <dependency>
+            <groupId>com.resend</groupId>
+            <artifactId>resend-java</artifactId>
+            <version>LATEST</version>
         </dependency>
 
         <!-- Testing -->

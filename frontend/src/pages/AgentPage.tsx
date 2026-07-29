@@ -96,7 +96,7 @@ export function AgentPage() {
         <CardHeader className="border-b border-slate-100 bg-slate-50">
           <CardTitle className="flex items-center gap-2 text-base">
             <Bot className="h-5 w-5 text-primary-600" />
-            Finance AI Assistant
+            FinVise Assistant
           </CardTitle>
           <CardDescription>Powered by inteligência artificial</CardDescription>
         </CardHeader>

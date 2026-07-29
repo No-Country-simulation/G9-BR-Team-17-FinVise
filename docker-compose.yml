@@ -1,20 +1,20 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: financeai-postgres
+    container_name: finvise-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-financeai}
-      POSTGRES_USER: ${POSTGRES_USER:-financeai}
+      POSTGRES_DB: ${POSTGRES_DB:-finvise}
+      POSTGRES_USER: ${POSTGRES_USER:-finvise}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
       PGDATA: ${PGDATA:-/var/lib/postgresql/data/pgdata}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/src/main/resources/db/migration:/docker-entrypoint-initdb.d:ro
     networks:
-      - financeai_internal
+      - finvise_internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-financeai} -d ${POSTGRES_DB:-financeai}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finvise} -d ${POSTGRES_DB:-finvise}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: financeai-backend
+    container_name: finvise-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -34,8 +34,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/financeai}
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-financeai}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/finvise}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-finvise}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-change_me_in_production}
       JWT_SECRET: ${JWT_SECRET:-change_me_to_a_256_bit_secret_minimum_32_chars}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
@@ -53,8 +53,10 @@ services:
       OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-false}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
       OBJECT_STORAGE_NAMESPACE: ${OBJECT_STORAGE_NAMESPACE:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS:-onboarding@resend.dev}
     networks:
-      - financeai_internal
+      - finvise_internal
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
       interval: 20s
@@ -66,7 +68,7 @@ services:
     build:
       context: ./ai-service
       dockerfile: Dockerfile
-    container_name: financeai-ai-service
+    container_name: finvise-ai-service
     restart: unless-stopped
     environment:
       MODELS_DIR: ${MODELS_DIR:-/app/models}
@@ -81,7 +83,7 @@ services:
     volumes:
       - ./ai-service/models:/app/models:ro
     networks:
-      - financeai_internal
+      - finvise_internal
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8000/health"]
       interval: 15s
@@ -95,13 +97,13 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
-    container_name: financeai-frontend
+    container_name: finvise-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     networks:
-      - financeai_internal
+      - finvise_internal
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:80/health"]
       interval: 15s
@@ -111,7 +113,7 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: financeai-nginx
+    container_name: finvise-nginx
     restart: unless-stopped
     depends_on:
       frontend:
@@ -124,7 +126,7 @@ services:
       - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
     networks:
-      - financeai_internal
+      - finvise_internal
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://nginx/health"]
       interval: 15s
@@ -137,6 +139,6 @@ volumes:
     driver: local
 
 networks:
-  financeai_internal:
+  finvise_internal:
     driver: bridge
     internal: false

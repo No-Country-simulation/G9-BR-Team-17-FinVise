@@ -6,7 +6,7 @@ ifdef PROD
 endif
 
 setup:
-	@echo "=== Finance AI Setup ==="
+	@echo "=== FinVise Setup ==="
 	@test -f .env || (echo "Creating .env from .env.example"; cp .env.example .env)
 	@echo "Creating sample dataset if needed..."
 	@mkdir -p data/samples

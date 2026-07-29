@@ -26,8 +26,8 @@ if [[ ! -f "${BACKUP_FILE}" ]]; then
 fi
 
 echo "=== Restoring PostgreSQL from ${BACKUP_FILE} ==="
-gunzip -c "${BACKUP_FILE}" | docker exec -i financeai-postgres psql \
-    -U "${POSTGRES_USER:-financeai}" \
-    -d "${POSTGRES_DB:-financeai}"
+gunzip -c "${BACKUP_FILE}" | docker exec -i finvise-postgres psql \
+    -U "${POSTGRES_USER:-finvise}" \
+    -d "${POSTGRES_DB:-finvise}"
 
 echo "=== Restore complete ==="

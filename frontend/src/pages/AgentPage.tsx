@@ -15,10 +15,9 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { AgentContextPanel } from '@/components/agent/AgentContextPanel';
-import { retrievalDepthOptions } from '@/components/agent/agentContextOptions';
+import { AgentDepthSelector } from '@/components/agent/AgentDepthSelector';
 import { MarkdownText } from '@/components/ui/MarkdownText';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { agentService } from '@/services/agentService';
@@ -344,11 +343,14 @@ export function AgentPage() {
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex max-w-[92%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[82%] ${
+                  <div
+                    data-message-role={message.role}
+                    className={`flex max-w-[92%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[82%] ${
                     message.role === 'user'
                       ? 'bg-primary-600 text-white shadow-sm shadow-primary-200'
-                      : 'border border-slate-200 bg-white text-slate-900 shadow-sm'
-                  }`}>
+                      : 'border border-slate-200 bg-slate-100/80 text-slate-900 shadow-sm'
+                  }`}
+                  >
                     <div className="flex items-center gap-2">
                       {message.role === 'user'
                         ? <User className="h-4 w-4 shrink-0" />
@@ -370,7 +372,7 @@ export function AgentPage() {
                           {message.sources.map((ragSource, index) => (
                             <div
                               key={`${ragSource.id}-${index}`}
-                              className="flex min-w-0 items-start gap-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-600"
+                              className="flex min-w-0 items-start gap-2 rounded-lg bg-white/80 p-2 text-[11px] text-slate-600"
                             >
                               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-primary-100 px-1 font-bold text-primary-700">
                                 S{index + 1}
@@ -412,7 +414,7 @@ export function AgentPage() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="flex max-w-[92%] flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm">
+                <div className="flex max-w-[92%] flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-100/80 px-4 py-3 text-slate-900 shadow-sm">
                   <div className="flex items-center gap-2">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50">
                       <Bot className="h-4 w-4 shrink-0 text-primary-600" />
@@ -530,23 +532,14 @@ export function AgentPage() {
                 className="min-h-10 max-h-32 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
               />
 
-              <label className="w-24 shrink-0 sm:w-28">
-                <span className="sr-only">Profundidade da recuperação</span>
-                <Select
-                  aria-label="Profundidade da recuperação"
-                  value={String(topK)}
-                  disabled={isLoading || isStreaming}
-                  onChange={(event) => {
-                    setTopK(Number(event.target.value));
-                    resetConversation();
-                  }}
-                  options={retrievalDepthOptions.map((option) => ({
-                    value: String(option.value),
-                    label: option.label,
-                  }))}
-                  className="h-10 rounded-full border-0 bg-transparent px-2 text-xs font-semibold text-slate-600 focus:ring-primary-500 sm:h-10"
-                />
-              </label>
+              <AgentDepthSelector
+                value={topK}
+                disabled={isLoading || isStreaming}
+                onChange={(nextTopK) => {
+                  setTopK(nextTopK);
+                  resetConversation();
+                }}
+              />
 
               {isLoading || isStreaming ? (
                 <Button

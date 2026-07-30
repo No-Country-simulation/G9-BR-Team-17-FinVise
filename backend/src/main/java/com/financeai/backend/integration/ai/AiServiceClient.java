@@ -1,13 +1,23 @@
 package com.financeai.backend.integration.ai;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.financeai.backend.config.AiServiceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 @Component
 public class AiServiceClient {
@@ -15,6 +25,7 @@ public class AiServiceClient {
     private static final Logger log = LoggerFactory.getLogger(AiServiceClient.class);
 
     private final RestClient restClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AiServiceClient(AiServiceProperties properties) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -65,6 +76,54 @@ public class AiServiceClient {
         }
     }
 
+    public void agentRespondStream(
+        AgentRespondRequest request,
+        Consumer<AgentStreamEvent> eventConsumer
+    ) {
+        restClient.post()
+            .uri("/internal/v1/agent/respond/stream")
+            .contentType(MediaType.APPLICATION_JSON)
+            .accept(MediaType.TEXT_EVENT_STREAM)
+            .body(request)
+            .exchange((httpRequest, response) -> {
+                if (!response.getStatusCode().is2xxSuccessful()) {
+                    throw new RestClientException(
+                        "AI Service respondeu com status " + response.getStatusCode());
+                }
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    response.getBody(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (!line.startsWith("data:")) {
+                            continue;
+                        }
+
+                        String data = line.substring(5).trim();
+                        if (data.isEmpty() || "[DONE]".equals(data)) {
+                            continue;
+                        }
+
+                        JsonNode payload = objectMapper.readTree(data);
+                        String type = payload.path("type").asText();
+                        if (type.isBlank() && payload.has("token")) {
+                            type = "token";
+                        }
+
+                        List<String> tools = new ArrayList<>();
+                        payload.path("tools").forEach(tool -> tools.add(tool.asText()));
+                        eventConsumer.accept(new AgentStreamEvent(
+                            type,
+                            payload.path("token").asText(null),
+                            tools,
+                            payload.path("message").asText(null)
+                        ));
+                    }
+                }
+                return null;
+            });
+    }
+
     public ModelStatusResult getModelStatus() {
         try {
             return restClient.get()
@@ -101,5 +160,12 @@ public class AiServiceClient {
     public record RagIndexResponse(
         @JsonProperty("indexed_count") int indexedCount,
         @JsonProperty("user_id") String userId
+    ) {}
+
+    public record AgentStreamEvent(
+        String type,
+        String token,
+        List<String> tools,
+        String message
     ) {}
 }

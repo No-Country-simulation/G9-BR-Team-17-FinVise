@@ -184,6 +184,11 @@ class FinancialAgent:
             tool_calls = future_tools.result()
             rag_chunks = future_rag.result()
 
+        yield {
+            "type": "tools",
+            "tools": [tool_call.tool for tool_call in tool_calls],
+        }
+
         tool_text = ""
         if tool_calls:
             formatted_tools = [f"- {tc.tool}: {tc.result}" for tc in tool_calls if tc.result]
@@ -203,7 +208,7 @@ class FinancialAgent:
             messages=messages,
             tools=TOOL_DEFINITIONS,
         ):
-            yield chunk
+            yield {"type": "token", "token": chunk}
 
     def _execute_tools(self, request: AgentRequest) -> list[ToolCall]:
         executed: list[ToolCall] = []

@@ -40,10 +40,13 @@ export function AgentPage() {
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const activeStreamRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isStreaming]);
+
+  useEffect(() => () => activeStreamRef.current?.abort(), []);
 
   const handleSend = async (text: string) => {
     if (!text.trim() || isLoading || isStreaming) return;
@@ -59,49 +62,80 @@ export function AgentPage() {
     setInput('');
     setIsLoading(true);
     setError(null);
+    const assistantId = `stream-${Date.now()}`;
+    let assistantAdded = false;
+    const abortController = new AbortController();
+    activeStreamRef.current = abortController;
 
-    try {
-      const response = await agentService.sendMessage({
-        message: text,
-        conversationId,
-        source,
-      });
-      setConversationId(response.conversationId);
-
-      setIsLoading(false);
-      setIsStreaming(true);
-
-      const fullText = response.message.content;
-      const assistantId = response.message.id || Date.now().toString();
-
-      // Inicia com mensagem vazia para streaming
+    const ensureAssistantMessage = () => {
+      if (assistantAdded) return;
+      assistantAdded = true;
       setMessages((prev) => [
         ...prev,
-        { ...response.message, id: assistantId, content: '' },
+        {
+          id: assistantId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          tools: [],
+        },
       ]);
+    };
 
-      let index = 0;
-      const chunkSize = 3;
-      const interval = setInterval(() => {
-        index += chunkSize;
-        if (index >= fullText.length) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
-          );
-          clearInterval(interval);
-          setIsStreaming(false);
-        } else {
-          const currentContent = fullText.slice(0, index);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: currentContent } : m))
-          );
-        }
-      }, 20);
+    try {
+      const response = await agentService.sendMessageStream(
+        {
+          message: text,
+          conversationId,
+          source,
+        },
+        {
+          onConversation: (id) => {
+            setConversationId(id);
+            ensureAssistantMessage();
+            setIsLoading(false);
+            setIsStreaming(true);
+          },
+          onTools: (tools) => {
+            ensureAssistantMessage();
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId ? { ...message, tools } : message
+              )
+            );
+          },
+          onToken: (token) => {
+            ensureAssistantMessage();
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, content: message.content + token }
+                  : message
+              )
+            );
+          },
+          onDone: (message) => {
+            ensureAssistantMessage();
+            setMessages((prev) =>
+              prev.map((current) => current.id === assistantId ? message : current)
+            );
+          },
+        },
+        abortController.signal
+      );
+      setConversationId(response.conversationId);
     } catch (err) {
+      if (abortController.signal.aborted) return;
       setError(extractErrorMessage(err));
-      setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
-      setIsLoading(false);
-      setIsStreaming(false);
+      setMessages((prev) =>
+        prev.filter((message) => message.id !== assistantId || message.content.length > 0)
+      );
+    } finally {
+      if (activeStreamRef.current === abortController) {
+        activeStreamRef.current = null;
+        setIsLoading(false);
+        setIsStreaming(false);
+      }
     }
   };
 
@@ -119,9 +153,14 @@ export function AgentPage() {
         </div>
         <TransactionSourceSelector
           value={source}
+          disabled={isLoading || isStreaming}
           onChange={(next) => {
+            activeStreamRef.current?.abort();
+            activeStreamRef.current = null;
             setSource(next);
             setConversationId(undefined);
+            setIsLoading(false);
+            setIsStreaming(false);
             setMessages([{ ...welcomeMessage, id: `welcome-${next}`, timestamp: new Date().toISOString() }]);
           }}
           label="Contexto do assistente"

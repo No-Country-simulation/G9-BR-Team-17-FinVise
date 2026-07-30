@@ -118,7 +118,12 @@ public class OpenFinanceService {
         categorizationService.categorize(newTransactions);
         transactionRepository.saveAll(newTransactions);
         if (!newTransactions.isEmpty()) {
-            ragIngestionService.ingestTransactions(userId, "OPEN_FINANCE", connection.getId().toString(), newTransactions);
+            ragIngestionService.ingestTransactions(
+                userId,
+                "OPEN_FINANCE",
+                connection.getId().toString(),
+                connection.getDisplayName(),
+                newTransactions);
         }
 
         connection.setStatus("CONNECTED");

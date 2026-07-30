@@ -5,6 +5,10 @@ import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionType;
+import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.transaction.TransactionCategoryRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,11 +37,26 @@ class RagIngestionServiceTest {
     @Mock
     private AiServiceClient aiServiceClient;
 
+    @Mock
+    private TransactionRepository transactionRepository;
+
+    @Mock
+    private TransactionCategoryRepository categoryRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private RagIngestionService ragIngestionService;
 
     @BeforeEach
     void setUp() {
-        ragIngestionService = new RagIngestionService(ragDocumentRepository, aiServiceClient);
+        ragIngestionService = new RagIngestionService(
+            ragDocumentRepository,
+            aiServiceClient,
+            transactionRepository,
+            categoryRepository,
+            new ObjectMapper().findAndRegisterModules(),
+            eventPublisher);
     }
 
     @Test
@@ -61,27 +80,35 @@ class RagIngestionServiceTest {
 
         verify(ragDocumentRepository, never())
             .deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
+        verify(ragDocumentRepository)
+            .deleteDerivedChunks(userId, sourceType, sourceId, "TRANSACTION");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RagDocument>> listCaptor = ArgumentCaptor.forClass(List.class);
         verify(ragDocumentRepository).saveAll(listCaptor.capture());
 
         RagDocument savedDoc = listCaptor.getValue().get(0);
+        assertThat(listCaptor.getValue())
+            .extracting(RagDocument::getChunkType)
+            .containsExactlyInAnyOrder(
+                "TRANSACTION", "MONTHLY_SUMMARY", "CATEGORY_SUMMARY");
         assertThat(savedDoc.getUserId()).isEqualTo(userId);
         assertThat(savedDoc.getSourceType()).isEqualTo(sourceType);
         assertThat(savedDoc.getSourceId()).isEqualTo(sourceId);
         assertThat(savedDoc.getTransactionId()).isEqualTo(txn.getId());
         assertThat(savedDoc.getDocumentChunk())
-                .contains("Transação [Despesa/Saída]")
+                .contains("Transação financeira")
+                .contains("Tipo: despesa")
                 .contains("15/05/2026")
                 .contains("Supermercado Extra")
                 .contains("PIX");
 
         assertThat(savedDoc.getDocumentChunk().contains("150.75") || savedDoc.getDocumentChunk().contains("150,75")).isTrue();
+        verify(eventPublisher).publishEvent(any(com.financeai.backend.rag.RagIndexRequestedEvent.class));
     }
 
     @Test
-    void shouldSkipTransactionsAlreadyIndexedForTheSource() {
+    void shouldNotDuplicateTransactionsAlreadyIndexedForTheSource() {
         UUID userId = UUID.randomUUID();
         UUID transactionId = UUID.randomUUID();
         String sourceType = "OPEN_FINANCE";

@@ -1,7 +1,7 @@
 import json
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from pydantic import BaseModel, Field
 
 from app.agent.orchestration.agent import get_agent
 from app.core.config import settings
@@ -130,10 +130,12 @@ def get_recommendations(request: ProfileAnalyzeRequest):
 
 class RagIndexRequest(BaseModel):
     user_id: str
+    source_ids: list[str] = Field(default_factory=list)
+    background: bool = False
 
 
 @router.post("/internal/v1/rag/index")
-def rag_index(request: RagIndexRequest):
+def rag_index(request: RagIndexRequest, background_tasks: BackgroundTasks):
     """Indexes all un-embedded RAG document chunks for the given user.
     Called by the Java backend after ingesting transactions (CSV or Open Finance).
     """
@@ -145,8 +147,25 @@ def rag_index(request: RagIndexRequest):
             detail="user_id is required",
         )
     try:
-        count = rag_service.index_unembedded_chunks(request.user_id.strip())
-        return {"indexed_count": count, "user_id": request.user_id}
+        if request.background:
+            background_tasks.add_task(
+                rag_service.index_unembedded_chunks,
+                request.user_id.strip(),
+                request.source_ids,
+            )
+            return {
+                "indexed_count": 0,
+                "user_id": request.user_id,
+                "status": "queued",
+            }
+        count = rag_service.index_unembedded_chunks(
+            request.user_id.strip(), request.source_ids
+        )
+        return {
+            "indexed_count": count,
+            "user_id": request.user_id,
+            "status": "completed",
+        }
     except Exception as exc:  # noqa: BLE001
         logger.exception("RAG indexing failed for user_id=%s", request.user_id)
         raise HTTPException(

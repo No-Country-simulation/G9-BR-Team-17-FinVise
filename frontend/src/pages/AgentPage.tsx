@@ -5,6 +5,7 @@ import {
   Bot,
   CheckCircle2,
   Loader2,
+  Plus,
   Search,
   Send,
   Sparkles,
@@ -12,9 +13,10 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Select } from '@/components/ui/Select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { AgentContextPanel } from '@/components/agent/AgentContextPanel';
-import { retrievalDepthLabel } from '@/components/agent/agentContextOptions';
+import { retrievalDepthOptions } from '@/components/agent/agentContextOptions';
 import { MarkdownText } from '@/components/ui/MarkdownText';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { agentService } from '@/services/agentService';
@@ -22,6 +24,7 @@ import { importSourceService, ImportSource } from '@/services/importSourceServic
 import { AgentMessage, RagSource } from '@/types/agent';
 import { TransactionSource } from '@/types/transaction';
 import { extractErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 const welcomeMessage: AgentMessage = {
   id: 'welcome',
@@ -44,7 +47,14 @@ const toolLabels: Record<string, string> = {
   financial_tools: 'Calculando indicadores',
   get_financial_profile: 'Lendo perfil financeiro',
   get_financial_indicators: 'Calculando indicadores',
+  get_spending_summary: 'Analisando despesas',
+  get_transactions: 'Consultando transações',
+  get_recurring_expenses: 'Verificando gastos recorrentes',
+  compare_periods: 'Comparando períodos',
+  simulate_savings_plan: 'Simulando plano de economia',
   get_recommendations: 'Preparando recomendações',
+  resposta_segura: 'Resposta de segurança',
+  regra_financeira_fallback: 'Análise financeira local',
 };
 
 function sourceMatches(source: ImportSource, transactionSource: TransactionSource) {
@@ -74,9 +84,10 @@ export function AgentPage() {
   const [conversationId, setConversationId] = useState<string>();
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [topK, setTopK] = useState(5);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const activeStreamRef = useRef<AbortController | null>(null);
   const { data: loadedImportSources, isLoading: sourcesLoading } = useQuery({
     queryKey: ['import-sources'],
@@ -97,6 +108,32 @@ export function AgentPage() {
         : availableSources.map((item) => item.id);
     });
   }, [availableSources]);
+
+  useEffect(() => {
+    if (!sourcesLoading && availableSources.length === 0) {
+      setFiltersOpen(true);
+    }
+  }, [availableSources.length, sourcesLoading]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+
+    const closeContextMenu = (event: PointerEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) {
+        setFiltersOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeContextMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeContextMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [filtersOpen]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -207,7 +244,14 @@ export function AgentPage() {
             ensureAssistantMessage();
             setIsLoading(false);
             setMessages((current) => current.map((item) =>
-              item.id === assistantId ? message : item
+              item.id === assistantId
+                ? {
+                  ...message,
+                  content: message.content.trim() ? message.content : item.content,
+                  tools: message.tools?.length ? message.tools : item.tools,
+                  sources: message.sources?.length ? message.sources : item.sources,
+                }
+                : item
             ));
           },
         },
@@ -239,60 +283,6 @@ export function AgentPage() {
       </div>
 
       <Card className="flex flex-1 flex-col overflow-hidden border-slate-200 shadow-md shadow-slate-200/40">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-200">
-              <Bot className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">FinVise</p>
-              <p className="truncate text-xs text-slate-500">Seus dados explicados com clareza</p>
-            </div>
-          </div>
-          <div className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sm:flex ${
-            isLoading || isStreaming
-              ? 'bg-primary-50 text-primary-700'
-              : 'bg-emerald-50 text-emerald-700'
-          }`}>
-            <span className={`h-2 w-2 rounded-full ${
-              isLoading || isStreaming ? 'animate-pulse bg-primary-500' : 'bg-emerald-500'
-            }`} />
-            {isLoading || isStreaming ? 'Analisando dados' : 'Pronto para ajudar'}
-          </div>
-        </div>
-
-        <AgentContextPanel
-          source={source}
-          availableSources={availableSources}
-          selectedSourceIds={selectedSourceIds}
-          topK={topK}
-          isOpen={filtersOpen}
-          disabled={isLoading || isStreaming}
-          sourcesLoading={sourcesLoading}
-          onToggleOpen={() => setFiltersOpen((current) => !current)}
-          onSourceChange={(next) => {
-            if (next === source) return;
-            setSource(next);
-            setSelectedSourceIds(
-              importSources.filter((item) => sourceMatches(item, next)).map((item) => item.id)
-            );
-            resetConversation(next);
-          }}
-          onToggleSource={updateSourceSelection}
-          onToggleAll={() => {
-            setSelectedSourceIds(
-              selectedSourceIds.length === availableSources.length
-                ? []
-                : availableSources.map((item) => item.id)
-            );
-            resetConversation();
-          }}
-          onTopKChange={(nextTopK) => {
-            setTopK(nextTopK);
-            resetConversation();
-          }}
-        />
-
         <CardContent className="flex flex-1 flex-col overflow-hidden p-0">
           <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/50 p-4 sm:p-5">
             {messages.map((message) => {
@@ -450,26 +440,66 @@ export function AgentPage() {
           </div>
 
           <div className="border-t border-slate-200 bg-white p-3 sm:p-4">
-            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 px-0.5 text-[11px] text-slate-500">
-              <span className="truncate">
-                {selectedSourceIds.length > 0
-                  ? `${selectedSourceIds.length} ${
-                    selectedSourceIds.length === 1 ? 'arquivo' : 'arquivos'
-                  } · Busca ${retrievalDepthLabel(topK).toLocaleLowerCase('pt-BR')}`
-                  : 'Selecione um arquivo para conversar'}
-              </span>
-              <span className="hidden shrink-0 sm:inline">Enter envia · Shift + Enter quebra a linha</span>
-            </div>
             <form
               onSubmit={(event) => {
                 event.preventDefault();
                 handleSend(input);
               }}
-              className="flex items-end gap-2 rounded-xl border border-slate-300 bg-white p-1.5 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100"
+              className="flex items-end gap-1.5 rounded-2xl border border-slate-300 bg-slate-50 p-1.5 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 sm:rounded-full"
             >
+              <div ref={contextMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label={`Selecionar fontes. ${selectedSourceIds.length} ${
+                    selectedSourceIds.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'
+                  }`}
+                  aria-expanded={filtersOpen}
+                  aria-controls="agent-context-controls"
+                  onClick={() => setFiltersOpen((current) => !current)}
+                  className={cn(
+                    'relative flex h-10 w-10 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+                    filtersOpen && 'bg-primary-100 text-primary-700'
+                  )}
+                >
+                  <Plus className="h-5 w-5" />
+                  {selectedSourceIds.length > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] font-bold text-white">
+                      {selectedSourceIds.length > 9 ? '9+' : selectedSourceIds.length}
+                    </span>
+                  )}
+                </button>
+
+                <AgentContextPanel
+                  source={source}
+                  availableSources={availableSources}
+                  selectedSourceIds={selectedSourceIds}
+                  isOpen={filtersOpen}
+                  disabled={isLoading || isStreaming}
+                  sourcesLoading={sourcesLoading}
+                  onSourceChange={(next) => {
+                    if (next === source) return;
+                    setSource(next);
+                    setSelectedSourceIds(
+                      importSources.filter((item) => sourceMatches(item, next)).map((item) => item.id)
+                    );
+                    resetConversation(next);
+                  }}
+                  onToggleSource={updateSourceSelection}
+                  onToggleAll={() => {
+                    setSelectedSourceIds(
+                      selectedSourceIds.length === availableSources.length
+                        ? []
+                        : availableSources.map((item) => item.id)
+                    );
+                    resetConversation();
+                  }}
+                />
+              </div>
+
               <textarea
                 ref={inputRef}
                 placeholder="Pergunte sobre os dados selecionados..."
+                aria-describedby="agent-input-hint"
                 value={input}
                 rows={1}
                 onChange={(event) => {
@@ -484,12 +514,31 @@ export function AgentPage() {
                   }
                 }}
                 disabled={sourcesLoading || isLoading || isStreaming}
-                className="min-h-11 max-h-32 flex-1 resize-none bg-transparent px-2.5 py-3 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-10 max-h-32 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
               />
+
+              <label className="w-20 shrink-0 sm:w-24">
+                <span className="sr-only">Top-k da busca</span>
+                <Select
+                  aria-label="Top-k da busca"
+                  value={String(topK)}
+                  disabled={isLoading || isStreaming}
+                  onChange={(event) => {
+                    setTopK(Number(event.target.value));
+                    resetConversation();
+                  }}
+                  options={retrievalDepthOptions.map((option) => ({
+                    value: String(option.value),
+                    label: `Top ${option.value}`,
+                  }))}
+                  className="h-10 rounded-full border-0 bg-transparent px-2 text-xs font-semibold text-slate-600 focus:ring-primary-500 sm:h-10"
+                />
+              </label>
+
               <Button
                 type="submit"
                 aria-label="Enviar mensagem"
-                className="mb-0.5 h-10 shrink-0 gap-2 rounded-lg px-3 sm:px-4"
+                className="h-10 w-10 shrink-0 rounded-full p-0"
                 disabled={
                   isLoading
                   || isStreaming
@@ -499,9 +548,12 @@ export function AgentPage() {
                 }
               >
                 <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">Enviar</span>
               </Button>
             </form>
+            <p id="agent-input-hint" className="sr-only">
+              Use o botão de adicionar para escolher os arquivos. Selecione o Top-k para definir
+              quantas evidências serão consultadas. Enter envia; Shift mais Enter quebra a linha.
+            </p>
           </div>
         </CardContent>
       </Card>

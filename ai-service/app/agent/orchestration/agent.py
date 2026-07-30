@@ -150,7 +150,7 @@ class FinancialAgent:
             completion = self.llm.complete(
                 system_prompt=effective_system_prompt,
                 messages=messages,
-                tools=TOOL_DEFINITIONS,
+                tools=None,
             )
             content = completion["choices"][0]["message"].get("content", "")
         except Exception as exc:  # noqa: BLE001
@@ -216,12 +216,18 @@ class FinancialAgent:
 
         effective_system_prompt = self.system_prompt + tool_text + rag_text
 
+        generated_text = False
         for chunk in self.llm.stream_complete(
             system_prompt=effective_system_prompt,
             messages=messages,
-            tools=TOOL_DEFINITIONS,
+            tools=None,
         ):
+            if chunk and chunk.strip():
+                generated_text = True
             yield {"type": "token", "token": chunk}
+
+        if not generated_text:
+            raise RuntimeError("O provedor de IA concluiu sem gerar texto")
 
     @staticmethod
     def _format_rag_context(rag_chunks: list[dict[str, Any]]) -> str:

@@ -77,7 +77,9 @@ describe('AgentPage streaming feedback', () => {
     const user = userEvent.setup();
     renderAgentPage();
 
-    await screen.findByText('extrato.csv');
+    await screen.findByRole('button', {
+      name: 'Selecionar fontes. 1 arquivo selecionado',
+    });
     await user.type(
       screen.getByPlaceholderText('Pergunte sobre os dados selecionados...'),
       'Como estou?{enter}'
@@ -103,7 +105,7 @@ describe('AgentPage streaming feedback', () => {
       role: 'assistant',
       content: 'Olá!',
       timestamp: '2026-07-30T12:00:01Z',
-      tools: ['get_financial_profile'],
+      tools: ['simulate_savings_plan'],
     };
     await act(async () => {
       handlers.onDone?.(completedMessage);
@@ -114,6 +116,8 @@ describe('AgentPage streaming feedback', () => {
     });
 
     expect(screen.getByText('Olá!')).toBeInTheDocument();
+    expect(screen.getByText('Simulando plano de economia')).toBeInTheDocument();
+    expect(screen.queryByText('simulate savings plan')).not.toBeInTheDocument();
     expect(sendMessageStreamMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceIds: ['arquivo-1'],
@@ -125,18 +129,25 @@ describe('AgentPage streaming feedback', () => {
   });
 
   it('presents sources and retrieval depth in user-friendly language', async () => {
+    const user = userEvent.setup();
     renderAgentPage();
 
-    await screen.findByText('extrato.csv');
+    const sourceButton = await screen.findByRole('button', {
+      name: 'Selecionar fontes. 1 arquivo selecionado',
+    });
 
-    expect(screen.getByText('Dados usados na resposta')).toBeInTheDocument();
-    expect(screen.getByText('1. Escolha a origem')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: '2. Selecione os arquivos' })).toBeInTheDocument();
-    expect(screen.getByText('3. Defina a profundidade')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Profundidade da busca' })).toHaveValue('5');
+    expect(screen.queryByRole('dialog', { name: 'Fontes usadas na resposta' }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Top-k da busca' })).toHaveValue('5');
+    await user.click(sourceButton);
+
+    expect(screen.getByRole('dialog', { name: 'Fontes usadas na resposta' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Origem' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Arquivos permitidos' })).toBeInTheDocument();
+    expect(screen.getByText('extrato.csv')).toBeInTheDocument();
     expect(screen.getByText('O que você quer entender hoje?')).toBeInTheDocument();
     expect(screen.getByText('Quais padrões existem nos meus gastos?')).toBeInTheDocument();
-    expect(screen.queryByText('Top-k')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dados usados na resposta')).not.toBeInTheDocument();
     expect(screen.queryByText('rag_retrieval')).not.toBeInTheDocument();
   });
 });

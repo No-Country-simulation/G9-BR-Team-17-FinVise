@@ -137,6 +137,9 @@ export const agentService = {
     }
 
     let completedMessage: AgentMessage | undefined;
+    let streamedContent = '';
+    let latestTools: string[] = [];
+    let latestSources: RagSource[] = [];
     let buffer = '';
     const decoder = new TextDecoder();
     const reader = response.body.getReader();
@@ -166,14 +169,31 @@ export const agentService = {
       if (eventName === 'conversation' && payload.conversationId) {
         handlers.onConversation?.(payload.conversationId);
       } else if (eventName === 'tools') {
-        handlers.onTools?.(payload.tools || []);
+        latestTools = payload.tools || [];
+        handlers.onTools?.(latestTools);
       } else if (eventName === 'sources') {
-        handlers.onSources?.(payload.sources || []);
+        latestSources = payload.sources || [];
+        handlers.onSources?.(latestSources);
       } else if (eventName === 'token' && payload.token) {
+        streamedContent += payload.token;
         handlers.onToken?.(payload.token);
       } else if (eventName === 'done' && typeof payload.message === 'object') {
-        completedMessage = payload.message;
-        handlers.onDone?.(payload.message);
+        completedMessage = {
+          ...payload.message,
+          content: payload.message.content?.trim()
+            ? payload.message.content
+            : streamedContent,
+          tools: payload.message.tools?.length
+            ? payload.message.tools
+            : latestTools,
+          sources: payload.message.sources?.length
+            ? payload.message.sources
+            : latestSources,
+        };
+        if (!completedMessage.content.trim()) {
+          throw new Error('O assistente concluiu sem gerar uma resposta. Tente novamente.');
+        }
+        handlers.onDone?.(completedMessage);
       } else if (eventName === 'error') {
         throw new Error(
           typeof payload.message === 'string'

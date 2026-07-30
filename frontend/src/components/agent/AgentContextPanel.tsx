@@ -121,7 +121,7 @@ export function AgentContextPanel({
                 <label
                   key={item.id}
                   className={cn(
-                    'flex min-h-10 cursor-pointer items-center gap-3 rounded-xl px-2.5 text-xs transition-colors focus-within:ring-2 focus-within:ring-primary-500',
+                    'flex min-h-10 cursor-pointer items-center gap-3 rounded-xl px-2.5 text-xs transition-colors',
                     selected
                       ? 'bg-slate-100 font-semibold text-slate-900'
                       : 'text-slate-700 hover:bg-slate-50',
@@ -142,7 +142,7 @@ export function AgentContextPanel({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-1',
                       selected
                         ? 'border-primary-600 bg-primary-600 text-white'
                         : 'border-slate-300 bg-white text-transparent'

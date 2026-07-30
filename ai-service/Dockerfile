@@ -11,14 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+COPY pyproject.toml requirements.lock ./
 COPY app ./app
 COPY training ./training
 RUN mkdir -p ./models
 COPY tests ./tests
 
-RUN pip install --upgrade pip && \
-    pip install -e ".[dev]"
+RUN pip install -r requirements.lock && \
+    pip install --no-deps -e .
 
 EXPOSE 8000
 

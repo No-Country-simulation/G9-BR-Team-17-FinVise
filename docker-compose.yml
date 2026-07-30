@@ -50,11 +50,15 @@ services:
       OPEN_FINANCE_WEBHOOK_URL: ${OPEN_FINANCE_WEBHOOK_URL:-}
       OPEN_FINANCE_OAUTH_REDIRECT_URL: ${OPEN_FINANCE_OAUTH_REDIRECT_URL:-}
       OPEN_FINANCE_INCLUDE_SANDBOX: ${OPEN_FINANCE_INCLUDE_SANDBOX:-false}
-      OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-false}
-      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
-      OBJECT_STORAGE_NAMESPACE: ${OBJECT_STORAGE_NAMESPACE:-}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      STORAGE_LOCAL_BASE_PATH: ${STORAGE_LOCAL_BASE_PATH:-/app/uploads}
+      OCI_NAMESPACE: ${OCI_NAMESPACE:-}
+      OCI_BUCKET_NAME: ${OCI_BUCKET_NAME:-}
+      OCI_REGION: ${OCI_REGION:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_ADDRESS: ${RESEND_FROM_ADDRESS:-onboarding@resend.dev}
+    volumes:
+      - uploads_data:/app/uploads
     networks:
       - finvise_internal
     healthcheck:
@@ -142,6 +146,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:

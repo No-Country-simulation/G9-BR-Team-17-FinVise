@@ -66,6 +66,11 @@ public class AgentService {
         conversation.setTitle(request.title() != null ? request.title() : "Nova conversa");
         conversation.setStatus(ConversationStatus.ACTIVE);
         conversation.setTransactionSource(request.source());
+        List<UUID> sourceIds = request.sourceIds() != null
+            ? request.sourceIds().stream().distinct().toList()
+            : List.of();
+        conversation.setRagSourceIds(writeJson(sourceIds, "fontes RAG"));
+        conversation.setRagTopK(clampTopK(request.topK()));
         conversation = conversationRepository.save(conversation);
 
         return toResponse(conversation, List.of());
@@ -110,8 +115,10 @@ public class AgentService {
             }
             try {
                 assistantMessage.setToolCalls(objectMapper.writeValueAsString(toolsExecuted));
+                assistantMessage.setRagSources(objectMapper.writeValueAsString(
+                    aiResponse.sources() != null ? aiResponse.sources() : List.of()));
             } catch (Exception e) {
-                log.warn("Erro ao serializar tool_calls: {}", e.getMessage());
+                log.warn("Erro ao serializar dados da resposta do agente: {}", e.getMessage());
             }
         } else {
             assistantMessage.setContent(generateAssistantReply(request.content(), conversation));
@@ -173,8 +180,13 @@ public class AgentService {
                 ? conversation.getTransactionSource().name()
                 : null;
 
+            List<UUID> sourceIds = selectedSourceIds(conversation);
             List<Transaction> transactions;
-            if (source != null) {
+            if (source != null && !sourceIds.isEmpty()) {
+                transactions = transactionRepository
+                    .findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
+                        userId, source, sourceIds);
+            } else if (source != null) {
                 transactions = transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(userId, source);
             } else {
                 transactions = transactionRepository.findByUserIdOrderByTransactionDateDesc(userId);
@@ -245,7 +257,10 @@ public class AgentService {
                 List.of(),
                 recentTxns,
                 recurring,
-                Map.of()
+                Map.of(),
+                new AgentRespondRequest.RetrievalDto(
+                    clampTopK(conversation.getRagTopK()),
+                    sourceIds.stream().map(UUID::toString).toList())
             );
         } catch (Exception e) {
             log.warn("Falha ao construir contexto do agente, enviando contexto vazio: {}", e.getMessage());
@@ -254,8 +269,12 @@ public class AgentService {
     }
 
     private String generateAssistantReply(String userContent, AgentConversation conversation) {
-        List<Transaction> transactions = transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
-            conversation.getUser().getId(), conversation.getTransactionSource().name());
+        List<UUID> sourceIds = selectedSourceIds(conversation);
+        List<Transaction> transactions = sourceIds.isEmpty()
+            ? transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
+                conversation.getUser().getId(), conversation.getTransactionSource().name())
+            : transactionRepository.findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
+                conversation.getUser().getId(), conversation.getTransactionSource().name(), sourceIds);
         BigDecimal income = totalByType(transactions, TransactionType.INCOME);
         BigDecimal expenses = totalByType(transactions, TransactionType.EXPENSE);
         String sourceLabel = conversation.getTransactionSource() == TransactionSource.CSV_IMPORT
@@ -286,6 +305,7 @@ public class AgentService {
     ) {
         StringBuilder content = new StringBuilder();
         List<String> tools = new ArrayList<>();
+        List<Map<String, Object>> ragSources = new ArrayList<>();
         AtomicBoolean clientConnected = new AtomicBoolean(true);
 
         sendEvent(outputStream, clientConnected, "conversation",
@@ -297,6 +317,11 @@ public class AgentService {
                     tools.clear();
                     tools.addAll(event.tools());
                     sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
+                } else if ("sources".equals(event.type())) {
+                    ragSources.clear();
+                    ragSources.addAll(event.sources());
+                    sendEvent(outputStream, clientConnected, "sources",
+                        Map.of("sources", ragSources));
                 } else if ("token".equals(event.type())
                     && event.token() != null
                     && !event.token().isEmpty()) {
@@ -323,13 +348,14 @@ public class AgentService {
         }
 
         AgentMessageDto savedMessage = saveAssistantMessage(
-            conversationId, content.toString(), tools);
+            conversationId, content.toString(), tools, ragSources);
         Map<String, Object> messagePayload = new HashMap<>();
         messagePayload.put("id", savedMessage.id().toString());
         messagePayload.put("role", "assistant");
         messagePayload.put("content", savedMessage.content());
         messagePayload.put("timestamp", savedMessage.createdAt().toString());
         messagePayload.put("tools", tools);
+        messagePayload.put("sources", ragSources);
         sendEvent(outputStream, clientConnected, "done", Map.of(
             "conversationId", conversationId.toString(),
             "message", messagePayload
@@ -339,7 +365,8 @@ public class AgentService {
     private AgentMessageDto saveAssistantMessage(
         UUID conversationId,
         String content,
-        List<String> tools
+        List<String> tools,
+        List<Map<String, Object>> ragSources
     ) {
         AgentConversation conversation = conversationRepository.findById(conversationId)
             .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
@@ -349,6 +376,7 @@ public class AgentService {
         assistantMessage.setContent(content);
         try {
             assistantMessage.setToolCalls(objectMapper.writeValueAsString(tools));
+            assistantMessage.setRagSources(objectMapper.writeValueAsString(ragSources));
         } catch (Exception exception) {
             log.warn("Erro ao serializar tool_calls do streaming: {}", exception.getMessage());
         }
@@ -360,6 +388,7 @@ public class AgentService {
             saved.getRole(),
             saved.getContent(),
             saved.getToolCalls(),
+            saved.getRagSources(),
             createdAt
         );
     }
@@ -405,6 +434,7 @@ public class AgentService {
                 message.getRole(),
                 message.getContent(),
                 message.getToolCalls(),
+                message.getRagSources(),
                 message.getCreatedAt()))
             .toList();
 
@@ -414,8 +444,38 @@ public class AgentService {
             conversation.getTitle(),
             conversation.getStatus(),
             conversation.getTransactionSource(),
+            selectedSourceIds(conversation),
+            clampTopK(conversation.getRagTopK()),
             messageDtos,
             conversation.getCreatedAt()
         );
+    }
+
+    private List<UUID> selectedSourceIds(AgentConversation conversation) {
+        String value = conversation.getRagSourceIds();
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(
+                value,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, UUID.class));
+        } catch (Exception exception) {
+            log.warn("Fontes RAG inválidas na conversa {}: {}",
+                conversation.getId(), exception.getMessage());
+            return List.of();
+        }
+    }
+
+    private int clampTopK(Integer value) {
+        return Math.max(1, Math.min(value != null ? value : 5, 20));
+    }
+
+    private String writeJson(Object value, String label) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Falha ao serializar " + label, exception);
+        }
     }
 }

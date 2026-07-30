@@ -1,5 +1,11 @@
 import { api } from '@/lib/api';
-import { AgentRequest, AgentResponse, AgentConversation, AgentMessage } from '@/types/agent';
+import {
+  AgentRequest,
+  AgentResponse,
+  AgentConversation,
+  AgentMessage,
+  RagSource,
+} from '@/types/agent';
 import { ApiResponse } from '@/types/common';
 
 interface BackendMessage {
@@ -7,12 +13,15 @@ interface BackendMessage {
   role: string;
   content: string;
   toolCalls?: string;
+  ragSources?: string;
   createdAt: string;
 }
 
 interface BackendConversation {
   id: string;
   source: 'CSV_IMPORT' | 'OPEN_FINANCE_PLUGGY';
+  sourceIds: string[];
+  topK: number;
   messages: BackendMessage[];
   createdAt: string;
 }
@@ -20,29 +29,29 @@ interface BackendConversation {
 interface AgentStreamHandlers {
   onConversation?: (conversationId: string) => void;
   onTools?: (tools: string[]) => void;
+  onSources?: (sources: RagSource[]) => void;
   onToken?: (token: string) => void;
   onDone?: (message: AgentMessage) => void;
 }
 
-function mapMessage(message: BackendMessage): AgentMessage {
-  let tools: string[] | undefined;
-  if (message.toolCalls) {
-    try {
-      const parsed = JSON.parse(message.toolCalls);
-      if (Array.isArray(parsed)) {
-        tools = parsed;
-      }
-    } catch {
-      tools = undefined;
-    }
+function parseArray<T>(value?: string): T[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
   }
+}
 
+function mapMessage(message: BackendMessage): AgentMessage {
   return {
     id: message.id,
     role: message.role.toLowerCase() === 'user' ? 'user' : 'assistant',
     content: message.content,
     timestamp: message.createdAt,
-    tools,
+    tools: parseArray<string>(message.toolCalls),
+    sources: parseArray<RagSource>(message.ragSources),
   };
 }
 
@@ -53,29 +62,32 @@ function mapConversation(source: BackendConversation): AgentConversation {
     createdAt: source.createdAt,
     updatedAt: source.messages.at(-1)?.createdAt || source.createdAt,
     source: source.source,
+    sourceIds: source.sourceIds || [],
+    topK: source.topK || 5,
   };
+}
+
+async function createConversation(request: AgentRequest): Promise<string> {
+  const { data: response } = await api.post<ApiResponse<BackendConversation>>(
+    '/agent/conversations',
+    {
+      source: request.source,
+      title: request.message.slice(0, 80),
+      sourceIds: request.sourceIds || [],
+      topK: request.topK || 5,
+    }
+  );
+  return response.data.id;
 }
 
 export const agentService = {
   async sendMessage(request: AgentRequest): Promise<AgentResponse> {
-    let conversationId = request.conversationId;
-
-    if (!conversationId) {
-      const { data: createResponse } = await api.post<ApiResponse<BackendConversation>>(
-        '/agent/conversations',
-        {
-          source: request.source,
-          title: request.message.slice(0, 80),
-        }
-      );
-      conversationId = createResponse.data.id;
-    }
-
-    const { data: sendResponse } = await api.post<ApiResponse<BackendConversation>>(
+    const conversationId = request.conversationId || await createConversation(request);
+    const { data: response } = await api.post<ApiResponse<BackendConversation>>(
       `/agent/conversations/${conversationId}/messages`,
       { content: request.message }
     );
-    const assistantMessage = sendResponse.data.messages
+    const assistantMessage = response.data.messages
       .map(mapMessage)
       .filter((message) => message.role === 'assistant')
       .at(-1);
@@ -83,7 +95,6 @@ export const agentService = {
     if (!assistantMessage) {
       throw new Error('O assistente não retornou uma resposta');
     }
-
     return { message: assistantMessage, conversationId };
   },
 
@@ -92,20 +103,9 @@ export const agentService = {
     handlers: AgentStreamHandlers = {},
     signal?: AbortSignal
   ): Promise<AgentResponse> {
-    let conversationId = request.conversationId;
-
-    if (!conversationId) {
-      const { data: createResponse } = await api.post<ApiResponse<BackendConversation>>(
-        '/agent/conversations',
-        {
-          source: request.source,
-          title: request.message.slice(0, 80),
-        }
-      );
-      conversationId = createResponse.data.id;
-    }
-
+    const conversationId = request.conversationId || await createConversation(request);
     handlers.onConversation?.(conversationId);
+
     const token = localStorage.getItem('finance_ai_token');
     const baseUrl = String(api.defaults.baseURL || '/api/v1').replace(/\/$/, '');
     const response = await fetch(
@@ -128,7 +128,7 @@ export const agentService = {
         const errorBody = await response.json() as { message?: string };
         message = errorBody.message || message;
       } catch {
-        // Keep the status-based message when the response is not JSON.
+        // Mantém a mensagem baseada no status quando a resposta não é JSON.
       }
       throw new Error(message);
     }
@@ -159,6 +159,7 @@ export const agentService = {
         conversationId?: string;
         token?: string;
         tools?: string[];
+        sources?: RagSource[];
         message?: AgentMessage | string;
       };
 
@@ -166,6 +167,8 @@ export const agentService = {
         handlers.onConversation?.(payload.conversationId);
       } else if (eventName === 'tools') {
         handlers.onTools?.(payload.tools || []);
+      } else if (eventName === 'sources') {
+        handlers.onSources?.(payload.sources || []);
       } else if (eventName === 'token' && payload.token) {
         handlers.onToken?.(payload.token);
       } else if (eventName === 'done' && typeof payload.message === 'object') {
@@ -191,9 +194,7 @@ export const agentService = {
       while (boundary >= 0) {
         processEvent(buffer.slice(0, boundary));
         buffer = buffer.slice(boundary + 2);
-        if (completedMessage) {
-          break;
-        }
+        if (completedMessage) break;
         boundary = buffer.indexOf('\n\n');
       }
       if (completedMessage) {
@@ -201,9 +202,7 @@ export const agentService = {
         break;
       }
     }
-    if (buffer.trim()) {
-      processEvent(buffer.trim());
-    }
+    if (buffer.trim()) processEvent(buffer.trim());
     if (!completedMessage) {
       throw new Error('O streaming terminou sem confirmar a mensagem');
     }

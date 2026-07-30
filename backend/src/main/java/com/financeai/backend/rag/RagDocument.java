@@ -31,6 +31,12 @@ public class RagDocument {
     @Column(name = "transaction_id")
     private UUID transactionId;
 
+    @Column(name = "chunk_type", nullable = false)
+    private String chunkType = "TRANSACTION";
+
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
     @Column(name = "document_chunk", nullable = false, columnDefinition = "TEXT")
     private String documentChunk;
 
@@ -80,6 +86,22 @@ public class RagDocument {
 
     public void setTransactionId(UUID transactionId) {
         this.transactionId = transactionId;
+    }
+
+    public String getChunkType() {
+        return chunkType;
+    }
+
+    public void setChunkType(String chunkType) {
+        this.chunkType = chunkType;
+    }
+
+    public String getContentHash() {
+        return contentHash;
+    }
+
+    public void setContentHash(String contentHash) {
+        this.contentHash = contentHash;
     }
 
     public String getDocumentChunk() {

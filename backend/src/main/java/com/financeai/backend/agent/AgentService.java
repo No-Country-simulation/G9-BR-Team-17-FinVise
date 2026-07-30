@@ -22,18 +22,24 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 @Service
 public class AgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
+    private static final int ANALYTICAL_RANKING_LIMIT = 10;
 
     private final AgentConversationRepository conversationRepository;
     private final AgentMessageRepository messageRepository;
@@ -258,6 +264,7 @@ public class AgentService {
                 recentTxns,
                 recurring,
                 Map.of(),
+                buildAnalyticalFacts(transactions),
                 new AgentRespondRequest.RetrievalDto(
                     clampTopK(conversation.getRagTopK()),
                     sourceIds.stream().map(UUID::toString).toList())
@@ -295,6 +302,147 @@ public class AgentService {
             return context + "antes de investir, construa uma reserva equivalente a 3-6 meses das despesas desta origem.";
         }
         return context + "posso ajudar a analisar gastos e metas sem misturar as transações da outra origem.";
+    }
+
+    private Map<String, Object> buildAnalyticalFacts(List<Transaction> transactions) {
+        if (transactions.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<YearMonth, List<Transaction>> transactionsByMonth = transactions.stream()
+            .collect(Collectors.groupingBy(transaction ->
+                YearMonth.from(transaction.getTransactionDate())));
+        List<Map<String, Object>> months = transactionsByMonth.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> monthlyFact(entry.getKey(), entry.getValue()))
+            .toList();
+
+        Map<String, Object> monthRankings = new LinkedHashMap<>();
+        monthRankings.put("highest_income", selectMonth(
+            months, "total_income", Comparator.naturalOrder()));
+        monthRankings.put("lowest_expense", selectMonth(
+            months.stream()
+                .filter(month -> ((BigDecimal) month.get("total_expenses")).signum() > 0)
+                .toList(),
+            "total_expenses",
+            Comparator.reverseOrder()));
+        monthRankings.put("highest_expense", selectMonth(
+            months, "total_expenses", Comparator.naturalOrder()));
+        monthRankings.put("highest_balance", selectMonth(
+            months, "balance", Comparator.naturalOrder()));
+        monthRankings.put("lowest_balance", selectMonth(
+            months, "balance", Comparator.reverseOrder()));
+
+        Map<String, Object> transactionRankings = new LinkedHashMap<>();
+        transactionRankings.put("overall", transactionRankings(transactions));
+        transactionRankings.put("by_month", transactionsByMonth.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> {
+                Map<String, Object> month = new LinkedHashMap<>();
+                month.put("period", entry.getKey().toString());
+                month.put("rankings", transactionRankings(entry.getValue()));
+                return (Object) month;
+            })
+            .toList());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("scope", Map.of(
+            "transaction_count", transactions.size(),
+            "period_start", transactions.stream()
+                .map(Transaction::getTransactionDate)
+                .min(Comparator.naturalOrder())
+                .orElseThrow()
+                .toString(),
+            "period_end", transactions.stream()
+                .map(Transaction::getTransactionDate)
+                .max(Comparator.naturalOrder())
+                .orElseThrow()
+                .toString()
+        ));
+        result.put("months", months);
+        result.put("month_rankings", monthRankings);
+        result.put("transaction_rankings", transactionRankings);
+        return result;
+    }
+
+    private Map<String, Object> monthlyFact(YearMonth period,
+                                            List<Transaction> transactions) {
+        BigDecimal income = totalByType(transactions, TransactionType.INCOME);
+        BigDecimal expenses = totalByType(transactions, TransactionType.EXPENSE);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("period", period.toString());
+        result.put("transaction_count", transactions.size());
+        result.put("income_count", countByType(transactions, TransactionType.INCOME));
+        result.put("expense_count", countByType(transactions, TransactionType.EXPENSE));
+        result.put("total_income", income);
+        result.put("total_expenses", expenses);
+        result.put("balance", income.subtract(expenses));
+        return result;
+    }
+
+    private Map<String, Object> selectMonth(List<Map<String, Object>> months,
+                                            String metric,
+                                            Comparator<BigDecimal> comparator) {
+        return months.stream()
+            .max((left, right) -> comparator.compare(
+                (BigDecimal) left.get(metric),
+                (BigDecimal) right.get(metric)))
+            .orElse(Map.of());
+    }
+
+    private Map<String, Object> transactionRankings(List<Transaction> transactions) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("smallest_expenses", rankTransactions(
+            transactions,
+            transaction -> transaction.getType() == TransactionType.EXPENSE,
+            true));
+        result.put("largest_expenses", rankTransactions(
+            transactions,
+            transaction -> transaction.getType() == TransactionType.EXPENSE,
+            false));
+        result.put("smallest_incomes", rankTransactions(
+            transactions,
+            transaction -> transaction.getType() == TransactionType.INCOME,
+            true));
+        result.put("largest_incomes", rankTransactions(
+            transactions,
+            transaction -> transaction.getType() == TransactionType.INCOME,
+            false));
+        return result;
+    }
+
+    private List<Object> rankTransactions(List<Transaction> transactions,
+                                          Predicate<Transaction> filter,
+                                          boolean ascending) {
+        Comparator<Transaction> comparator = Comparator
+            .comparing(Transaction::getAmount)
+            .thenComparing(Transaction::getTransactionDate)
+            .thenComparing(transaction -> transaction.getId() == null
+                ? new UUID(0, 0)
+                : transaction.getId());
+        if (!ascending) {
+            comparator = comparator.reversed();
+        }
+        return transactions.stream()
+            .filter(filter)
+            .sorted(comparator)
+            .limit(ANALYTICAL_RANKING_LIMIT)
+            .map(transaction -> {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("id", transaction.getId());
+                item.put("description", transaction.getDescription());
+                item.put("amount", transaction.getAmount());
+                item.put("date", transaction.getTransactionDate().toString());
+                item.put("type", transaction.getType().name());
+                return (Object) item;
+            })
+            .toList();
+    }
+
+    private long countByType(List<Transaction> transactions, TransactionType type) {
+        return transactions.stream()
+            .filter(transaction -> transaction.getType() == type)
+            .count();
     }
 
     private void executeStream(

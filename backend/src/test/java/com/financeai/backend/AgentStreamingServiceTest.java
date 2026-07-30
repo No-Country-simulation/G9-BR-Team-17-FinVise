@@ -144,6 +144,75 @@ class AgentStreamingServiceTest {
     }
 
     @Test
+    void shouldUseSafeReplyWhenModelFinishesWithoutText() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        AgentConversation conversation = new AgentConversation();
+        conversation.setId(conversationId);
+        conversation.setUser(user);
+        conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
+
+        AgentConversationRepository conversationRepository =
+            mock(AgentConversationRepository.class);
+        AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
+        TransactionRepository transactionRepository = mock(TransactionRepository.class);
+        AiServiceClient aiServiceClient = mock(AiServiceClient.class);
+        when(conversationRepository.findByIdAndUserId(conversationId, userId))
+            .thenReturn(Optional.of(conversation));
+        when(conversationRepository.findById(conversationId))
+            .thenReturn(Optional.of(conversation));
+        when(transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
+            userId, TransactionSource.CSV_IMPORT.name()))
+            .thenReturn(List.of());
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
+            .thenReturn(List.of());
+        when(messageRepository.save(any(AgentMessage.class))).thenAnswer(invocation -> {
+            AgentMessage message = invocation.getArgument(0);
+            if ("ASSISTANT".equals(message.getRole())) {
+                message.setId(UUID.randomUUID());
+            }
+            return message;
+        });
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(new AiServiceClient.AgentStreamEvent(
+                "tools", null, List.of("simulate_savings_plan"), null));
+            consumer.accept(new AiServiceClient.AgentStreamEvent(
+                "sources", null, List.of(), List.of(), null));
+            return null;
+        }).when(aiServiceClient).agentRespondStream(any(), any());
+
+        AgentService service = new AgentService(
+            conversationRepository,
+            messageRepository,
+            mock(UserRepository.class),
+            transactionRepository,
+            aiServiceClient,
+            new ObjectMapper()
+        );
+
+        StreamingResponseBody stream = service.streamMessage(
+            userId, conversationId, new SendMessageRequest("Onde posso economizar?"));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        stream.writeTo(output);
+        String sse = output.toString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sse)
+            .contains("event: token")
+            .contains("resposta_segura")
+            .contains("Considerando somente os dados")
+            .contains("event: done")
+            .doesNotContain("\"content\":\"\"");
+        ArgumentCaptor<AgentMessage> savedMessages =
+            ArgumentCaptor.forClass(AgentMessage.class);
+        verify(messageRepository, times(2)).save(savedMessages.capture());
+        assertThat(savedMessages.getAllValues().get(1).getContent()).isNotBlank();
+    }
+
+    @Test
     void shouldReportAnInterruptedStreamWithoutPersistingPartialResponse() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();

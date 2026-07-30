@@ -3,6 +3,7 @@ package com.financeai.backend;
 import com.financeai.backend.analysis.AnalysisService;
 import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.config.OpenFinanceProperties;
+import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.openfinance.OpenFinanceConnection;
 import com.financeai.backend.openfinance.OpenFinanceConnectionRepository;
 import com.financeai.backend.openfinance.OpenFinanceService;
@@ -53,6 +54,8 @@ class OpenFinanceServiceTest {
     private AnalysisService analysisService;
     @Mock
     private RagIngestionService ragIngestionService;
+    @Mock
+    private FinancialFactsService financialFactsService;
     @InjectMocks
     private OpenFinanceService service;
 
@@ -105,6 +108,9 @@ class OpenFinanceServiceTest {
                 assertThat(transaction.getImportSourceId()).isEqualTo(connectionId);
             });
         verify(transactionRepository).saveAll(transactions.getValue());
+        verify(financialFactsService).rebuild(
+            userId, com.financeai.backend.transaction.TransactionSource.OPEN_FINANCE_PLUGGY,
+            connectionId);
         verify(ragIngestionService).ingestTransactions(
             userId, "OPEN_FINANCE", connectionId.toString(), null, transactions.getValue());
         verify(connection).setLastSyncAt(any(Instant.class));

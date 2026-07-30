@@ -2,10 +2,12 @@ package com.financeai.backend;
 
 import com.financeai.backend.importation.*;
 import com.financeai.backend.common.exception.BusinessException;
+import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +47,8 @@ class CsvImportServiceTest {
     private ObjectStorageService objectStorageService;
     @Mock
     private com.financeai.backend.rag.RagIngestionService ragIngestionService;
+    @Mock
+    private FinancialFactsService financialFactsService;
 
     @InjectMocks
     private CsvImportService csvImportService;
@@ -100,6 +104,8 @@ class CsvImportServiceTest {
             .allMatch(t -> t.getUser().getId().equals(userId));
         assertThat(transactionCaptor.getValue())
             .anyMatch(t -> "Supermercado".equals(t.getDescription()));
+        verify(financialFactsService).rebuild(
+            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
 
         ArgumentCaptor<ImportedFile> importedFileCaptor = ArgumentCaptor.forClass(ImportedFile.class);
         verify(importedFileRepository, atLeast(2)).save(importedFileCaptor.capture());

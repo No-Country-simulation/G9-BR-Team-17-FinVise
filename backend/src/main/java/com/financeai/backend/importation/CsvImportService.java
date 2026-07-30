@@ -2,10 +2,12 @@ package com.financeai.backend.importation;
 
 import com.financeai.backend.common.exception.BusinessException;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
+import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
@@ -42,19 +44,22 @@ public class CsvImportService {
     private final UserRepository userRepository;
     private final ObjectStorageService objectStorageService;
     private final com.financeai.backend.rag.RagIngestionService ragIngestionService;
+    private final FinancialFactsService financialFactsService;
 
     public CsvImportService(TransactionRepository transactionRepository,
                             TransactionCategorizationService categorizationService,
                             ImportedFileRepository importedFileRepository,
                             UserRepository userRepository,
                             ObjectStorageService objectStorageService,
-                            com.financeai.backend.rag.RagIngestionService ragIngestionService) {
+                            com.financeai.backend.rag.RagIngestionService ragIngestionService,
+                            FinancialFactsService financialFactsService) {
         this.transactionRepository = transactionRepository;
         this.categorizationService = categorizationService;
         this.importedFileRepository = importedFileRepository;
         this.userRepository = userRepository;
         this.objectStorageService = objectStorageService;
         this.ragIngestionService = ragIngestionService;
+        this.financialFactsService = financialFactsService;
     }
 
     @Transactional
@@ -120,6 +125,8 @@ public class CsvImportService {
             TransactionCategorizationService.CategorizationResult categorization =
                 categorizationService.categorize(transactions);
             transactionRepository.saveAll(transactions);
+            financialFactsService.rebuild(
+                userId, TransactionSource.CSV_IMPORT, importedFile.getId());
             ragIngestionService.ingestTransactions(
                 userId,
                 "CSV_IMPORT",

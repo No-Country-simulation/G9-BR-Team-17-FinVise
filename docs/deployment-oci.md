@@ -167,4 +167,6 @@ docker compose -f docker-compose.yml -f docker-compose.production.yml logs -f
 
 Configure `STORAGE_TYPE=oci` e as variáveis `OCI_NAMESPACE`, `OCI_BUCKET_NAME`, etc., para armazenar modelos, datasets, CSVs importados, relatórios e backups.
 
-Se não configurado, o sistema usa armazenamento local (`LocalObjectStorageService`).
+Se não configurado, o sistema usa armazenamento local (`LocalObjectStorageService`). No Docker Compose, os arquivos ficam no volume nomeado `uploads_data`, montado em `/app/uploads`, e sobrevivem à recriação do container.
+
+Não execute `docker compose down -v` em produção sem um backup, pois essa opção remove os volumes `postgres_data` e `uploads_data`.

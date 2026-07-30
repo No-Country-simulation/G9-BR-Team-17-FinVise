@@ -189,7 +189,7 @@ export function AgentPage() {
     setMessages((current) => [...current, userMessage]);
     setInput('');
     setFiltersOpen(false);
-    if (inputRef.current) inputRef.current.style.height = '40px';
+    if (inputRef.current) inputRef.current.style.height = '36px';
     setIsLoading(true);
     setThinkingTools(defaultThinkingTools);
     setError(null);
@@ -282,28 +282,28 @@ export function AgentPage() {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-[38rem] max-w-5xl flex-col lg:h-[calc(100vh-10rem)]">
-      <div className="mb-4 min-w-0">
-        <h1 className="text-2xl font-bold text-slate-900">Assistente Financeiro</h1>
-        <p className="mt-1 text-sm text-slate-500 sm:text-base">
+    <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-0 max-w-5xl flex-col lg:h-[calc(100vh-10rem)]">
+      <div className="mb-3 min-w-0 sm:mb-4">
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Assistente Financeiro</h1>
+        <p className="mt-0.5 text-sm leading-5 text-slate-500 sm:mt-1 sm:text-base">
           Entenda suas finanças com respostas baseadas nos seus próprios dados
         </p>
       </div>
 
-      <Card className="flex flex-1 flex-col overflow-hidden border-slate-200 shadow-md shadow-slate-200/40">
-        <CardContent className="flex flex-1 flex-col overflow-hidden p-0">
-          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/50 p-4 sm:p-5">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200 shadow-md shadow-slate-200/40">
+        <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/50 p-3 sm:space-y-4 sm:p-5">
             {messages.map((message) => {
               if (message.id.startsWith('welcome')) {
                 return (
                   <div
                     key={message.id}
-                    className="mx-auto flex max-w-2xl flex-col items-center px-1 py-3 text-center sm:py-6"
+                    className="mx-auto flex max-w-2xl flex-col items-center px-1 py-2 text-center sm:py-6"
                   >
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-base font-bold text-slate-900 sm:text-lg">
                       O que você quer entender hoje?
                     </h2>
-                    <p className="mt-1 max-w-lg text-sm leading-5 text-slate-500">
+                    <p className="mt-1 max-w-lg text-xs leading-5 text-slate-500 sm:text-sm">
                       {selectedSourceIds.length > 0
                         ? `Vou consultar ${selectedSourceIds.length} ${
                           selectedSourceIds.length === 1 ? 'arquivo' : 'arquivos'
@@ -311,7 +311,7 @@ export function AgentPage() {
                         : 'Selecione ao menos um arquivo acima para começar a análise.'}
                     </p>
 
-                    <div className="mt-4 grid w-full gap-2 sm:grid-cols-2">
+                    <div className="mt-3 grid w-full gap-1.5 sm:mt-4 sm:grid-cols-2 sm:gap-2">
                       {suggestionQuestions.map((question) => (
                         <button
                           key={question}
@@ -323,7 +323,7 @@ export function AgentPage() {
                             || selectedSourceIds.length === 0
                           }
                           onClick={() => handleSend(question)}
-                          className="group flex min-h-12 items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-left text-xs font-medium leading-5 text-slate-700 transition-colors hover:border-primary-200 hover:bg-white hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="group flex min-h-11 items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2 text-left text-xs font-medium leading-4 text-slate-700 transition-colors hover:border-primary-200 hover:bg-white hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-12 sm:gap-3 sm:px-3.5 sm:py-2.5 sm:leading-5"
                         >
                           <span>{question}</span>
                           <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-primary-600" />
@@ -447,13 +447,13 @@ export function AgentPage() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-slate-200 bg-white p-3 sm:p-4">
+          <div className="border-t border-slate-200 bg-white p-2 sm:p-4">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
                 handleSend(input);
               }}
-              className="flex min-h-14 items-center gap-1 rounded-full border border-slate-300 bg-slate-50 p-1.5 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100"
+              className="flex min-h-12 min-w-0 items-center gap-0.5 rounded-full border border-slate-300 bg-slate-50 p-1 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 sm:min-h-14 sm:gap-1 sm:p-1.5"
             >
               <div ref={contextMenuRef} className="relative shrink-0">
                 <button
@@ -466,7 +466,7 @@ export function AgentPage() {
                   disabled={isLoading || isStreaming}
                   onClick={() => setFiltersOpen((current) => !current)}
                   className={cn(
-                    'relative flex h-10 w-10 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
+                    'relative flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10',
                     filtersOpen && 'bg-primary-100 text-primary-700'
                   )}
                 >
@@ -509,14 +509,14 @@ export function AgentPage() {
 
               <textarea
                 ref={inputRef}
-                placeholder="Pergunte sobre os dados selecionados..."
+                placeholder="Pergunte sobre seus dados..."
                 aria-describedby="agent-input-hint"
                 value={input}
                 rows={1}
                 onChange={(event) => {
                   setInput(event.target.value);
-                  event.target.style.height = '40px';
-                  event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
+                  event.target.style.height = '36px';
+                  event.target.style.height = `${Math.min(event.target.scrollHeight, 112)}px`;
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
@@ -525,7 +525,7 @@ export function AgentPage() {
                   }
                 }}
                 disabled={sourcesLoading || isLoading || isStreaming}
-                className="min-h-10 max-h-32 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-9 min-w-0 max-h-28 flex-1 resize-none bg-transparent px-1.5 py-2 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10 sm:max-h-32 sm:px-2 sm:py-2.5"
               />
 
               <AgentDepthSelector
@@ -543,7 +543,7 @@ export function AgentPage() {
                   aria-label="Parar resposta"
                   title="Parar resposta"
                   onClick={stopResponse}
-                  className="h-10 w-10 shrink-0 rounded-full p-0"
+                  className="h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
                 >
                   <Square className="h-3.5 w-3.5 fill-current" />
                 </Button>
@@ -551,7 +551,7 @@ export function AgentPage() {
                 <Button
                   type="submit"
                   aria-label="Enviar mensagem"
-                  className="h-10 w-10 shrink-0 rounded-full p-0"
+                  className="h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
                   disabled={
                     sourcesLoading
                     || !input.trim()

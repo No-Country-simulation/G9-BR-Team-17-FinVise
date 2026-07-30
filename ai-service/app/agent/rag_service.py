@@ -178,13 +178,39 @@ class RAGService:
                         if not rows:
                             break
 
-                        vectors = self.generate_embeddings_batch([row[1] for row in rows])
+                    self._mark_index_status(conn, rows, "PROCESSING")
+                    conn.commit()
+
+                    try:
+                        vectors = self.generate_embeddings_batch(
+                            [row[1] for row in rows]
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        conn.rollback()
+                        self._mark_index_status(
+                            conn,
+                            rows,
+                            "FAILED",
+                            str(exc)[:1000],
+                        )
+                        conn.commit()
+                        logger.error(
+                            "RAG embedding batch failed for user_id=%s: %s",
+                            user_id,
+                            exc,
+                        )
+                        break
+
+                    with conn.cursor() as cur:
                         cur.executemany(
                             """
                             UPDATE rag_documents
                             SET embedding = %s::vector,
                                 embedding_model = %s,
-                                embedding_created_at = CURRENT_TIMESTAMP
+                                embedding_created_at = CURRENT_TIMESTAMP,
+                                index_status = 'INDEXED',
+                                index_error = NULL,
+                                index_attempted_at = CURRENT_TIMESTAMP
                             WHERE id = %s::uuid;
                             """,
                             [
@@ -210,6 +236,27 @@ class RAGService:
                 user_id,
             )
         return total_updated
+
+    def _mark_index_status(
+        self,
+        conn: psycopg.Connection,
+        rows: list[tuple[Any, ...]],
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        if not rows:
+            return
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                UPDATE rag_documents
+                SET index_status = %s,
+                    index_error = %s,
+                    index_attempted_at = CURRENT_TIMESTAMP
+                WHERE id = %s::uuid;
+                """,
+                [(status, error, row[0]) for row in rows],
+            )
 
     def retrieve_context(
         self,

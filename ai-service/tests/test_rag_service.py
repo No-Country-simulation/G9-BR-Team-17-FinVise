@@ -130,3 +130,104 @@ def test_agent_maps_selected_source_to_rag_source_type():
 
     request.context.financial_profile["source"] = "ALL"
     assert FinancialAgent._rag_source_type(request) is None
+
+
+class _IndexCursor:
+    def __init__(self):
+        self.last_query = ""
+        self.batch_returned = False
+        self.executemany_calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def execute(self, query, _params):
+        self.last_query = query
+
+    def executemany(self, query, params):
+        self.executemany_calls.append((query, params))
+
+    def fetchone(self):
+        return (True,)
+
+    def fetchall(self):
+        if self.batch_returned:
+            return []
+        self.batch_returned = True
+        return [
+            (
+                "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+                "Fatos financeiros de dezembro",
+            )
+        ]
+
+
+class _IndexConnection:
+    def __init__(self):
+        self.cursor_instance = _IndexCursor()
+        self.commits = 0
+        self.rollbacks = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def cursor(self):
+        return self.cursor_instance
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+
+def test_indexing_tracks_processing_and_indexed_status(monkeypatch):
+    connection = _IndexConnection()
+    monkeypatch.setattr(rag_service, "_get_connection", lambda: connection)
+    monkeypatch.setattr(rag_service, "_ensure_embedding_column", lambda _conn: True)
+    monkeypatch.setattr(
+        rag_service,
+        "generate_embeddings_batch",
+        lambda _texts: [[0.1] * 1536],
+    )
+
+    indexed = rag_service.index_unembedded_chunks(
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+    )
+
+    assert indexed == 1
+    assert connection.commits == 2
+    processing_query, processing_params = (
+        connection.cursor_instance.executemany_calls[0]
+    )
+    indexed_query, _indexed_params = connection.cursor_instance.executemany_calls[1]
+    assert "index_status = %s" in processing_query
+    assert processing_params[0][0] == "PROCESSING"
+    assert "index_status = 'INDEXED'" in indexed_query
+
+
+def test_indexing_marks_failed_batch(monkeypatch):
+    connection = _IndexConnection()
+    monkeypatch.setattr(rag_service, "_get_connection", lambda: connection)
+    monkeypatch.setattr(rag_service, "_ensure_embedding_column", lambda _conn: True)
+
+    def fail_embedding(_texts):
+        raise RuntimeError("provedor indisponível")
+
+    monkeypatch.setattr(rag_service, "generate_embeddings_batch", fail_embedding)
+
+    indexed = rag_service.index_unembedded_chunks(
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+    )
+
+    assert indexed == 0
+    assert connection.rollbacks == 1
+    _failed_query, failed_params = connection.cursor_instance.executemany_calls[1]
+    assert failed_params[0][0] == "FAILED"
+    assert failed_params[0][1] == "provedor indisponível"

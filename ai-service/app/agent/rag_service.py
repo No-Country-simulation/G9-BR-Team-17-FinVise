@@ -41,7 +41,7 @@ class RAGService:
         )
         self.db_pass = os.getenv(
             "SPRING_DATASOURCE_PASSWORD",
-            os.getenv("POSTGRES_PASSWORD", "change_me_in_production")
+            os.getenv("POSTGRES_PASSWORD", "")
         )
         self.dimension = 1536
 
@@ -214,7 +214,13 @@ class RAGService:
             logger.warning("Embedding indexing step skipped/failed: %s", exc)
         return total_updated
 
-    def retrieve_context(self, user_id: str, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    def retrieve_context(
+        self,
+        user_id: str,
+        query: str,
+        limit: int = 5,
+        source_type: str | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Fast, non-blocking retrieval of relevant transaction/financial chunks for the user from PostgreSQL RAG store.
         Uses pgvector similarity search (distance <=>) when available, falling back to chronological ordering.
@@ -222,6 +228,9 @@ class RAGService:
         if not user_id:
             logger.warning("RAG search called without user_id")
             return []
+
+        normalized_source = source_type.strip().upper() if source_type and source_type.strip() else None
+        source_clause = " AND source_type = %s" if normalized_source else ""
 
         try:
             with self._get_connection() as conn:
@@ -234,17 +243,20 @@ class RAGService:
                         query_vec = self.generate_embedding(query)
                         query_vec_str = json.dumps(query_vec)
                         try:
-                            cur.execute(
-                                """
+                            vector_query = f"""
                                 SELECT id, source_type, document_chunk, metadata, created_at,
                                        (embedding <=> %s::vector) AS distance
                                 FROM rag_documents
-                                WHERE user_id = %s::uuid AND embedding IS NOT NULL
+                                WHERE user_id = %s::uuid{source_clause}
+                                  AND embedding IS NOT NULL
                                 ORDER BY embedding <=> %s::vector ASC
                                 LIMIT %s;
-                                """,
-                                (query_vec_str, user_id, query_vec_str, limit)
-                            )
+                            """
+                            vector_params: list[Any] = [query_vec_str, user_id]
+                            if normalized_source:
+                                vector_params.append(normalized_source)
+                            vector_params.extend([query_vec_str, limit])
+                            cur.execute(vector_query, tuple(vector_params))
                             rows = cur.fetchall()
                             if rows:
                                 results = []
@@ -264,16 +276,18 @@ class RAGService:
                             logger.warning("pgvector similarity search query error, falling back to chronological query: %s", vec_exc)
 
                     # 2. Fallback para ordenação temporal padrão se os vetores não estiverem preenchidos
-                    cur.execute(
-                        """
+                    chronological_query = f"""
                         SELECT id, source_type, document_chunk, metadata, created_at
                         FROM rag_documents
-                        WHERE user_id = %s::uuid
+                        WHERE user_id = %s::uuid{source_clause}
                         ORDER BY created_at DESC
                         LIMIT %s;
-                        """,
-                        (user_id, limit)
-                    )
+                    """
+                    chronological_params: list[Any] = [user_id]
+                    if normalized_source:
+                        chronological_params.append(normalized_source)
+                    chronological_params.append(limit)
+                    cur.execute(chronological_query, tuple(chronological_params))
                     rows = cur.fetchall()
                     results = []
                     for row in rows:

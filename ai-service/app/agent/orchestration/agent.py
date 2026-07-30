@@ -117,11 +117,14 @@ class FinancialAgent:
             else (str(request.context.user_id) if hasattr(request.context, "user_id") and request.context.user_id else "")
         )
         last_query = request.messages[-1].content if request.messages else ""
+        source_type = self._rag_source_type(request)
 
         # Parallel execution of tool calls and RAG vector context retrieval
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_tools = executor.submit(self._execute_tools, request)
-            future_rag = executor.submit(rag_service.retrieve_context, user_id, last_query, 5)
+            future_rag = executor.submit(
+                rag_service.retrieve_context, user_id, last_query, 5, source_type
+            )
             tool_calls = future_tools.result()
             rag_chunks = future_rag.result()
 
@@ -170,11 +173,14 @@ class FinancialAgent:
             else (str(request.context.user_id) if hasattr(request.context, "user_id") and request.context.user_id else "")
         )
         last_query = request.messages[-1].content if request.messages else ""
+        source_type = self._rag_source_type(request)
 
         # Parallel execution of tool calls and RAG vector context retrieval
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_tools = executor.submit(self._execute_tools, request)
-            future_rag = executor.submit(rag_service.retrieve_context, user_id, last_query, 5)
+            future_rag = executor.submit(
+                rag_service.retrieve_context, user_id, last_query, 5, source_type
+            )
             tool_calls = future_tools.result()
             rag_chunks = future_rag.result()
 
@@ -223,6 +229,18 @@ class FinancialAgent:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Tool %s failed: %s", tool_name, exc)
         return executed
+
+    @staticmethod
+    def _rag_source_type(request: AgentRequest) -> str | None:
+        selected_source = request.context.financial_profile.get("source")
+        if not selected_source:
+            return None
+
+        source_mapping = {
+            "CSV_IMPORT": "CSV_IMPORT",
+            "OPEN_FINANCE_PLUGGY": "OPEN_FINANCE",
+        }
+        return source_mapping.get(str(selected_source).strip().upper())
 
     def _extract_savings_arguments(self, request: AgentRequest) -> dict[str, Any]:
         import re as _re

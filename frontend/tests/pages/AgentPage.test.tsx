@@ -138,7 +138,17 @@ describe('AgentPage streaming feedback', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Fontes usadas na resposta' }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Top-k da busca' })).toHaveValue('5');
+    const depthSelector = screen.getByRole('combobox', {
+      name: 'Profundidade da recuperação',
+    });
+    expect(depthSelector).toHaveValue('5');
+    expect(screen.getByRole('option', { name: 'Mínimo' })).toHaveValue('3');
+    expect(screen.getByRole('option', { name: 'Equilibrado' })).toHaveValue('5');
+    expect(screen.getByRole('option', { name: 'Estendido' })).toHaveValue('10');
+    expect(screen.getByRole('option', { name: 'Máximo' })).toHaveValue('15');
+    await user.selectOptions(depthSelector, '10');
+    expect(depthSelector).toHaveValue('10');
+
     await user.click(sourceButton);
 
     expect(screen.getByRole('dialog', { name: 'Fontes usadas na resposta' })).toBeInTheDocument();

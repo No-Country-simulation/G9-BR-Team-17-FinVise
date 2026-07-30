@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import joblib
@@ -6,6 +5,7 @@ import joblib
 from app.core.config import settings
 from app.core.exceptions import ModelNotLoadedError
 from app.core.logging import get_logger
+from app.model_registry.artifacts import load_json_list, validate_model_artifacts
 from app.preprocessing.text import normalize_text
 from app.schemas.transaction import TransactionItem, TransactionPrediction
 from app.transaction_classifier.base import BaseTransactionClassifier
@@ -30,25 +30,32 @@ class SklearnTransactionClassifier(BaseTransactionClassifier):
 
     def _load(self) -> None:
         model_path = self.model_dir / "model.joblib"
-        metadata_path = self.model_dir / "metadata.json"
         labels_path = self.model_dir / "labels.json"
-
-        if not model_path.exists():
-            raise ModelNotLoadedError(f"Transaction model not found at {model_path}")
+        validation = validate_model_artifacts(
+            "transaction-classifier",
+            self.model_dir,
+            ("model.joblib", "metadata.json", "labels.json"),
+            settings.transaction_model_version,
+        )
+        self.model_dir = validation.model_dir
+        model_path = self.model_dir / "model.joblib"
+        labels_path = self.model_dir / "labels.json"
+        self.metadata = validation.metadata
+        self.artifact_checksums = validation.checksums
 
         self.pipeline = joblib.load(model_path)
+        self.labels = load_json_list(labels_path, "transaction-classifier labels")
+        pipeline_labels = (
+            [str(label) for label in self.pipeline.classes_]
+            if hasattr(self.pipeline, "classes_")
+            else []
+        )
+        if pipeline_labels and set(pipeline_labels) != set(self.labels):
+            raise ModelNotLoadedError(
+                "transaction-classifier labels do not match the active model"
+            )
 
-        if metadata_path.exists():
-            with open(metadata_path, encoding="utf-8") as f:
-                self.metadata = json.load(f)
-
-        if labels_path.exists():
-            with open(labels_path, encoding="utf-8") as f:
-                self.labels = json.load(f)
-        elif hasattr(self.pipeline, "classes_"):
-            self.labels = list(self.pipeline.classes_)
-
-        self.version = self.metadata.get("version", "1.0.0")
+        self.version = validation.version
         self.confidence_threshold = float(
             self.metadata.get("confidence_threshold", DEFAULT_CONFIDENCE_THRESHOLD)
         )

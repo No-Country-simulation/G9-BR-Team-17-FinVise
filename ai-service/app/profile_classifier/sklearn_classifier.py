@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import joblib
@@ -7,6 +6,7 @@ import numpy as np
 from app.core.config import settings
 from app.core.exceptions import ModelNotLoadedError
 from app.core.logging import get_logger
+from app.model_registry.artifacts import load_json_list, validate_model_artifacts
 from app.profile_classifier.base import BaseProfileClassifier
 from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse
 
@@ -39,27 +39,33 @@ class SklearnProfileClassifier(BaseProfileClassifier):
     def _load(self) -> None:
         model_path = self.model_dir / "model.joblib"
         preprocessor_path = self.model_dir / "preprocessor.joblib"
-        metadata_path = self.model_dir / "metadata.json"
         feature_names_path = self.model_dir / "feature_names.json"
-
-        if not model_path.exists():
-            raise ModelNotLoadedError(f"Profile model not found at {model_path}")
+        validation = validate_model_artifacts(
+            "profile-classifier",
+            self.model_dir,
+            ("model.joblib", "metadata.json", "feature_names.json"),
+            settings.profile_model_version,
+        )
+        self.model_dir = validation.model_dir
+        model_path = self.model_dir / "model.joblib"
+        preprocessor_path = self.model_dir / "preprocessor.joblib"
+        feature_names_path = self.model_dir / "feature_names.json"
+        self.metadata = validation.metadata
+        self.artifact_checksums = validation.checksums
 
         self.model = joblib.load(model_path)
         if preprocessor_path.exists():
             self.preprocessor = joblib.load(preprocessor_path)
 
-        if metadata_path.exists():
-            with open(metadata_path, encoding="utf-8") as f:
-                self.metadata = json.load(f)
+        self.feature_names = load_json_list(
+            feature_names_path, "profile-classifier features"
+        )
+        if self.feature_names != FEATURE_NAMES:
+            raise ModelNotLoadedError(
+                "profile-classifier features do not match the application schema"
+            )
 
-        if feature_names_path.exists():
-            with open(feature_names_path, encoding="utf-8") as f:
-                self.feature_names = json.load(f)
-        else:
-            self.feature_names = FEATURE_NAMES
-
-        self.version = self.metadata.get("version", "1.0.0")
+        self.version = validation.version
         self.status = "LOADED"
         logger.info("Loaded profile classifier version %s from %s", self.version, model_path)
 

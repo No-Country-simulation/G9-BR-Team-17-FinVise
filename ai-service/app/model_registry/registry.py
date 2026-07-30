@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from app.core.config import settings
+from app.core.exceptions import ModelNotLoadedError
 from app.core.logging import get_logger
 from app.profile_classifier.base import BaseProfileClassifier
 from app.profile_classifier.fallback import FallbackProfileClassifier
@@ -26,7 +27,13 @@ class ModelRegistry:
                 clf = SklearnTransactionClassifier(model_dir)
                 return clf
             except Exception as exc:  # noqa: BLE001
+                self._raise_if_models_required("transaction-classifier", exc)
                 logger.warning("Failed to load sklearn transaction classifier: %s", exc)
+        else:
+            self._raise_if_models_required(
+                "transaction-classifier",
+                ModelNotLoadedError(f"model not found at {model_dir}"),
+            )
         logger.info("Using fallback transaction classifier")
         return FallbackTransactionClassifier()
 
@@ -37,9 +44,22 @@ class ModelRegistry:
                 clf = SklearnProfileClassifier(model_dir)
                 return clf
             except Exception as exc:  # noqa: BLE001
+                self._raise_if_models_required("profile-classifier", exc)
                 logger.warning("Failed to load sklearn profile classifier: %s", exc)
+        else:
+            self._raise_if_models_required(
+                "profile-classifier",
+                ModelNotLoadedError(f"model not found at {model_dir}"),
+            )
         logger.info("Using fallback profile classifier")
         return FallbackProfileClassifier()
+
+    def _raise_if_models_required(self, model_name: str, exc: Exception) -> None:
+        production = settings.environment.strip().lower() in {"production", "prod"}
+        if settings.require_active_models or production:
+            raise ModelNotLoadedError(
+                f"Active {model_name} is required but invalid: {exc}"
+            ) from exc
 
     def status(self) -> dict:
         return {

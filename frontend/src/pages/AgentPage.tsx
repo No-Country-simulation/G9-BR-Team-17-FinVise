@@ -10,6 +10,7 @@ import {
   Send,
   Sparkles,
   User,
+  X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -181,7 +182,7 @@ export function AgentPage() {
     setMessages((current) => [...current, userMessage]);
     setInput('');
     setFiltersOpen(false);
-    if (inputRef.current) inputRef.current.style.height = '44px';
+    if (inputRef.current) inputRef.current.style.height = '40px';
     setIsLoading(true);
     setThinkingTools(defaultThinkingTools);
     setError(null);
@@ -445,7 +446,7 @@ export function AgentPage() {
                 event.preventDefault();
                 handleSend(input);
               }}
-              className="flex items-end gap-1.5 rounded-2xl border border-slate-300 bg-slate-50 p-1.5 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 sm:rounded-full"
+              className="flex min-h-14 items-center gap-1 rounded-full border border-slate-300 bg-slate-50 p-1.5 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100"
             >
               <div ref={contextMenuRef} className="relative shrink-0">
                 <button
@@ -455,14 +456,17 @@ export function AgentPage() {
                   }`}
                   aria-expanded={filtersOpen}
                   aria-controls="agent-context-controls"
+                  disabled={isLoading || isStreaming}
                   onClick={() => setFiltersOpen((current) => !current)}
                   className={cn(
-                    'relative flex h-10 w-10 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+                    'relative flex h-10 w-10 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
                     filtersOpen && 'bg-primary-100 text-primary-700'
                   )}
                 >
-                  <Plus className="h-5 w-5" />
-                  {selectedSourceIds.length > 0 && (
+                  {filtersOpen
+                    ? <X className="h-5 w-5" />
+                    : <Plus className="h-5 w-5" />}
+                  {!filtersOpen && selectedSourceIds.length > 0 && (
                     <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] font-bold text-white">
                       {selectedSourceIds.length > 9 ? '9+' : selectedSourceIds.length}
                     </span>
@@ -504,7 +508,7 @@ export function AgentPage() {
                 rows={1}
                 onChange={(event) => {
                   setInput(event.target.value);
-                  event.target.style.height = '44px';
+                  event.target.style.height = '40px';
                   event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
                 }}
                 onKeyDown={(event) => {
@@ -517,10 +521,10 @@ export function AgentPage() {
                 className="min-h-10 max-h-32 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
               />
 
-              <label className="w-20 shrink-0 sm:w-24">
-                <span className="sr-only">Top-k da busca</span>
+              <label className="w-24 shrink-0 sm:w-28">
+                <span className="sr-only">Profundidade da recuperação</span>
                 <Select
-                  aria-label="Top-k da busca"
+                  aria-label="Profundidade da recuperação"
                   value={String(topK)}
                   disabled={isLoading || isStreaming}
                   onChange={(event) => {
@@ -529,7 +533,7 @@ export function AgentPage() {
                   }}
                   options={retrievalDepthOptions.map((option) => ({
                     value: String(option.value),
-                    label: `Top ${option.value}`,
+                    label: option.label,
                   }))}
                   className="h-10 rounded-full border-0 bg-transparent px-2 text-xs font-semibold text-slate-600 focus:ring-primary-500 sm:h-10"
                 />
@@ -551,8 +555,9 @@ export function AgentPage() {
               </Button>
             </form>
             <p id="agent-input-hint" className="sr-only">
-              Use o botão de adicionar para escolher os arquivos. Selecione o Top-k para definir
-              quantas evidências serão consultadas. Enter envia; Shift mais Enter quebra a linha.
+              Use o botão de adicionar para escolher os arquivos. Selecione a profundidade para
+              definir quantas evidências serão consultadas. Enter envia; Shift mais Enter quebra
+              a linha.
             </p>
           </div>
         </CardContent>

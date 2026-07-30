@@ -59,7 +59,7 @@ export function AgentDepthSelector({
         disabled={disabled}
         onClick={() => setIsOpen((current) => !current)}
         className={cn(
-          'flex h-10 min-w-28 items-center justify-between gap-2 rounded-full px-3 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
+          'flex h-9 min-w-0 items-center justify-between gap-1 rounded-full px-2 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:min-w-28 sm:gap-2 sm:px-3 sm:text-xs',
           isOpen && 'bg-slate-200 text-slate-900'
         )}
       >
@@ -75,7 +75,7 @@ export function AgentDepthSelector({
           id="agent-depth-options"
           role="listbox"
           aria-label="Opções de profundidade"
-          className="absolute bottom-[calc(100%+0.625rem)] right-0 z-30 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+          className="absolute bottom-[calc(100%+0.625rem)] right-0 z-30 w-56 max-w-[calc(100vw-4rem)] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10 sm:w-64"
         >
           <p className="px-2.5 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
             Profundidade da busca

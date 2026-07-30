@@ -12,6 +12,7 @@ class ModelArtifactValidation:
     model_name: str
     model_dir: Path
     version: str
+    status: str
     metadata: dict[str, Any]
     checksums: dict[str, str]
 
@@ -47,6 +48,11 @@ def validate_model_artifacts(
     version = str(metadata.get("version", "")).strip()
     if not version:
         raise ModelNotLoadedError(f"{model_name} metadata has no version")
+    artifact_status = str(metadata.get("status", "")).strip().upper()
+    if artifact_status != "ACTIVE":
+        raise ModelNotLoadedError(
+            f"{model_name} metadata status must be ACTIVE"
+        )
     if expected_version and version != expected_version.strip():
         raise ModelNotLoadedError(
             f"{model_name} version {version} does not match active version "
@@ -61,6 +67,7 @@ def validate_model_artifacts(
         model_name=model_name,
         model_dir=normalized_dir,
         version=version,
+        status=artifact_status,
         metadata=metadata,
         checksums=checksums,
     )

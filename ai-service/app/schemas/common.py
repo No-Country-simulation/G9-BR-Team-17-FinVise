@@ -8,6 +8,10 @@ class HealthResponse(BaseModel):
 
 
 class ModelStatusResponse(BaseModel):
+    status: str
+    environment: str
+    models_required: bool
+    registered_at: str
     transaction_classifier: dict
     profile_classifier: dict
     llm_provider: dict

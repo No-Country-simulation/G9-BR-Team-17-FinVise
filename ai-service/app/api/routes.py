@@ -31,6 +31,10 @@ def models_status() -> ModelStatusResponse:
     registry = get_registry()
     status_dict = registry.status()
     return ModelStatusResponse(
+        status=status_dict["status"],
+        environment=status_dict["environment"],
+        models_required=status_dict["models_required"],
+        registered_at=status_dict["registered_at"],
         transaction_classifier=status_dict["transaction_classifier"],
         profile_classifier=status_dict["profile_classifier"],
         llm_provider={

@@ -42,6 +42,7 @@ class SklearnTransactionClassifier(BaseTransactionClassifier):
         labels_path = self.model_dir / "labels.json"
         self.metadata = validation.metadata
         self.artifact_checksums = validation.checksums
+        self.artifact_status = validation.status
 
         self.pipeline = joblib.load(model_path)
         self.labels = load_json_list(labels_path, "transaction-classifier labels")

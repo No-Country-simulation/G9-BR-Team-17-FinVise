@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -34,6 +36,13 @@ public class AgentConversation {
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_source", nullable = false)
     private TransactionSource transactionSource = TransactionSource.CSV_IMPORT;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "rag_source_ids", nullable = false, columnDefinition = "jsonb")
+    private String ragSourceIds = "[]";
+
+    @Column(name = "rag_top_k", nullable = false)
+    private Integer ragTopK = 5;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -81,6 +90,22 @@ public class AgentConversation {
 
     public void setTransactionSource(TransactionSource transactionSource) {
         this.transactionSource = transactionSource;
+    }
+
+    public String getRagSourceIds() {
+        return ragSourceIds;
+    }
+
+    public void setRagSourceIds(String ragSourceIds) {
+        this.ragSourceIds = ragSourceIds;
+    }
+
+    public Integer getRagTopK() {
+        return ragTopK;
+    }
+
+    public void setRagTopK(Integer ragTopK) {
+        this.ragTopK = ragTopK;
     }
 
     public Instant getCreatedAt() {

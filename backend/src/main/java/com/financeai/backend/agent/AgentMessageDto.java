@@ -9,6 +9,7 @@ public record AgentMessageDto(
     String role,
     String content,
     String toolCalls,
+    String ragSources,
     Instant createdAt
 ) {
 }

@@ -40,5 +40,14 @@ public interface RagDocumentRepository extends JpaRepository<RagDocument, UUID> 
                                          @Param("sourceType") String sourceType,
                                          @Param("sourceId") String sourceId);
 
+    long countByUserId(UUID userId);
+
+    long countByUserIdAndIndexStatus(UUID userId, RagIndexStatus indexStatus);
+
+    long countByUserIdAndSourceIdIn(UUID userId, List<String> sourceIds);
+
+    long countByUserIdAndSourceIdInAndIndexStatus(
+        UUID userId, List<String> sourceIds, RagIndexStatus indexStatus);
+
     void deleteByUserId(UUID userId);
 }

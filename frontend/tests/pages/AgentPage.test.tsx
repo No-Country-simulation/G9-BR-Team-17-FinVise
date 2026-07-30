@@ -116,7 +116,10 @@ describe('AgentPage streaming feedback', () => {
       });
     });
 
-    expect(screen.getByText('Olá!')).toBeInTheDocument();
+    const completedAnswer = screen.getByText('Olá!');
+    expect(completedAnswer).toBeInTheDocument();
+    expect(completedAnswer.closest('[data-message-role="assistant"]'))
+      .toHaveClass('bg-slate-100/80');
     expect(screen.getByText('Simulando plano de economia')).toBeInTheDocument();
     expect(screen.queryByText('simulate savings plan')).not.toBeInTheDocument();
     expect(sendMessageStreamMock).toHaveBeenCalledWith(

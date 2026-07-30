@@ -19,6 +19,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -85,5 +87,20 @@ class ImportSourceServiceTest {
         verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(
             userId, "OPEN_FINANCE", sourceId.toString());
         verify(connectionRepository).delete(connection);
+    }
+
+    @Test
+    void shouldNotDeleteRagDocumentsFromAnotherUser() {
+        UUID userId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        when(importedFileRepository.findByIdAndUserId(sourceId, userId))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(
+            userId, ImportSourceType.CSV, sourceId))
+            .isInstanceOf(com.financeai.backend.common.exception.ResourceNotFoundException.class);
+
+        verifyNoInteractions(
+            transactionRepository, ragDocumentRepository, objectStorageService);
     }
 }

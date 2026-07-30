@@ -81,7 +81,7 @@ describe('AgentPage streaming feedback', () => {
       name: 'Selecionar fontes. 1 arquivo selecionado',
     });
     await user.type(
-      screen.getByPlaceholderText('Pergunte sobre os dados selecionados...'),
+      screen.getByPlaceholderText('Pergunte sobre seus dados...'),
       'Como estou?{enter}'
     );
 
@@ -153,7 +153,7 @@ describe('AgentPage streaming feedback', () => {
       name: 'Selecionar fontes. 1 arquivo selecionado',
     });
     await user.type(
-      screen.getByPlaceholderText('Pergunte sobre os dados selecionados...'),
+      screen.getByPlaceholderText('Pergunte sobre seus dados...'),
       'Analise meus gastos{enter}'
     );
 

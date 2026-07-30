@@ -54,25 +54,11 @@ export function AgentContextPanel({
       id="agent-context-controls"
       role="dialog"
       aria-label="Fontes usadas na resposta"
-      className="absolute bottom-[calc(100%+0.75rem)] left-0 z-30 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10 sm:p-4"
+      className="absolute bottom-[calc(100%+0.625rem)] left-0 z-30 w-[min(18rem,calc(100vw-2.5rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Dados da conversa</p>
-          <p className="text-xs text-slate-500">
-            Escolha o que o FinVise pode consultar
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full bg-primary-50 px-2 py-1 text-[11px] font-semibold text-primary-700">
-          {selectedCount} {selectedCount === 1 ? 'selecionado' : 'selecionados'}
-        </span>
-      </div>
-
       <fieldset>
-        <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          Origem
-        </legend>
-        <div className="grid grid-cols-2 gap-2">
+        <legend className="sr-only">Origem</legend>
+        <div className="space-y-0.5">
           {sourceOptions.map((option) => {
             const Icon = option.icon;
             const selected = source === option.value;
@@ -85,61 +71,49 @@ export function AgentContextPanel({
                 disabled={disabled}
                 onClick={() => onSourceChange(option.value)}
                 className={cn(
-                  'flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
                   selected
-                    ? 'border-primary-300 bg-primary-50 text-primary-800'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    ? 'bg-primary-50 text-primary-800'
+                    : 'text-slate-700 hover:bg-slate-100'
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{option.label}</span>
+                <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                {selected && <Check className="h-4 w-4 shrink-0 text-primary-600" />}
               </button>
             );
           })}
         </div>
       </fieldset>
 
-      <fieldset className="mt-3">
-        <legend className="sr-only">Arquivos permitidos</legend>
-        <div className="mb-1.5 flex items-center justify-between gap-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Arquivos
-          </span>
-          {availableSources.length > 1 && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={onToggleAll}
-              className="min-h-8 rounded-md px-1.5 text-[11px] font-semibold text-primary-700 hover:bg-primary-50 hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
-            >
-              {allSelected ? 'Limpar seleção' : 'Selecionar todos'}
-            </button>
-          )}
-        </div>
+      <div className="my-1.5 h-px bg-slate-200" />
+
+      <fieldset>
+        <legend className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          Arquivos permitidos
+        </legend>
 
         {sourcesLoading && (
           <div
             aria-label="Carregando arquivos"
-            className="h-16 animate-pulse rounded-xl bg-slate-100"
+            className="mx-1 h-10 animate-pulse rounded-xl bg-slate-100"
           />
         )}
 
         {!sourcesLoading && availableSources.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
-            <p className="text-xs font-medium text-slate-700">
-              Nenhum dado disponível nessa origem.
-            </p>
-            <Link
-              to={source === 'CSV_IMPORT' ? '/import' : '/open-finance'}
-              className="mt-1 inline-flex min-h-8 items-center text-xs font-semibold text-primary-700 hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-            >
-              {source === 'CSV_IMPORT' ? 'Importar arquivo' : 'Conectar conta'}
-            </Link>
-          </div>
+          <Link
+            to={source === 'CSV_IMPORT' ? '/import' : '/open-finance'}
+            className="flex min-h-10 items-center gap-3 rounded-xl px-2.5 text-xs font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            {source === 'CSV_IMPORT'
+              ? <FileText className="h-4 w-4" />
+              : <Database className="h-4 w-4" />}
+            {source === 'CSV_IMPORT' ? 'Importar um arquivo' : 'Conectar uma conta'}
+          </Link>
         )}
 
         {!sourcesLoading && availableSources.length > 0 && (
-          <div className="grid max-h-36 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+          <div className="max-h-40 space-y-0.5 overflow-y-auto">
             {availableSources.map((item) => {
               const selected = selectedSourceIds.includes(item.id);
 
@@ -147,13 +121,17 @@ export function AgentContextPanel({
                 <label
                   key={item.id}
                   className={cn(
-                    'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 py-2 transition-colors focus-within:ring-2 focus-within:ring-primary-500',
+                    'flex min-h-10 cursor-pointer items-center gap-3 rounded-xl px-2.5 text-xs transition-colors focus-within:ring-2 focus-within:ring-primary-500',
                     selected
-                      ? 'border-primary-300 bg-primary-50'
-                      : 'border-slate-200 bg-white hover:bg-slate-50',
+                      ? 'bg-slate-100 font-semibold text-slate-900'
+                      : 'text-slate-700 hover:bg-slate-50',
                     disabled && 'cursor-not-allowed opacity-50'
                   )}
                 >
+                  <FileText className="h-4 w-4 shrink-0 text-slate-500" />
+                  <span className="min-w-0 flex-1 truncate" title={item.displayName}>
+                    {item.displayName}
+                  </span>
                   <input
                     type="checkbox"
                     className="peer sr-only"
@@ -164,29 +142,32 @@ export function AgentContextPanel({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border',
+                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
                       selected
                         ? 'border-primary-600 bg-primary-600 text-white'
                         : 'border-slate-300 bg-white text-transparent'
                     )}
                   >
-                    <Check className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className="block truncate text-xs font-semibold text-slate-800"
-                      title={item.displayName}
-                    >
-                      {item.displayName}
-                    </span>
-                    <span className="block text-[10px] text-slate-500">
-                      {item.transactionCount.toLocaleString('pt-BR')} transações
-                    </span>
+                    <Check className="h-3 w-3" />
                   </span>
                 </label>
               );
             })}
           </div>
+        )}
+
+        {!sourcesLoading && availableSources.length > 1 && (
+          <>
+            <div className="my-1 h-px bg-slate-100" />
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onToggleAll}
+              className="flex min-h-9 w-full items-center rounded-xl px-2.5 text-left text-[11px] font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
+            >
+              {allSelected ? 'Limpar seleção' : 'Selecionar todos'}
+            </button>
+          </>
         )}
       </fieldset>
     </div>

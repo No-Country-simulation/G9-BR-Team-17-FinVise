@@ -1,5 +1,8 @@
 package com.financeai.backend;
 
+import com.financeai.backend.fact.FinancialFactSnapshot;
+import com.financeai.backend.fact.FinancialFactSnapshotRepository;
+import com.financeai.backend.fact.FinancialFactsPayload;
 import com.financeai.backend.rag.RagDocument;
 import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
@@ -19,7 +22,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,6 +49,9 @@ class RagIngestionServiceTest {
     private TransactionCategoryRepository categoryRepository;
 
     @Mock
+    private FinancialFactSnapshotRepository financialFactSnapshotRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private RagIngestionService ragIngestionService;
@@ -55,6 +63,7 @@ class RagIngestionServiceTest {
             aiServiceClient,
             transactionRepository,
             categoryRepository,
+            financialFactSnapshotRepository,
             new ObjectMapper().findAndRegisterModules(),
             eventPublisher);
     }
@@ -123,5 +132,108 @@ class RagIngestionServiceTest {
             userId, sourceType, sourceId, List.of(transaction));
 
         verify(ragDocumentRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void shouldIndexPersistedFinancialFacts() {
+        UUID userId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        Transaction transaction = new Transaction();
+        transaction.setId(UUID.randomUUID());
+        transaction.setDescription("Mercado");
+        transaction.setAmount(new BigDecimal("250.00"));
+        transaction.setTransactionDate(LocalDate.of(2024, 12, 10));
+        transaction.setType(TransactionType.EXPENSE);
+
+        FinancialFactsPayload.MonthlyFact month = new FinancialFactsPayload.MonthlyFact(
+            YearMonth.of(2024, 12),
+            2,
+            1,
+            1,
+            new BigDecimal("3000.00"),
+            new BigDecimal("250.00"),
+            new BigDecimal("2750.00"),
+            BigDecimal.ZERO
+        );
+        FinancialFactsPayload facts = new FinancialFactsPayload(
+            new FinancialFactsPayload.Overview(
+                2,
+                1,
+                1,
+                new BigDecimal("3000.00"),
+                new BigDecimal("250.00"),
+                new BigDecimal("2750.00"),
+                new BigDecimal("3000.00"),
+                new BigDecimal("250.00"),
+                new BigDecimal("3000.00"),
+                new BigDecimal("250.00"),
+                0,
+                BigDecimal.ZERO
+            ),
+            List.of(month),
+            List.of(new FinancialFactsPayload.CategoryFact(
+                "ALIMENTACAO",
+                "Alimentação",
+                1,
+                new BigDecimal("250.00"),
+                new BigDecimal("100.00"),
+                new BigDecimal("250.00"),
+                new BigDecimal("250.00"),
+                new BigDecimal("250.00")
+            )),
+            new FinancialFactsPayload.Rankings(
+                month,
+                month,
+                month,
+                month,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()
+            ),
+            new FinancialFactsPayload.DataQuality(0, BigDecimal.ZERO, 1)
+        );
+        FinancialFactSnapshot snapshot = new FinancialFactSnapshot();
+        snapshot.setId(UUID.randomUUID());
+        snapshot.setSourceId(sourceId);
+        snapshot.setSourceType("CSV_IMPORT");
+        snapshot.setSchemaVersion("1.0");
+        snapshot.setPeriodStart(LocalDate.of(2024, 12, 1));
+        snapshot.setPeriodEnd(LocalDate.of(2024, 12, 31));
+        snapshot.setFacts(facts);
+
+        when(ragDocumentRepository.findTransactionIdsBySource(
+            userId, "CSV_IMPORT", sourceId.toString())).thenReturn(Set.of());
+        when(financialFactSnapshotRepository.findByUserIdAndSourceId(userId, sourceId))
+            .thenReturn(Optional.of(snapshot));
+
+        ragIngestionService.ingestTransactions(
+            userId,
+            "CSV_IMPORT",
+            sourceId.toString(),
+            "dezembro.csv",
+            List.of(transaction)
+        );
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RagDocument>> documents = ArgumentCaptor.forClass(List.class);
+        verify(ragDocumentRepository).saveAll(documents.capture());
+
+        assertThat(documents.getValue())
+            .extracting(RagDocument::getChunkType)
+            .contains(
+                "FINANCIAL_OVERVIEW",
+                "MONTHLY_FACT",
+                "CATEGORY_FACT",
+                "FINANCIAL_RANKING"
+            );
+        assertThat(documents.getValue())
+            .filteredOn(document -> "FINANCIAL_RANKING".equals(document.getChunkType()))
+            .singleElement()
+            .extracting(RagDocument::getDocumentChunk)
+            .asString()
+            .contains("Maior saldo mensal")
+            .contains("dezembro de 2024");
     }
 }

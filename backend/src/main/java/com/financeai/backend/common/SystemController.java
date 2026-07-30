@@ -29,6 +29,9 @@ public class SystemController {
                 "message", "AI service não respondeu"
             ));
         }
+        if (result.modelsRequired() && !"READY".equals(result.status())) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(result);
+        }
         return ResponseEntity.ok(result);
     }
 }

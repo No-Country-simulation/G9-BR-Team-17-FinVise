@@ -98,7 +98,15 @@ describe('agentService streaming', () => {
     expect(sources).toEqual(['extrato.csv']);
     expect(result).toEqual({
       conversationId: 'conversation-1',
-      message: finalMessage,
+      message: {
+        ...finalMessage,
+        sources: [{
+          id: 'chunk-1',
+          source_name: 'extrato.csv',
+          chunk_type: 'MONTHLY_SUMMARY',
+          score: 0.91,
+        }],
+      },
     });
   });
 
@@ -115,6 +123,58 @@ describe('agentService streaming', () => {
       conversationId: 'conversation-1',
       source: 'CSV_IMPORT',
     })).rejects.toThrow('sem confirmar a mensagem');
+  });
+
+  it('preserves streamed text when the done event has empty content', async () => {
+    const onDone = vi.fn();
+    const sseBody = [
+      'event: token',
+      'data: {"token":"Resposta "}',
+      '',
+      'event: token',
+      'data: {"token":"completa"}',
+      '',
+      'event: done',
+      'data: {"message":{"id":"message-1","role":"assistant","content":"","timestamp":"2026-07-30T12:00:01Z"}}',
+      '',
+      '',
+    ].join('\n');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(sseBody, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    }));
+
+    const result = await agentService.sendMessageStream(
+      {
+        message: 'Teste',
+        conversationId: 'conversation-1',
+        source: 'CSV_IMPORT',
+      },
+      { onDone }
+    );
+
+    expect(result.message.content).toBe('Resposta completa');
+    expect(onDone).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'Resposta completa' })
+    );
+  });
+
+  it('rejects a completed stream without any text', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      'event: done\n'
+      + 'data: {"message":{"id":"message-1","role":"assistant","content":"",'
+      + '"timestamp":"2026-07-30T12:00:01Z"}}\n\n',
+      {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }
+    ));
+
+    await expect(agentService.sendMessageStream({
+      message: 'Teste',
+      conversationId: 'conversation-1',
+      source: 'CSV_IMPORT',
+    })).rejects.toThrow('sem gerar uma resposta');
   });
 
   it('stops reading after done and ignores a later transport failure', async () => {

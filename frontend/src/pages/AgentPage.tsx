@@ -31,12 +31,15 @@ const suggestionQuestions = [
   'Quais investimentos são seguros?',
 ];
 
+const defaultThinkingTools = ['rag_retrieval', 'financial_tools'];
+
 export function AgentPage() {
   const { source, setSource } = useTransactionSource();
   const [messages, setMessages] = useState<AgentMessage[]>([welcomeMessage]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [thinkingTools, setThinkingTools] = useState(defaultThinkingTools);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -61,9 +64,11 @@ export function AgentPage() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setThinkingTools(defaultThinkingTools);
     setError(null);
     const assistantId = `stream-${Date.now()}`;
     let assistantAdded = false;
+    let latestTools: string[] = [];
     const abortController = new AbortController();
     activeStreamRef.current = abortController;
 
@@ -77,7 +82,7 @@ export function AgentPage() {
           role: 'assistant',
           content: '',
           timestamp: new Date().toISOString(),
-          tools: [],
+          tools: latestTools,
         },
       ]);
     };
@@ -92,20 +97,15 @@ export function AgentPage() {
         {
           onConversation: (id) => {
             setConversationId(id);
-            ensureAssistantMessage();
-            setIsLoading(false);
-            setIsStreaming(true);
           },
           onTools: (tools) => {
-            ensureAssistantMessage();
-            setMessages((prev) =>
-              prev.map((message) =>
-                message.id === assistantId ? { ...message, tools } : message
-              )
-            );
+            latestTools = tools;
+            setThinkingTools(tools.length > 0 ? tools : defaultThinkingTools);
           },
           onToken: (token) => {
             ensureAssistantMessage();
+            setIsLoading(false);
+            setIsStreaming(true);
             setMessages((prev) =>
               prev.map((message) =>
                 message.id === assistantId
@@ -116,6 +116,7 @@ export function AgentPage() {
           },
           onDone: (message) => {
             ensureAssistantMessage();
+            setIsLoading(false);
             setMessages((prev) =>
               prev.map((current) => current.id === assistantId ? message : current)
             );
@@ -236,14 +237,15 @@ export function AgentPage() {
 
                   {/* Real-time executing tools with rotating spinner animation below Pensando... */}
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
-                      <Loader2 className="h-3 w-3 animate-spin text-primary-600 shrink-0" />
-                      <span>rag_retrieval</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
-                      <Loader2 className="h-3 w-3 animate-spin text-primary-600 shrink-0" />
-                      <span>financial_tools</span>
-                    </span>
+                    {thinkingTools.map((toolName) => (
+                      <span
+                        key={toolName}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin text-primary-600 shrink-0" />
+                        <span>{toolName}</span>
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>

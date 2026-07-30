@@ -86,6 +86,7 @@ describe('AgentPage streaming feedback', () => {
     );
 
     expect(await screen.findByText('Pensando...')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Parar resposta' })).toBeInTheDocument();
     expect(screen.getByText('Buscando evidências')).toBeInTheDocument();
     expect(screen.getByText('Calculando indicadores')).toBeInTheDocument();
 
@@ -126,6 +127,39 @@ describe('AgentPage streaming feedback', () => {
       expect.any(Object),
       expect.any(AbortSignal)
     );
+  });
+
+  it('stops the active response from the composer', async () => {
+    let requestSignal: AbortSignal | undefined;
+    sendMessageStreamMock.mockImplementation(
+      (_request: unknown, _handlers: StreamHandlers, signal: AbortSignal) => {
+        requestSignal = signal;
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => reject(new DOMException('Resposta interrompida', 'AbortError')),
+            { once: true }
+          );
+        });
+      }
+    );
+    const user = userEvent.setup();
+    renderAgentPage();
+
+    await screen.findByRole('button', {
+      name: 'Selecionar fontes. 1 arquivo selecionado',
+    });
+    await user.type(
+      screen.getByPlaceholderText('Pergunte sobre os dados selecionados...'),
+      'Analise meus gastos{enter}'
+    );
+
+    const stopButton = await screen.findByRole('button', { name: 'Parar resposta' });
+    await user.click(stopButton);
+
+    expect(requestSignal?.aborted).toBe(true);
+    expect(screen.queryByText('Pensando...')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar mensagem' })).toBeInTheDocument();
   });
 
   it('presents sources and retrieval depth in user-friendly language', async () => {

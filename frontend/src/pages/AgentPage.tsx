@@ -9,6 +9,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Square,
   User,
   X,
 } from 'lucide-react';
@@ -163,6 +164,14 @@ export function AgentPage() {
         : [...current, id]
     );
     resetConversation();
+  };
+
+  const stopResponse = () => {
+    activeStreamRef.current?.abort();
+    activeStreamRef.current = null;
+    setIsLoading(false);
+    setIsStreaming(false);
+    setThinkingTools(defaultThinkingTools);
   };
 
   const handleSend = async (text: string) => {
@@ -539,25 +548,35 @@ export function AgentPage() {
                 />
               </label>
 
-              <Button
-                type="submit"
-                aria-label="Enviar mensagem"
-                className="h-10 w-10 shrink-0 rounded-full p-0"
-                disabled={
-                  isLoading
-                  || isStreaming
-                  || sourcesLoading
-                  || !input.trim()
-                  || selectedSourceIds.length === 0
-                }
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+              {isLoading || isStreaming ? (
+                <Button
+                  type="button"
+                  aria-label="Parar resposta"
+                  title="Parar resposta"
+                  onClick={stopResponse}
+                  className="h-10 w-10 shrink-0 rounded-full p-0"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  aria-label="Enviar mensagem"
+                  className="h-10 w-10 shrink-0 rounded-full p-0"
+                  disabled={
+                    sourcesLoading
+                    || !input.trim()
+                    || selectedSourceIds.length === 0
+                  }
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
             </form>
             <p id="agent-input-hint" className="sr-only">
               Use o botão de adicionar para escolher os arquivos. Selecione a profundidade para
               definir quantas evidências serão consultadas. Enter envia; Shift mais Enter quebra
-              a linha.
+              a linha. Durante a resposta, use o botão parar para interromper.
             </p>
           </div>
         </CardContent>

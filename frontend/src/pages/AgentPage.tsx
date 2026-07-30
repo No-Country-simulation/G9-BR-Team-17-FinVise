@@ -8,7 +8,6 @@ import {
   Plus,
   Search,
   Send,
-  Sparkles,
   Square,
   User,
   X,
@@ -299,15 +298,12 @@ export function AgentPage() {
                 return (
                   <div
                     key={message.id}
-                    className="mx-auto flex max-w-2xl flex-col items-center px-1 py-4 text-center sm:py-7"
+                    className="mx-auto flex max-w-2xl flex-col items-center px-1 py-3 text-center sm:py-6"
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-100 text-primary-700">
-                      <Sparkles className="h-7 w-7" />
-                    </div>
-                    <h2 className="mt-4 text-lg font-bold text-slate-900">
+                    <h2 className="text-lg font-bold text-slate-900">
                       O que você quer entender hoje?
                     </h2>
-                    <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">
+                    <p className="mt-1 max-w-lg text-sm leading-5 text-slate-500">
                       {selectedSourceIds.length > 0
                         ? `Vou consultar ${selectedSourceIds.length} ${
                           selectedSourceIds.length === 1 ? 'arquivo' : 'arquivos'
@@ -315,7 +311,7 @@ export function AgentPage() {
                         : 'Selecione ao menos um arquivo acima para começar a análise.'}
                     </p>
 
-                    <div className="mt-5 grid w-full gap-2 sm:grid-cols-2">
+                    <div className="mt-4 grid w-full gap-2 sm:grid-cols-2">
                       {suggestionQuestions.map((question) => (
                         <button
                           key={question}
@@ -327,7 +323,7 @@ export function AgentPage() {
                             || selectedSourceIds.length === 0
                           }
                           onClick={() => handleSend(question)}
-                          className="group flex min-h-14 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left text-xs font-medium leading-5 text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary-200 hover:text-primary-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                          className="group flex min-h-12 items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-left text-xs font-medium leading-5 text-slate-700 transition-colors hover:border-primary-200 hover:bg-white hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <span>{question}</span>
                           <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-primary-600" />

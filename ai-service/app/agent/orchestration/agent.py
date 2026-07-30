@@ -45,6 +45,29 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_monthly_rankings",
+            "description": "Retorna os melhores e piores meses por saldo, renda e despesas.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_transaction_rankings",
+            "description": "Retorna maiores e menores receitas e despesas, com filtro mensal.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "month": {"type": "integer", "minimum": 1, "maximum": 12},
+                    "year": {"type": "integer"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_transactions",
             "description": "Retorna transacoes recentes.",
             "parameters": {
@@ -142,7 +165,10 @@ class FinancialAgent:
             if formatted_tools:
                 tool_text = "\n\n[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:\n" + "\n".join(formatted_tools)
 
-        rag_text = self._format_rag_context(rag_chunks)
+        rag_text = self._format_rag_context(
+            rag_chunks,
+            self._has_tool_evidence(tool_calls),
+        )
 
         effective_system_prompt = self.system_prompt + tool_text + rag_text
 
@@ -212,7 +238,10 @@ class FinancialAgent:
             if formatted_tools:
                 tool_text = "\n\n[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:\n" + "\n".join(formatted_tools)
 
-        rag_text = self._format_rag_context(rag_chunks)
+        rag_text = self._format_rag_context(
+            rag_chunks,
+            self._has_tool_evidence(tool_calls),
+        )
 
         effective_system_prompt = self.system_prompt + tool_text + rag_text
 
@@ -230,8 +259,18 @@ class FinancialAgent:
             raise RuntimeError("O provedor de IA concluiu sem gerar texto")
 
     @staticmethod
-    def _format_rag_context(rag_chunks: list[dict[str, Any]]) -> str:
+    def _format_rag_context(
+        rag_chunks: list[dict[str, Any]],
+        has_tool_evidence: bool = False,
+    ) -> str:
         if not rag_chunks:
+            if has_tool_evidence:
+                return (
+                    "\n\n[CONTEXTO ANALÍTICO DETERMINÍSTICO]\n"
+                    "Não houve chunk textual relevante, mas as ferramentas retornaram "
+                    "fatos calculados diretamente das fontes selecionadas. Use esses fatos "
+                    "como evidência numérica suficiente e não declare falta de dados."
+                )
             return (
                 "\n\n[CONTEXTO RAG RECUPERADO]\n"
                 "Nenhuma evidência relevante foi encontrada nas fontes selecionadas. "
@@ -252,6 +291,16 @@ class FinancialAgent:
             + "\n\n".join(chunks)
             + "\n\nUse [S1], [S2] etc. para citar toda afirmação baseada nesses dados."
         )
+
+    @staticmethod
+    def _has_tool_evidence(tool_calls: list[ToolCall]) -> bool:
+        for tool_call in tool_calls:
+            result = tool_call.result
+            if isinstance(result, dict) and result.get("available") is False:
+                continue
+            if result:
+                return True
+        return False
 
     @staticmethod
     def _rag_sources(rag_chunks: list[dict[str, Any]]) -> list[RagSource]:
@@ -278,6 +327,9 @@ class FinancialAgent:
                 arguments: dict[str, Any] = {}
                 if tool_name == "simulate_savings_plan":
                     arguments = self._extract_savings_arguments(request)
+                    result = func(request.context, **arguments)
+                elif tool_name == "get_transaction_rankings":
+                    arguments = self._extract_ranking_arguments(request)
                     result = func(request.context, **arguments)
                 elif tool_name == "get_transactions":
                     arguments = {"limit": 10}
@@ -320,15 +372,86 @@ class FinancialAgent:
                 months = int(month_matches[0])
         return {"target_amount": target, "months": months}
 
+    def _extract_ranking_arguments(self, request: AgentRequest) -> dict[str, Any]:
+        import re as _re
+
+        text = self._normalize_intent(
+            request.messages[-1].content if request.messages else ""
+        )
+        month = next(
+            (
+                number
+                for name, number in self._month_names().items()
+                if _re.search(rf"\b{name}\b", text)
+            ),
+            None,
+        )
+        year_match = _re.search(r"\b(20\d{2})\b", text)
+        return {
+            "month": month,
+            "year": int(year_match.group(1)) if year_match else None,
+        }
+
     def _select_tools(self, request: AgentRequest) -> list[str]:
-        last_message = request.messages[-1].content.lower() if request.messages else ""
+        last_message = self._normalize_intent(
+            request.messages[-1].content if request.messages else ""
+        )
         selected: list[str] = []
+        ranking_terms = [
+            "melhor",
+            "pior",
+            "maior",
+            "maiores",
+            "menor",
+            "menores",
+            "ranking",
+            "top",
+        ]
+        transaction_terms = [
+            "transacao",
+            "transacoes",
+            "receita",
+            "receitas",
+            "despesa",
+            "despesas",
+        ]
+        month_terms = ["mes", "mensal", *self._month_names().keys()]
+        is_ranking = any(term in last_message for term in ranking_terms)
+        has_month_scope = any(term in last_message for term in month_terms)
+        has_transaction_word = any(
+            term in last_message for term in ["transacao", "transacoes"]
+        )
+        has_ranked_value = any(
+            phrase in last_message
+            for phrase in [
+                "maior receita",
+                "menor receita",
+                "maior despesa",
+                "menor despesa",
+            ]
+        )
+        is_transaction_ranking = is_ranking and (
+            has_transaction_word
+            or has_ranked_value
+            or (
+                not has_month_scope
+                and any(term in last_message for term in transaction_terms)
+            )
+        )
+        is_month_ranking = is_ranking and has_month_scope and not is_transaction_ranking
+
+        if is_transaction_ranking:
+            selected.append("get_transaction_rankings")
+        elif is_month_ranking:
+            selected.append("get_monthly_rankings")
 
         if any(w in last_message for w in ["perfil", "situacao", "como estou"]):
             selected.extend(["get_financial_profile", "get_financial_indicators"])
         if any(w in last_message for w in ["indicador", "metrica", "numero"]):
             selected.append("get_financial_indicators")
-        if any(w in last_message for w in ["gasto", "despesa", "transacao"]):
+        if not (is_transaction_ranking or is_month_ranking) and any(
+            w in last_message for w in ["gasto", "despesa", "transacao"]
+        ):
             selected.extend(["get_spending_summary", "get_transactions", "get_recurring_expenses"])
         if any(w in last_message for w in ["recomendacao", "dica", "sugestao", "melhorar"]):
             selected.append("get_recommendations")
@@ -347,6 +470,34 @@ class FinancialAgent:
                 "get_recommendations",
             ]
         return list(dict.fromkeys(selected))
+
+    @staticmethod
+    def _normalize_intent(value: str) -> str:
+        import unicodedata
+
+        normalized = unicodedata.normalize("NFD", value.lower())
+        return "".join(
+            character
+            for character in normalized
+            if unicodedata.category(character) != "Mn"
+        )
+
+    @staticmethod
+    def _month_names() -> dict[str, int]:
+        return {
+            "janeiro": 1,
+            "fevereiro": 2,
+            "marco": 3,
+            "abril": 4,
+            "maio": 5,
+            "junho": 6,
+            "julho": 7,
+            "agosto": 8,
+            "setembro": 9,
+            "outubro": 10,
+            "novembro": 11,
+            "dezembro": 12,
+        }
 
 
 def get_agent() -> FinancialAgent:

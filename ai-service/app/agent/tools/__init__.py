@@ -1,3 +1,7 @@
+from app.agent.tools.analytical_facts import (
+    get_monthly_rankings,
+    get_transaction_rankings,
+)
 from app.agent.tools.compare_periods import compare_periods
 from app.agent.tools.financial_indicators import get_financial_indicators
 from app.agent.tools.financial_profile import get_financial_profile
@@ -9,6 +13,8 @@ from app.agent.tools.transactions import get_transactions
 
 __all__ = [
     "get_financial_profile",
+    "get_monthly_rankings",
+    "get_transaction_rankings",
     "get_financial_indicators",
     "get_spending_summary",
     "get_transactions",

@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
@@ -104,13 +106,18 @@ def agent_respond_stream(request: AgentRequest):
 
     def event_generator():
         try:
-            for chunk in agent.respond_stream(request):
-                import json
-                yield f"data: {json.dumps({'token': chunk})}\n\n"
-            yield "data: [DONE]\n\n"
+            for event in agent.respond_stream(request):
+                event_type = event.get("type", "message")
+                payload = json.dumps(event, ensure_ascii=False)
+                yield f"event: {event_type}\ndata: {payload}\n\n"
+            yield 'event: done\ndata: {"type":"done"}\n\n'
         except Exception as exc:  # noqa: BLE001
             logger.exception("Agent streaming response failed")
-            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+            payload = json.dumps(
+                {"type": "error", "message": str(exc)},
+                ensure_ascii=False,
+            )
+            yield f"event: error\ndata: {payload}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

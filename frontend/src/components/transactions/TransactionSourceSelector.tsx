@@ -6,6 +6,7 @@ interface TransactionSourceSelectorProps {
   onChange: (source: TransactionSource) => void;
   label?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export function TransactionSourceSelector({
@@ -13,6 +14,7 @@ export function TransactionSourceSelector({
   onChange,
   label = 'Origem dos dados',
   className,
+  disabled = false,
 }: TransactionSourceSelectorProps) {
   return (
     <label className={className ?? 'block min-w-0 w-full sm:max-w-sm xl:w-auto xl:min-w-56'}>
@@ -22,6 +24,7 @@ export function TransactionSourceSelector({
       <Select
         aria-label={label}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value as TransactionSource)}
         options={[
           { value: 'CSV_IMPORT', label: 'Arquivo CSV' },

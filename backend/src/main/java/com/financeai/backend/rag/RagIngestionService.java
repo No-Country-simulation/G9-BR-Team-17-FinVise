@@ -366,17 +366,79 @@ public class RagIngestionService {
     }
 
     public int indexStep(UUID userId) {
+        return indexStep(userId, List.of());
+    }
+
+    public int indexStep(UUID userId, List<String> sourceIds) {
         if (userId == null) {
             return 0;
         }
         try {
-            int count = aiServiceClient.indexRagDocuments(userId.toString(), List.of());
+            int count = aiServiceClient.indexRagDocuments(
+                userId.toString(), normalizedSourceIds(sourceIds));
             log.info("Indexação RAG concluída com {} vetores para o usuário {}", count, userId);
             return count;
         } catch (Exception exception) {
             log.warn("Falha na indexação RAG do usuário {}: {}", userId, exception.getMessage());
             return 0;
         }
+    }
+
+    public RagIndexStatusResponse indexStatus(UUID userId, List<String> sourceIds) {
+        List<String> normalizedSources = normalizedSourceIds(sourceIds);
+        long total = countDocuments(userId, normalizedSources, null);
+        long pending = countDocuments(
+            userId, normalizedSources, RagIndexStatus.PENDING);
+        long processing = countDocuments(
+            userId, normalizedSources, RagIndexStatus.PROCESSING);
+        long indexed = countDocuments(
+            userId, normalizedSources, RagIndexStatus.INDEXED);
+        long failed = countDocuments(
+            userId, normalizedSources, RagIndexStatus.FAILED);
+
+        String status;
+        if (total == 0) {
+            status = "EMPTY";
+        } else if (processing > 0) {
+            status = "PROCESSING";
+        } else if (pending > 0) {
+            status = "PENDING";
+        } else if (failed > 0) {
+            status = "FAILED";
+        } else if (indexed == total) {
+            status = "COMPLETE";
+        } else {
+            status = "PENDING";
+        }
+        return new RagIndexStatusResponse(
+            status, total, pending, processing, indexed, failed);
+    }
+
+    private long countDocuments(UUID userId,
+                                List<String> sourceIds,
+                                RagIndexStatus status) {
+        if (sourceIds.isEmpty()) {
+            return status == null
+                ? ragDocumentRepository.countByUserId(userId)
+                : ragDocumentRepository.countByUserIdAndIndexStatus(userId, status);
+        }
+        return status == null
+            ? ragDocumentRepository.countByUserIdAndSourceIdIn(userId, sourceIds)
+            : ragDocumentRepository.countByUserIdAndSourceIdInAndIndexStatus(
+                userId, sourceIds, status);
+    }
+
+    private List<String> normalizedSourceIds(List<String> sourceIds) {
+        if (sourceIds == null) {
+            return List.of();
+        }
+        return sourceIds.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(String::trim)
+            .filter(sourceId -> !sourceId.isBlank())
+            .distinct()
+            .limit(100)
+            .toList();
     }
 
     private List<Transaction> loadSourceTransactions(UUID userId,

@@ -6,6 +6,8 @@ import com.financeai.backend.fact.FinancialFactsPayload;
 import com.financeai.backend.rag.RagDocument;
 import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
+import com.financeai.backend.rag.RagIndexStatus;
+import com.financeai.backend.rag.RagIndexStatusResponse;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.transaction.TransactionRepository;
@@ -235,5 +237,51 @@ class RagIngestionServiceTest {
             .asString()
             .contains("Maior saldo mensal")
             .contains("dezembro de 2024");
+    }
+
+    @Test
+    void shouldReportProcessingWhileDocumentsArePending() {
+        UUID userId = UUID.randomUUID();
+        List<String> sourceIds = List.of("arquivo-1");
+        when(ragDocumentRepository.countByUserIdAndSourceIdIn(userId, sourceIds))
+            .thenReturn(5L);
+        when(ragDocumentRepository.countByUserIdAndSourceIdInAndIndexStatus(
+            eq(userId), eq(sourceIds), any(RagIndexStatus.class)))
+            .thenAnswer(invocation -> switch (
+                invocation.getArgument(2, RagIndexStatus.class)) {
+                case PENDING, PROCESSING -> 1L;
+                case INDEXED -> 3L;
+                case FAILED -> 0L;
+            });
+
+        RagIndexStatusResponse response =
+            ragIngestionService.indexStatus(userId, sourceIds);
+
+        assertThat(response.status()).isEqualTo("PROCESSING");
+        assertThat(response.totalDocuments()).isEqualTo(5);
+        assertThat(response.pendingDocuments()).isEqualTo(1);
+        assertThat(response.processingDocuments()).isEqualTo(1);
+        assertThat(response.indexedDocuments()).isEqualTo(3);
+        assertThat(response.failedDocuments()).isZero();
+    }
+
+    @Test
+    void shouldNotReportCompleteWhenIndexingFailed() {
+        UUID userId = UUID.randomUUID();
+        when(ragDocumentRepository.countByUserId(userId)).thenReturn(4L);
+        when(ragDocumentRepository.countByUserIdAndIndexStatus(
+            eq(userId), any(RagIndexStatus.class)))
+            .thenAnswer(invocation -> switch (
+                invocation.getArgument(1, RagIndexStatus.class)) {
+                case INDEXED -> 3L;
+                case FAILED -> 1L;
+                case PENDING, PROCESSING -> 0L;
+            });
+
+        RagIndexStatusResponse response =
+            ragIngestionService.indexStatus(userId, List.of());
+
+        assertThat(response.status()).isEqualTo("FAILED");
+        assertThat(response.failedDocuments()).isEqualTo(1);
     }
 }

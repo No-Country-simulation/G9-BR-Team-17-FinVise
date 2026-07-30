@@ -164,4 +164,37 @@ class AiServiceClientIntegrationTest {
 
         assertThat(aiServiceClient.getModelStatus()).isNull();
     }
+
+    @Test
+    void shouldConsumeNamedAgentStreamEvents() {
+        String responseBody = """
+            event: tools
+            data: {"type":"tools","tools":["get_financial_profile"]}
+
+            event: token
+            data: {"type":"token","token":"Olá"}
+
+            event: done
+            data: {"type":"done"}
+
+            """;
+        wireMock.stubFor(post(urlEqualTo("/internal/v1/agent/respond/stream"))
+            .willReturn(aResponse()
+                .withHeader("Content-Type", "text/event-stream")
+                .withBody(responseBody)));
+        AgentRespondRequest request = new AgentRespondRequest(
+            "conversation-1",
+            "user-1",
+            List.of(new AgentRespondRequest.MessageDto("user", "Como estou?")),
+            new AgentRespondRequest.AgentContextDto()
+        );
+        List<AiServiceClient.AgentStreamEvent> events = new java.util.ArrayList<>();
+
+        aiServiceClient.agentRespondStream(request, events::add);
+
+        assertThat(events).hasSize(3);
+        assertThat(events.get(0).tools()).containsExactly("get_financial_profile");
+        assertThat(events.get(1).token()).isEqualTo("Olá");
+        assertThat(events.get(2).type()).isEqualTo("done");
+    }
 }

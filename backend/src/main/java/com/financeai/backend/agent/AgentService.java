@@ -15,15 +15,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class AgentService {
@@ -119,6 +124,39 @@ public class AgentService {
 
         List<AgentMessage> allMessages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
         return toResponse(conversation, allMessages);
+    }
+
+    @Transactional
+    public StreamingResponseBody streamMessage(
+        UUID userId,
+        UUID conversationId,
+        SendMessageRequest request
+    ) {
+        AgentConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
+
+        AgentMessage userMessage = new AgentMessage();
+        userMessage.setConversation(conversation);
+        userMessage.setRole("USER");
+        userMessage.setContent(request.content());
+        messageRepository.save(userMessage);
+
+        List<AgentMessage> history =
+            messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        List<AgentRespondRequest.MessageDto> messageDtos = history.stream()
+            .map(message -> new AgentRespondRequest.MessageDto(
+                message.getRole().toLowerCase(), message.getContent()))
+            .toList();
+        AgentRespondRequest aiRequest = new AgentRespondRequest(
+            conversationId.toString(),
+            userId.toString(),
+            messageDtos,
+            buildAgentContext(userId, conversation)
+        );
+        String fallbackReply = generateAssistantReply(request.content(), conversation);
+
+        return outputStream -> executeStream(
+            outputStream, conversationId, aiRequest, fallbackReply);
     }
 
     @Transactional(readOnly = true)
@@ -238,6 +276,118 @@ public class AgentService {
             return context + "antes de investir, construa uma reserva equivalente a 3-6 meses das despesas desta origem.";
         }
         return context + "posso ajudar a analisar gastos e metas sem misturar as transações da outra origem.";
+    }
+
+    private void executeStream(
+        OutputStream outputStream,
+        UUID conversationId,
+        AgentRespondRequest aiRequest,
+        String fallbackReply
+    ) {
+        StringBuilder content = new StringBuilder();
+        List<String> tools = new ArrayList<>();
+        AtomicBoolean clientConnected = new AtomicBoolean(true);
+
+        sendEvent(outputStream, clientConnected, "conversation",
+            Map.of("conversationId", conversationId.toString()));
+
+        try {
+            aiServiceClient.agentRespondStream(aiRequest, event -> {
+                if ("tools".equals(event.type())) {
+                    tools.clear();
+                    tools.addAll(event.tools());
+                    sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
+                } else if ("token".equals(event.type())
+                    && event.token() != null
+                    && !event.token().isEmpty()) {
+                    content.append(event.token());
+                    sendEvent(outputStream, clientConnected, "token",
+                        Map.of("token", event.token()));
+                } else if ("error".equals(event.type())) {
+                    throw new AgentStreamException(event.message());
+                }
+            });
+        } catch (Exception exception) {
+            log.warn("Falha durante streaming do agente: {}", exception.getMessage());
+            if (!content.isEmpty()) {
+                sendEvent(outputStream, clientConnected, "error",
+                    Map.of("message", "A resposta da IA foi interrompida. Tente novamente."));
+                return;
+            }
+
+            tools.clear();
+            tools.add("regra_financeira_fallback");
+            content.append(fallbackReply);
+            sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
+            sendEvent(outputStream, clientConnected, "token", Map.of("token", fallbackReply));
+        }
+
+        AgentMessageDto savedMessage = saveAssistantMessage(
+            conversationId, content.toString(), tools);
+        Map<String, Object> messagePayload = new HashMap<>();
+        messagePayload.put("id", savedMessage.id().toString());
+        messagePayload.put("role", "assistant");
+        messagePayload.put("content", savedMessage.content());
+        messagePayload.put("timestamp", savedMessage.createdAt().toString());
+        messagePayload.put("tools", tools);
+        sendEvent(outputStream, clientConnected, "done", Map.of(
+            "conversationId", conversationId.toString(),
+            "message", messagePayload
+        ));
+    }
+
+    private AgentMessageDto saveAssistantMessage(
+        UUID conversationId,
+        String content,
+        List<String> tools
+    ) {
+        AgentConversation conversation = conversationRepository.findById(conversationId)
+            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
+        AgentMessage assistantMessage = new AgentMessage();
+        assistantMessage.setConversation(conversation);
+        assistantMessage.setRole("ASSISTANT");
+        assistantMessage.setContent(content);
+        try {
+            assistantMessage.setToolCalls(objectMapper.writeValueAsString(tools));
+        } catch (Exception exception) {
+            log.warn("Erro ao serializar tool_calls do streaming: {}", exception.getMessage());
+        }
+        AgentMessage saved = messageRepository.save(assistantMessage);
+        Instant createdAt = saved.getCreatedAt() != null ? saved.getCreatedAt() : Instant.now();
+        return new AgentMessageDto(
+            saved.getId(),
+            conversationId,
+            saved.getRole(),
+            saved.getContent(),
+            saved.getToolCalls(),
+            createdAt
+        );
+    }
+
+    private void sendEvent(
+        OutputStream outputStream,
+        AtomicBoolean clientConnected,
+        String eventName,
+        Object payload
+    ) {
+        if (!clientConnected.get()) {
+            return;
+        }
+        try {
+            String data = objectMapper.writeValueAsString(payload);
+            outputStream.write(("event: " + eventName + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            outputStream.write(("data: " + data + "\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            outputStream.flush();
+        } catch (IOException exception) {
+            clientConnected.set(false);
+            log.debug("Cliente SSE desconectou durante a resposta do agente: {}", exception.getMessage());
+        }
+    }
+
+    private static class AgentStreamException extends RuntimeException {
+        AgentStreamException(String message) {
+            super(message);
+        }
     }
 
     private BigDecimal totalByType(List<Transaction> transactions, TransactionType type) {

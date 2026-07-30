@@ -87,19 +87,26 @@ return [data.embedding for data in response.data]
 
 ## 🌊 Comunicação em Tempo Real (SSE Streaming)
 
-O chat do Agente IA utiliza **Server-Sent Events (SSE)** para transmitir a resposta caractere por caractere/token por token:
+O chat do Agente IA utiliza **Server-Sent Events (SSE)** para transmitir a resposta token por token através de todas as camadas:
 
+- **Endpoint público Spring Boot**: `/api/v1/agent/conversations/{conversationId}/messages/stream`
 - **Endpoint FastAPI**: `/internal/v1/agent/respond/stream`
 - **MediaType**: `text/event-stream`
 - **Formato**:
   ```text
-  data: {"token": "Olá! "}
-  data: {"token": "Analisando suas "}
-  data: {"token": "despesas..."}
-  data: [DONE]
+  event: tools
+  data: {"tools":["get_financial_profile"]}
+
+  event: token
+  data: {"token":"Olá! "}
+
+  event: done
+  data: {"conversationId":"...","message":{"id":"...","content":"Olá! "}}
   ```
 
-No frontend (`AgentPage.tsx`), os tokens são consumidos por `EventSource` / `fetch-event-source`, proporcionando uma animação de digitação fluida.
+O backend autentica a requisição, persiste a mensagem do usuário, encaminha o stream
+do FastAPI e salva a resposta completa do assistente. No frontend (`AgentPage.tsx`),
+os eventos de uma requisição `fetch` POST são processados com `ReadableStream`.
 
 ---
 

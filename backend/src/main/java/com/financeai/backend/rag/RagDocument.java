@@ -28,6 +28,9 @@ public class RagDocument {
     @Column(name = "source_id")
     private String sourceId;
 
+    @Column(name = "transaction_id")
+    private UUID transactionId;
+
     @Column(name = "document_chunk", nullable = false, columnDefinition = "TEXT")
     private String documentChunk;
 
@@ -69,6 +72,14 @@ public class RagDocument {
 
     public void setSourceId(String sourceId) {
         this.sourceId = sourceId;
+    }
+
+    public UUID getTransactionId() {
+        return transactionId;
+    }
+
+    public void setTransactionId(UUID transactionId) {
+        this.transactionId = transactionId;
     }
 
     public String getDocumentChunk() {

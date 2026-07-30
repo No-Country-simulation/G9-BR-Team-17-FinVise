@@ -4,6 +4,7 @@ import com.financeai.backend.common.exception.ResourceNotFoundException;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.openfinance.OpenFinanceConnection;
 import com.financeai.backend.openfinance.OpenFinanceConnectionRepository;
+import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.transaction.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +21,18 @@ public class ImportSourceService {
     private final ImportedFileRepository importedFileRepository;
     private final OpenFinanceConnectionRepository connectionRepository;
     private final TransactionRepository transactionRepository;
+    private final RagDocumentRepository ragDocumentRepository;
     private final ObjectStorageService objectStorageService;
 
     public ImportSourceService(ImportedFileRepository importedFileRepository,
                                OpenFinanceConnectionRepository connectionRepository,
                                TransactionRepository transactionRepository,
+                               RagDocumentRepository ragDocumentRepository,
                                ObjectStorageService objectStorageService) {
         this.importedFileRepository = importedFileRepository;
         this.connectionRepository = connectionRepository;
         this.transactionRepository = transactionRepository;
+        this.ragDocumentRepository = ragDocumentRepository;
         this.objectStorageService = objectStorageService;
     }
 
@@ -101,6 +105,8 @@ public class ImportSourceService {
             ImportedFile file = importedFileRepository.findByIdAndUserId(sourceId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Arquivo importado", sourceId));
             transactionRepository.deleteByUserIdAndImportSourceId(userId, sourceId);
+            ragDocumentRepository.deleteByUserIdAndSourceTypeAndSourceId(
+                userId, "CSV_IMPORT", sourceId.toString());
             objectStorageService.delete(file.getStoredName());
             importedFileRepository.delete(file);
             return;
@@ -109,6 +115,8 @@ public class ImportSourceService {
         OpenFinanceConnection connection = connectionRepository.findByIdAndUserId(sourceId, userId)
             .orElseThrow(() -> new ResourceNotFoundException("Conta Open Finance", sourceId));
         transactionRepository.deleteByUserIdAndImportSourceId(userId, sourceId);
+        ragDocumentRepository.deleteByUserIdAndSourceTypeAndSourceId(
+            userId, "OPEN_FINANCE", sourceId.toString());
         connectionRepository.delete(connection);
     }
 

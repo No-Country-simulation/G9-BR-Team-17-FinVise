@@ -15,10 +15,9 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { AgentContextPanel } from '@/components/agent/AgentContextPanel';
-import { retrievalDepthOptions } from '@/components/agent/agentContextOptions';
+import { AgentDepthSelector } from '@/components/agent/AgentDepthSelector';
 import { MarkdownText } from '@/components/ui/MarkdownText';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { agentService } from '@/services/agentService';
@@ -530,23 +529,14 @@ export function AgentPage() {
                 className="min-h-10 max-h-32 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
               />
 
-              <label className="w-24 shrink-0 sm:w-28">
-                <span className="sr-only">Profundidade da recuperação</span>
-                <Select
-                  aria-label="Profundidade da recuperação"
-                  value={String(topK)}
-                  disabled={isLoading || isStreaming}
-                  onChange={(event) => {
-                    setTopK(Number(event.target.value));
-                    resetConversation();
-                  }}
-                  options={retrievalDepthOptions.map((option) => ({
-                    value: String(option.value),
-                    label: option.label,
-                  }))}
-                  className="h-10 rounded-full border-0 bg-transparent px-2 text-xs font-semibold text-slate-600 focus:ring-primary-500 sm:h-10"
-                />
-              </label>
+              <AgentDepthSelector
+                value={topK}
+                disabled={isLoading || isStreaming}
+                onChange={(nextTopK) => {
+                  setTopK(nextTopK);
+                  resetConversation();
+                }}
+              />
 
               {isLoading || isStreaming ? (
                 <Button

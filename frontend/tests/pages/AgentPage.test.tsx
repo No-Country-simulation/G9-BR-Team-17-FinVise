@@ -175,20 +175,35 @@ describe('AgentPage streaming feedback', () => {
     const depthSelector = screen.getByRole('combobox', {
       name: 'Profundidade da recuperação',
     });
-    expect(depthSelector).toHaveValue('5');
-    expect(screen.getByRole('option', { name: 'Mínimo' })).toHaveValue('3');
-    expect(screen.getByRole('option', { name: 'Equilibrado' })).toHaveValue('5');
-    expect(screen.getByRole('option', { name: 'Estendido' })).toHaveValue('10');
-    expect(screen.getByRole('option', { name: 'Máximo' })).toHaveValue('15');
-    await user.selectOptions(depthSelector, '10');
-    expect(depthSelector).toHaveValue('10');
+    expect(depthSelector).toHaveTextContent('Equilibrado');
+    expect(screen.queryByRole('listbox', { name: 'Opções de profundidade' }))
+      .not.toBeInTheDocument();
+
+    await user.click(depthSelector);
+    expect(screen.getByRole('listbox', { name: 'Opções de profundidade' }))
+      .toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Mínimo/ })).toHaveAttribute(
+      'aria-selected',
+      'false'
+    );
+    expect(screen.getByRole('option', { name: /^Equilibrado/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(screen.getByRole('option', { name: /^Estendido/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Máximo/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: /^Estendido/ }));
+    expect(depthSelector).toHaveTextContent('Estendido');
 
     await user.click(sourceButton);
 
     expect(screen.getByRole('dialog', { name: 'Fontes usadas na resposta' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Origem' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Arquivos permitidos' })).toBeInTheDocument();
-    expect(screen.getByText('extrato.csv')).toBeInTheDocument();
+    const selectedFile = screen.getByRole('checkbox', { name: 'extrato.csv' });
+    expect(selectedFile).toBeChecked();
+    expect(selectedFile.closest('label')).toHaveClass('bg-slate-100');
+    expect(selectedFile.closest('label')).not.toHaveClass('focus-within:ring-2');
     expect(screen.getByText('O que você quer entender hoje?')).toBeInTheDocument();
     expect(screen.getByText('Quais padrões existem nos meus gastos?')).toBeInTheDocument();
     expect(screen.queryByText('Dados usados na resposta')).not.toBeInTheDocument();

@@ -18,6 +18,7 @@ class AgentContext(BaseModel):
     transactions: list = Field(default_factory=list)
     recurring_expenses: list = Field(default_factory=list)
     previous_period_indicators: dict = Field(default_factory=dict)
+    analytical_facts: dict = Field(default_factory=dict)
     retrieval: RetrievalConfig = Field(default_factory=RetrievalConfig)
 
 

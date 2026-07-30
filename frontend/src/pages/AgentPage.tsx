@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowUpRight,
   Bot,
   CheckCircle2,
   Loader2,
@@ -32,13 +31,6 @@ const welcomeMessage: AgentMessage = {
   content: 'Pronto para ajudar você a entender seus dados.',
   timestamp: new Date().toISOString(),
 };
-
-const suggestionQuestions = [
-  'Quais padrões existem nos meus gastos?',
-  'Explique meu saldo mensal em linguagem simples',
-  'Onde tenho oportunidade de economizar?',
-  'Compare minhas receitas e despesas',
-];
 
 const defaultThinkingTools = ['rag_retrieval', 'financial_tools'];
 const emptyImportSources: ImportSource[] = [];
@@ -281,55 +273,32 @@ export function AgentPage() {
     }
   };
 
-  return (
-    <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-0 max-w-5xl flex-col lg:h-[calc(100vh-10rem)]">
-      <div className="mb-3 min-w-0 sm:mb-4">
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Assistente Financeiro</h1>
-        <p className="mt-0.5 text-sm leading-5 text-slate-500 sm:mt-1 sm:text-base">
-          Entenda suas finanças com respostas baseadas nos seus próprios dados
-        </p>
-      </div>
+  const isEmptyState = messages.length === 1 && messages[0].id.startsWith('welcome');
 
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-slate-200 shadow-md shadow-slate-200/40">
-        <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50/50 p-3 sm:space-y-4 sm:p-5">
+  return (
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 w-full max-w-6xl flex-col lg:h-[calc(100vh-7rem)] xl:h-[calc(100vh-8rem)]">
+      <Card className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-white shadow-none lg:bg-transparent">
+        <CardContent className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+          <div
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto',
+              isEmptyState
+                ? 'flex flex-col items-center justify-center bg-white px-6 pb-16 text-center lg:bg-transparent lg:pb-0'
+                : 'space-y-3 bg-slate-50/50 p-3 sm:space-y-4 sm:p-5'
+            )}
+          >
             {messages.map((message) => {
               if (message.id.startsWith('welcome')) {
+                if (!isEmptyState) return null;
+
                 return (
                   <div
                     key={message.id}
-                    className="mx-auto flex max-w-2xl flex-col items-center px-1 py-2 text-center sm:py-6"
+                    className="mx-auto flex max-w-2xl flex-col items-center lg:-translate-y-10"
                   >
-                    <h2 className="text-base font-bold text-slate-900 sm:text-lg">
-                      O que você quer entender hoje?
-                    </h2>
-                    <p className="mt-1 max-w-lg text-xs leading-5 text-slate-500 sm:text-sm">
-                      {selectedSourceIds.length > 0
-                        ? `Vou consultar ${selectedSourceIds.length} ${
-                          selectedSourceIds.length === 1 ? 'arquivo' : 'arquivos'
-                        } e mostrar as evidências usadas na resposta.`
-                        : 'Selecione ao menos um arquivo acima para começar a análise.'}
-                    </p>
-
-                    <div className="mt-3 grid w-full gap-1.5 sm:mt-4 sm:grid-cols-2 sm:gap-2">
-                      {suggestionQuestions.map((question) => (
-                        <button
-                          key={question}
-                          type="button"
-                          disabled={
-                            sourcesLoading
-                            || isLoading
-                            || isStreaming
-                            || selectedSourceIds.length === 0
-                          }
-                          onClick={() => handleSend(question)}
-                          className="group flex min-h-11 items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2 text-left text-xs font-medium leading-4 text-slate-700 transition-colors hover:border-primary-200 hover:bg-white hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-12 sm:gap-3 sm:px-3.5 sm:py-2.5 sm:leading-5"
-                        >
-                          <span>{question}</span>
-                          <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-primary-600" />
-                        </button>
-                      ))}
-                    </div>
+                    <h1 className="text-2xl font-medium tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
+                      Vamos começar?
+                    </h1>
                   </div>
                 );
               }
@@ -447,13 +416,23 @@ export function AgentPage() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-slate-200 bg-white p-2 sm:p-4">
+          <div
+            className={cn(
+              'bg-white',
+              isEmptyState
+                ? 'border-0 px-3 pb-3 pt-2 lg:absolute lg:left-1/2 lg:top-1/2 lg:w-full lg:max-w-2xl lg:-translate-x-1/2 lg:translate-y-6 lg:bg-transparent lg:p-0'
+                : 'border-t border-slate-200 p-2 sm:p-4'
+            )}
+          >
             <form
               onSubmit={(event) => {
                 event.preventDefault();
                 handleSend(input);
               }}
-              className="flex min-h-12 min-w-0 items-center gap-0.5 rounded-full border border-slate-300 bg-slate-50 p-1 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 sm:min-h-14 sm:gap-1 sm:p-1.5"
+              className={cn(
+                'flex min-h-12 min-w-0 items-center gap-0.5 rounded-full border border-slate-300 bg-slate-50 p-1 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 sm:min-h-14 sm:gap-1 sm:p-1.5',
+                isEmptyState && 'lg:min-h-16 lg:border-slate-200 lg:bg-white lg:px-2 lg:shadow-lg lg:shadow-slate-300/30'
+              )}
             >
               <div ref={contextMenuRef} className="relative shrink-0">
                 <button

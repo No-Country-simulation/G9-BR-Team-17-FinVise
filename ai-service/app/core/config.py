@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     profile_model_path: Path = Field(
         default=Path("models/profile-classifier"), alias="PROFILE_MODEL_PATH"
     )
+    require_active_models: bool = Field(
+        default=False, alias="REQUIRE_ACTIVE_MODELS"
+    )
+    transaction_model_version: str = Field(
+        default="", alias="TRANSACTION_MODEL_VERSION"
+    )
+    profile_model_version: str = Field(
+        default="", alias="PROFILE_MODEL_VERSION"
+    )
     evaluation_report_dir: Path = Field(
         default=Path("reports/final-test"), alias="MODEL_EVALUATION_REPORT_DIR"
     )

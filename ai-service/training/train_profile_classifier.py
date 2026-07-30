@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -135,7 +136,16 @@ def train() -> None:
         joblib.dump(best_scaler, output_dir / "preprocessor.joblib")
 
     with open(output_dir / "metadata.json", "w", encoding="utf-8") as f:
-        json.dump({"version": "1.0.0", "model": best_name}, f, indent=2)
+        json.dump(
+            {
+                "version": "1.0.0",
+                "status": "ACTIVE",
+                "trained_at": datetime.now(UTC).isoformat(),
+                "model": best_name,
+            },
+            f,
+            indent=2,
+        )
 
     with open(output_dir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)

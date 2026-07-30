@@ -21,6 +21,9 @@ def test_models_status(client):
     response = client.get("/internal/v1/models/status")
     assert response.status_code == 200
     data = response.json()
+    assert data["status"] in {"READY", "DEGRADED"}
+    assert data["registered_at"]
+    assert isinstance(data["models_required"], bool)
     assert "transaction_classifier" in data
     assert "profile_classifier" in data
     assert data["transaction_classifier"]["status"] in {"LOADED", "FALLBACK"}

@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,10 +54,13 @@ class RagIngestionServiceTest {
         txn.setTransactionDate(LocalDate.of(2026, 5, 15));
         txn.setType(TransactionType.EXPENSE);
         txn.setPaymentMethod("PIX");
+        when(ragDocumentRepository.findTransactionIdsBySource(userId, sourceType, sourceId))
+            .thenReturn(Set.of());
 
         ragIngestionService.ingestTransactions(userId, sourceType, sourceId, List.of(txn));
 
-        verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
+        verify(ragDocumentRepository, never())
+            .deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RagDocument>> listCaptor = ArgumentCaptor.forClass(List.class);
@@ -66,6 +70,7 @@ class RagIngestionServiceTest {
         assertThat(savedDoc.getUserId()).isEqualTo(userId);
         assertThat(savedDoc.getSourceType()).isEqualTo(sourceType);
         assertThat(savedDoc.getSourceId()).isEqualTo(sourceId);
+        assertThat(savedDoc.getTransactionId()).isEqualTo(txn.getId());
         assertThat(savedDoc.getDocumentChunk())
                 .contains("Transação [Despesa/Saída]")
                 .contains("15/05/2026")
@@ -73,5 +78,23 @@ class RagIngestionServiceTest {
                 .contains("PIX");
 
         assertThat(savedDoc.getDocumentChunk().contains("150.75") || savedDoc.getDocumentChunk().contains("150,75")).isTrue();
+    }
+
+    @Test
+    void shouldSkipTransactionsAlreadyIndexedForTheSource() {
+        UUID userId = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
+        String sourceType = "OPEN_FINANCE";
+        String sourceId = "connection-123";
+        Transaction transaction = new Transaction();
+        transaction.setId(transactionId);
+
+        when(ragDocumentRepository.findTransactionIdsBySource(userId, sourceType, sourceId))
+            .thenReturn(Set.of(transactionId));
+
+        ragIngestionService.ingestTransactions(
+            userId, sourceType, sourceId, List.of(transaction));
+
+        verify(ragDocumentRepository, never()).saveAll(any());
     }
 }

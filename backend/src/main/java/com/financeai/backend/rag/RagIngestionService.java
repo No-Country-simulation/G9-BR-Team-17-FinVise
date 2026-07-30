@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -35,13 +36,16 @@ public class RagIngestionService {
         log.info("Ingestando {} transações no repositório RAG do usuário {} (Origem: {}, Id: {})",
                 transactions.size(), userId, sourceType, sourceId);
 
-        // Limpa chunks anteriores desta mesma fonte se necessário para reimportação idempotente
-        if (sourceId != null && !sourceId.isBlank()) {
-            ragDocumentRepository.deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
-        }
+        Set<UUID> indexedTransactionIds = sourceId != null && !sourceId.isBlank()
+            ? ragDocumentRepository.findTransactionIdsBySource(userId, sourceType, sourceId)
+            : Set.of();
 
         List<RagDocument> docsToSave = new java.util.ArrayList<>(transactions.size());
         for (Transaction txn : transactions) {
+            if (txn.getId() != null && indexedTransactionIds.contains(txn.getId())) {
+                continue;
+            }
+
             String chunkText = formatTransactionToChunk(txn, sourceType);
             String metadataJson = buildMetadataJson(txn, sourceType);
 
@@ -49,12 +53,15 @@ public class RagIngestionService {
             doc.setUserId(userId);
             doc.setSourceType(sourceType);
             doc.setSourceId(sourceId);
+            doc.setTransactionId(txn.getId());
             doc.setDocumentChunk(chunkText);
             doc.setMetadata(metadataJson);
 
             docsToSave.add(doc);
         }
-        ragDocumentRepository.saveAll(docsToSave);
+        if (!docsToSave.isEmpty()) {
+            ragDocumentRepository.saveAll(docsToSave);
+        }
 
         log.info("Ingestão de {} documentos RAG concluída com sucesso para o usuário {}.", docsToSave.size(), userId);
     }

@@ -114,6 +114,8 @@ cd G9-BR-Team-17-FinVise
 
 # 2. Configure as variáveis de ambiente
 cp .env.example .env
+# Preencha POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD e JWT_SECRET.
+# As duas senhas do banco devem ter o mesmo valor; JWT_SECRET exige 32+ caracteres.
 
 # 3. Gere as amostras do dataset de treino
 python data/scripts/create_samples.py

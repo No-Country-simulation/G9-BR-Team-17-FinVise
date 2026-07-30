@@ -27,12 +27,12 @@ Corpo:
 
 ```json
 {
-  "email": "demo@financeai.com",
-  "password": "demo123"
+  "email": "usuario@example.com",
+  "password": "sua-senha-forte"
 }
 ```
 
-> O usuário demo existe apenas para desenvolvimento.
+Crie a conta previamente pelo fluxo de cadastro da aplicação.
 
 ## Endpoints
 

@@ -120,7 +120,12 @@ public class CsvImportService {
             TransactionCategorizationService.CategorizationResult categorization =
                 categorizationService.categorize(transactions);
             transactionRepository.saveAll(transactions);
-            ragIngestionService.ingestTransactions(userId, "CSV_IMPORT", importedFile.getId().toString(), transactions);
+            ragIngestionService.ingestTransactions(
+                userId,
+                "CSV_IMPORT",
+                importedFile.getId().toString(),
+                importedFile.getOriginalName(),
+                transactions);
             processedCount = transactions.size();
             categorizedCount = categorization.categorizedCount();
             classificationModel = categorization.modelVersion();

@@ -17,6 +17,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 @Component
@@ -112,10 +113,17 @@ public class AiServiceClient {
 
                         List<String> tools = new ArrayList<>();
                         payload.path("tools").forEach(tool -> tools.add(tool.asText()));
+                        List<Map<String, Object>> sources = new ArrayList<>();
+                        if (payload.path("sources").isArray()) {
+                            payload.path("sources").forEach(source -> sources.add(
+                                objectMapper.convertValue(source,
+                                    new com.fasterxml.jackson.core.type.TypeReference<>() {})));
+                        }
                         eventConsumer.accept(new AgentStreamEvent(
                             type,
                             payload.path("token").asText(null),
                             tools,
+                            sources,
                             payload.path("message").asText(null)
                         ));
                     }
@@ -142,10 +150,23 @@ public class AiServiceClient {
      * Returns the count of indexed vectors.
      */
     public int indexRagDocuments(String userId) {
+        return indexRagDocuments(userId, List.of());
+    }
+
+    public int indexRagDocuments(String userId, List<String> sourceIds) {
+        return indexRagDocuments(userId, sourceIds, false);
+    }
+
+    public int indexRagDocuments(String userId,
+                                 List<String> sourceIds,
+                                 boolean background) {
         try {
             RagIndexResponse response = restClient.post()
                 .uri("/internal/v1/rag/index")
-                .body(java.util.Map.of("user_id", userId))
+                .body(java.util.Map.of(
+                    "user_id", userId,
+                    "source_ids", sourceIds != null ? sourceIds : List.of(),
+                    "background", background))
                 .retrieve()
                 .body(RagIndexResponse.class);
             int count = response != null ? response.indexedCount() : 0;
@@ -166,6 +187,14 @@ public class AiServiceClient {
         String type,
         String token,
         List<String> tools,
+        List<Map<String, Object>> sources,
         String message
-    ) {}
+    ) {
+        public AgentStreamEvent(String type,
+                                String token,
+                                List<String> tools,
+                                String message) {
+            this(type, token, tools, List.of(), message);
+        }
+    }
 }

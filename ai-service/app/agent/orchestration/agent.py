@@ -6,7 +6,7 @@ from app.agent import tools as tool_module
 from app.agent.llm_provider import LLMProvider, get_llm_provider
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.schemas.agent import AgentRequest, AgentResponse, ToolCall
+from app.schemas.agent import AgentRequest, AgentResponse, RagSource, ToolCall
 from app.schemas.common import Message
 
 logger = get_logger(__name__)
@@ -118,12 +118,19 @@ class FinancialAgent:
         )
         last_query = request.messages[-1].content if request.messages else ""
         source_type = self._rag_source_type(request)
+        top_k = request.context.retrieval.top_k
+        source_ids = request.context.retrieval.source_ids
 
         # Parallel execution of tool calls and RAG vector context retrieval
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_tools = executor.submit(self._execute_tools, request)
             future_rag = executor.submit(
-                rag_service.retrieve_context, user_id, last_query, 5, source_type
+                rag_service.retrieve_context,
+                user_id,
+                last_query,
+                top_k,
+                source_type,
+                source_ids,
             )
             tool_calls = future_tools.result()
             rag_chunks = future_rag.result()
@@ -135,11 +142,7 @@ class FinancialAgent:
             if formatted_tools:
                 tool_text = "\n\n[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:\n" + "\n".join(formatted_tools)
 
-        if rag_chunks:
-            chunks_formatted = "\n".join([f"- {c['content']}" for c in rag_chunks])
-            rag_text = f"\n\n[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:\n{chunks_formatted}"
-        else:
-            rag_text = "\n\n[CONTEXTO RAG RECUPERADO]: Nenhuma transacao ou extrato encontrado no banco vetorial RAG para este usuario."
+        rag_text = self._format_rag_context(rag_chunks)
 
         effective_system_prompt = self.system_prompt + tool_text + rag_text
 
@@ -160,6 +163,7 @@ class FinancialAgent:
         return AgentResponse(
             message=Message(role="assistant", content=content),
             tool_calls=tool_calls,
+            sources=self._rag_sources(rag_chunks),
             disclaimer=DISCLAIMER,
         )
 
@@ -174,12 +178,19 @@ class FinancialAgent:
         )
         last_query = request.messages[-1].content if request.messages else ""
         source_type = self._rag_source_type(request)
+        top_k = request.context.retrieval.top_k
+        source_ids = request.context.retrieval.source_ids
 
         # Parallel execution of tool calls and RAG vector context retrieval
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_tools = executor.submit(self._execute_tools, request)
             future_rag = executor.submit(
-                rag_service.retrieve_context, user_id, last_query, 5, source_type
+                rag_service.retrieve_context,
+                user_id,
+                last_query,
+                top_k,
+                source_type,
+                source_ids,
             )
             tool_calls = future_tools.result()
             rag_chunks = future_rag.result()
@@ -188,6 +199,12 @@ class FinancialAgent:
             "type": "tools",
             "tools": [tool_call.tool for tool_call in tool_calls],
         }
+        yield {
+            "type": "sources",
+            "sources": [
+                source.model_dump() for source in self._rag_sources(rag_chunks)
+            ],
+        }
 
         tool_text = ""
         if tool_calls:
@@ -195,11 +212,7 @@ class FinancialAgent:
             if formatted_tools:
                 tool_text = "\n\n[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:\n" + "\n".join(formatted_tools)
 
-        if rag_chunks:
-            chunks_formatted = "\n".join([f"- {c['content']}" for c in rag_chunks])
-            rag_text = f"\n\n[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:\n{chunks_formatted}"
-        else:
-            rag_text = "\n\n[CONTEXTO RAG RECUPERADO]: Nenhuma transacao ou extrato encontrado no banco vetorial RAG para este usuario."
+        rag_text = self._format_rag_context(rag_chunks)
 
         effective_system_prompt = self.system_prompt + tool_text + rag_text
 
@@ -209,6 +222,43 @@ class FinancialAgent:
             tools=TOOL_DEFINITIONS,
         ):
             yield {"type": "token", "token": chunk}
+
+    @staticmethod
+    def _format_rag_context(rag_chunks: list[dict[str, Any]]) -> str:
+        if not rag_chunks:
+            return (
+                "\n\n[CONTEXTO RAG RECUPERADO]\n"
+                "Nenhuma evidência relevante foi encontrada nas fontes selecionadas. "
+                "Informe claramente essa limitação e não complete lacunas por suposição."
+            )
+        chunks = []
+        for index, chunk in enumerate(rag_chunks, start=1):
+            source_name = chunk.get("source_name") or chunk.get("source_id") or "fonte"
+            chunk_type = chunk.get("chunk_type", "DOCUMENT")
+            score = chunk.get("score")
+            score_label = f"{score:.2f}" if isinstance(score, (int, float)) else "n/d"
+            chunks.append(
+                f"[S{index}] fonte={source_name}; tipo={chunk_type}; "
+                f"relevância={score_label}\n{chunk['content']}"
+            )
+        return (
+            "\n\n[EVIDÊNCIAS RAG RECUPERADAS]\n"
+            + "\n\n".join(chunks)
+            + "\n\nUse [S1], [S2] etc. para citar toda afirmação baseada nesses dados."
+        )
+
+    @staticmethod
+    def _rag_sources(rag_chunks: list[dict[str, Any]]) -> list[RagSource]:
+        return [
+            RagSource(
+                id=chunk["id"],
+                source_id=chunk.get("source_id"),
+                source_name=chunk.get("source_name"),
+                chunk_type=chunk.get("chunk_type", "DOCUMENT"),
+                score=chunk.get("score"),
+            )
+            for chunk in rag_chunks
+        ]
 
     def _execute_tools(self, request: AgentRequest) -> list[ToolCall]:
         executed: list[ToolCall] = []

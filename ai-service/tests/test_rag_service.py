@@ -62,8 +62,10 @@ def test_retrieve_context_filters_chronological_query_by_source(monkeypatch):
     query, params = connection.cursor_instance.executions[0]
     assert "source_type = %s" in query
     assert params == (
+        "gastos",
         "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
         "CSV_IMPORT",
+        "gastos",
         5,
     )
 
@@ -85,11 +87,30 @@ def test_retrieve_context_filters_vector_query_by_source(monkeypatch):
     assert "source_type = %s" in query
     assert params == (
         "[0.5]",
+        "gastos",
         "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
         "OPEN_FINANCE",
         "[0.5]",
-        3,
+        12,
     )
+
+
+def test_retrieve_context_filters_selected_source_ids(monkeypatch):
+    connection = _FakeConnection()
+    monkeypatch.setattr(rag_service, "_get_connection", lambda: connection)
+    monkeypatch.setattr(rag_service, "_ensure_embedding_column", lambda _conn: False)
+
+    rag_service.retrieve_context(
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+        "gastos",
+        5,
+        "CSV_IMPORT",
+        ["arquivo-1", "arquivo-2"],
+    )
+
+    query, params = connection.cursor_instance.executions[0]
+    assert "source_id = ANY(%s)" in query
+    assert params[3] == ["arquivo-1", "arquivo-2"]
 
 
 def test_agent_maps_selected_source_to_rag_source_type():

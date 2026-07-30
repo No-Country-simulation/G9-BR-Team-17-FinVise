@@ -8,6 +8,7 @@ import com.financeai.backend.agent.AgentMessageRepository;
 import com.financeai.backend.agent.AgentService;
 import com.financeai.backend.agent.SendMessageRequest;
 import com.financeai.backend.integration.ai.AiServiceClient;
+import com.financeai.backend.integration.ai.AgentRespondRequest;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.user.User;
@@ -18,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -43,6 +45,9 @@ class AgentStreamingServiceTest {
         conversation.setId(conversationId);
         conversation.setUser(user);
         conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
+        UUID sourceId = UUID.randomUUID();
+        conversation.setRagSourceIds("[\"" + sourceId + "\"]");
+        conversation.setRagTopK(8);
 
         AgentConversationRepository conversationRepository =
             mock(AgentConversationRepository.class);
@@ -53,8 +58,8 @@ class AgentStreamingServiceTest {
             .thenReturn(Optional.of(conversation));
         when(conversationRepository.findById(conversationId))
             .thenReturn(Optional.of(conversation));
-        when(transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
-            userId, TransactionSource.CSV_IMPORT.name()))
+        when(transactionRepository.findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
+            userId, TransactionSource.CSV_IMPORT.name(), List.of(sourceId)))
             .thenReturn(List.of());
 
         AgentMessage historyMessage = new AgentMessage();
@@ -74,6 +79,17 @@ class AgentStreamingServiceTest {
             Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
             consumer.accept(new AiServiceClient.AgentStreamEvent(
                 "tools", null, List.of("get_financial_profile"), null));
+            consumer.accept(new AiServiceClient.AgentStreamEvent(
+                "sources",
+                null,
+                List.of(),
+                List.of(Map.of(
+                    "id", "chunk-1",
+                    "source_id", sourceId.toString(),
+                    "source_name", "extrato.csv",
+                    "chunk_type", "MONTHLY_SUMMARY",
+                    "score", 0.91)),
+                null));
             consumer.accept(new AiServiceClient.AgentStreamEvent(
                 "token", "Olá", List.of(), null));
             consumer.accept(new AiServiceClient.AgentStreamEvent(
@@ -101,12 +117,19 @@ class AgentStreamingServiceTest {
         assertThat(sse)
             .contains("event: conversation")
             .contains("event: tools")
+            .contains("event: sources")
+            .contains("extrato.csv")
             .contains("\"get_financial_profile\"")
             .contains("event: token")
             .contains("\"token\":\"Olá\"")
             .contains("event: done")
             .contains("\"content\":\"Olá!\"");
-        verify(aiServiceClient).agentRespondStream(any(), any());
+        ArgumentCaptor<AgentRespondRequest> requestCaptor =
+            ArgumentCaptor.forClass(AgentRespondRequest.class);
+        verify(aiServiceClient).agentRespondStream(requestCaptor.capture(), any());
+        assertThat(requestCaptor.getValue().context().retrieval().topK()).isEqualTo(8);
+        assertThat(requestCaptor.getValue().context().retrieval().sourceIds())
+            .containsExactly(sourceId.toString());
         ArgumentCaptor<AgentMessage> savedMessages =
             ArgumentCaptor.forClass(AgentMessage.class);
         verify(messageRepository, times(2)).save(savedMessages.capture());
@@ -116,6 +139,8 @@ class AgentStreamingServiceTest {
         assertThat(savedMessages.getAllValues().get(1).getContent()).isEqualTo("Olá!");
         assertThat(savedMessages.getAllValues().get(1).getToolCalls())
             .isEqualTo("[\"get_financial_profile\"]");
+        assertThat(savedMessages.getAllValues().get(1).getRagSources())
+            .contains("extrato.csv");
     }
 
     @Test

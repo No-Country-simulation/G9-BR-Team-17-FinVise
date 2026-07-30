@@ -33,6 +33,10 @@ public class AgentMessage {
     @Column(name = "tool_calls", columnDefinition = "jsonb")
     private String toolCalls;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "rag_sources", columnDefinition = "jsonb")
+    private String ragSources;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -75,6 +79,14 @@ public class AgentMessage {
 
     public void setToolCalls(String toolCalls) {
         this.toolCalls = toolCalls;
+    }
+
+    public String getRagSources() {
+        return ragSources;
+    }
+
+    public void setRagSources(String ragSources) {
+        this.ragSources = ragSources;
     }
 
     public Instant getCreatedAt() {

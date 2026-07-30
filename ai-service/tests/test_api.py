@@ -158,5 +158,6 @@ def test_agent_respond_stream_uses_named_sse_events(client):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert "event: tools" in body
+    assert "event: sources" in body
     assert "event: token" in body
     assert 'event: done\ndata: {"type":"done"}' in body

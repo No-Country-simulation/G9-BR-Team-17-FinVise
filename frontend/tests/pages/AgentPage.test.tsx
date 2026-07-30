@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const sendMessageStreamMock = vi.hoisted(() => vi.fn());
 
@@ -17,12 +18,26 @@ vi.mock('@/hooks/useTransactionSource', () => ({
   }),
 }));
 
+vi.mock('@/services/importSourceService', () => ({
+  importSourceService: {
+    getAll: vi.fn().mockResolvedValue([
+      {
+        id: 'arquivo-1',
+        type: 'CSV',
+        displayName: 'extrato.csv',
+        transactionCount: 10,
+      },
+    ]),
+  },
+}));
+
 import { AgentPage } from '@/pages/AgentPage';
 import { AgentMessage } from '@/types/agent';
 
 interface StreamHandlers {
   onConversation?: (conversationId: string) => void;
   onTools?: (tools: string[]) => void;
+  onSources?: (sources: unknown[]) => void;
   onToken?: (token: string) => void;
   onDone?: (message: AgentMessage) => void;
 }
@@ -48,10 +63,18 @@ describe('AgentPage streaming feedback', () => {
       }
     );
     const user = userEvent.setup();
-    render(<AgentPage />);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AgentPage />
+      </QueryClientProvider>
+    );
 
+    await screen.findByText('extrato.csv');
     await user.type(
-      screen.getByPlaceholderText('Digite sua pergunta...'),
+      screen.getByPlaceholderText('Pergunte sobre os dados selecionados...'),
       'Como estou?{enter}'
     );
 

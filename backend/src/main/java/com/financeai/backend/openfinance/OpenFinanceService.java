@@ -4,6 +4,7 @@ import com.financeai.backend.analysis.AnalysisResponse;
 import com.financeai.backend.analysis.AnalysisService;
 import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.config.OpenFinanceProperties;
+import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
@@ -34,6 +35,7 @@ public class OpenFinanceService {
     private final UserRepository userRepository;
     private final AnalysisService analysisService;
     private final com.financeai.backend.rag.RagIngestionService ragIngestionService;
+    private final FinancialFactsService financialFactsService;
 
     public OpenFinanceService(OpenFinanceProperties properties,
                               PluggyClient pluggyClient,
@@ -42,7 +44,8 @@ public class OpenFinanceService {
                               TransactionCategorizationService categorizationService,
                               UserRepository userRepository,
                               AnalysisService analysisService,
-                              com.financeai.backend.rag.RagIngestionService ragIngestionService) {
+                              com.financeai.backend.rag.RagIngestionService ragIngestionService,
+                              FinancialFactsService financialFactsService) {
         this.properties = properties;
         this.pluggyClient = pluggyClient;
         this.connectionRepository = connectionRepository;
@@ -51,6 +54,7 @@ public class OpenFinanceService {
         this.userRepository = userRepository;
         this.analysisService = analysisService;
         this.ragIngestionService = ragIngestionService;
+        this.financialFactsService = financialFactsService;
     }
 
     public OpenFinanceStatusResponse status() {
@@ -117,6 +121,8 @@ public class OpenFinanceService {
 
         categorizationService.categorize(newTransactions);
         transactionRepository.saveAll(newTransactions);
+        financialFactsService.rebuild(
+            userId, TransactionSource.OPEN_FINANCE_PLUGGY, connection.getId());
         if (!newTransactions.isEmpty()) {
             ragIngestionService.ingestTransactions(
                 userId,

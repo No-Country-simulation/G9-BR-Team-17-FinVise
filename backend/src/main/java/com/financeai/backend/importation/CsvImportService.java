@@ -1,11 +1,15 @@
 package com.financeai.backend.importation;
 
+import com.financeai.backend.analysis.AnalysisService;
+import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.common.exception.BusinessException;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
+import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
@@ -42,19 +46,25 @@ public class CsvImportService {
     private final UserRepository userRepository;
     private final ObjectStorageService objectStorageService;
     private final com.financeai.backend.rag.RagIngestionService ragIngestionService;
+    private final FinancialFactsService financialFactsService;
+    private final AnalysisService analysisService;
 
     public CsvImportService(TransactionRepository transactionRepository,
                             TransactionCategorizationService categorizationService,
                             ImportedFileRepository importedFileRepository,
                             UserRepository userRepository,
                             ObjectStorageService objectStorageService,
-                            com.financeai.backend.rag.RagIngestionService ragIngestionService) {
+                            com.financeai.backend.rag.RagIngestionService ragIngestionService,
+                            FinancialFactsService financialFactsService,
+                            AnalysisService analysisService) {
         this.transactionRepository = transactionRepository;
         this.categorizationService = categorizationService;
         this.importedFileRepository = importedFileRepository;
         this.userRepository = userRepository;
         this.objectStorageService = objectStorageService;
         this.ragIngestionService = ragIngestionService;
+        this.financialFactsService = financialFactsService;
+        this.analysisService = analysisService;
     }
 
     @Transactional
@@ -120,12 +130,15 @@ public class CsvImportService {
             TransactionCategorizationService.CategorizationResult categorization =
                 categorizationService.categorize(transactions);
             transactionRepository.saveAll(transactions);
+            financialFactsService.rebuild(
+                userId, TransactionSource.CSV_IMPORT, importedFile.getId());
             ragIngestionService.ingestTransactions(
                 userId,
                 "CSV_IMPORT",
                 importedFile.getId().toString(),
                 importedFile.getOriginalName(),
                 transactions);
+            analyzeImportedTransactions(userId, importedFile.getId());
             processedCount = transactions.size();
             categorizedCount = categorization.categorizedCount();
             classificationModel = categorization.modelVersion();
@@ -157,6 +170,29 @@ public class CsvImportService {
             classificationModel,
             errors
         );
+    }
+
+    private void analyzeImportedTransactions(UUID userId, UUID importSourceId) {
+        try {
+            analysisService.analyzeStoredTransactions(
+                userId,
+                ProfileAnalysisModel.MACHINE_LEARNING,
+                TransactionSource.CSV_IMPORT,
+                importSourceId,
+                null,
+                null
+            );
+        } catch (BusinessException exception) {
+            if (!"NO_TRANSACTIONS".equals(exception.getCode())
+                && !"NO_INCOME_TRANSACTIONS".equals(exception.getCode())) {
+                throw exception;
+            }
+            log.info(
+                "Análise financeira não gerada para o arquivo {}: {}",
+                importSourceId,
+                exception.getMessage()
+            );
+        }
     }
 
     private CsvTransactionRecord parseRecord(CSVRecord record) {

@@ -343,11 +343,14 @@ export function AgentPage() {
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex max-w-[92%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[82%] ${
+                  <div
+                    data-message-role={message.role}
+                    className={`flex max-w-[92%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[82%] ${
                     message.role === 'user'
                       ? 'bg-primary-600 text-white shadow-sm shadow-primary-200'
-                      : 'border border-slate-200 bg-white text-slate-900 shadow-sm'
-                  }`}>
+                      : 'border border-slate-200 bg-slate-100/80 text-slate-900 shadow-sm'
+                  }`}
+                  >
                     <div className="flex items-center gap-2">
                       {message.role === 'user'
                         ? <User className="h-4 w-4 shrink-0" />
@@ -369,7 +372,7 @@ export function AgentPage() {
                           {message.sources.map((ragSource, index) => (
                             <div
                               key={`${ragSource.id}-${index}`}
-                              className="flex min-w-0 items-start gap-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-600"
+                              className="flex min-w-0 items-start gap-2 rounded-lg bg-white/80 p-2 text-[11px] text-slate-600"
                             >
                               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-primary-100 px-1 font-bold text-primary-700">
                                 S{index + 1}
@@ -411,7 +414,7 @@ export function AgentPage() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="flex max-w-[92%] flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm">
+                <div className="flex max-w-[92%] flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-100/80 px-4 py-3 text-slate-900 shadow-sm">
                   <div className="flex items-center gap-2">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50">
                       <Bot className="h-4 w-4 shrink-0 text-primary-600" />

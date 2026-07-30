@@ -42,6 +42,18 @@ interface StreamHandlers {
   onDone?: (message: AgentMessage) => void;
 }
 
+function renderAgentPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AgentPage />
+    </QueryClientProvider>
+  );
+}
+
 describe('AgentPage streaming feedback', () => {
   beforeEach(() => {
     sendMessageStreamMock.mockReset();
@@ -63,14 +75,7 @@ describe('AgentPage streaming feedback', () => {
       }
     );
     const user = userEvent.setup();
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <AgentPage />
-      </QueryClientProvider>
-    );
+    renderAgentPage();
 
     await screen.findByText('extrato.csv');
     await user.type(
@@ -79,15 +84,15 @@ describe('AgentPage streaming feedback', () => {
     );
 
     expect(await screen.findByText('Pensando...')).toBeInTheDocument();
-    expect(screen.getByText('rag_retrieval')).toBeInTheDocument();
-    expect(screen.getByText('financial_tools')).toBeInTheDocument();
+    expect(screen.getByText('Buscando evidências')).toBeInTheDocument();
+    expect(screen.getByText('Calculando indicadores')).toBeInTheDocument();
 
     act(() => handlers.onConversation?.('conversation-1'));
     expect(screen.getByText('Pensando...')).toBeInTheDocument();
 
     act(() => handlers.onTools?.(['get_financial_profile']));
     expect(screen.getByText('Pensando...')).toBeInTheDocument();
-    expect(screen.getByText('get_financial_profile')).toBeInTheDocument();
+    expect(screen.getByText('Lendo perfil financeiro')).toBeInTheDocument();
 
     act(() => handlers.onToken?.('Olá'));
     expect(screen.queryByText('Pensando...')).not.toBeInTheDocument();
@@ -109,5 +114,29 @@ describe('AgentPage streaming feedback', () => {
     });
 
     expect(screen.getByText('Olá!')).toBeInTheDocument();
+    expect(sendMessageStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceIds: ['arquivo-1'],
+        topK: 5,
+      }),
+      expect.any(Object),
+      expect.any(AbortSignal)
+    );
+  });
+
+  it('presents sources and retrieval depth in user-friendly language', async () => {
+    renderAgentPage();
+
+    await screen.findByText('extrato.csv');
+
+    expect(screen.getByText('Dados usados na resposta')).toBeInTheDocument();
+    expect(screen.getByText('1. Escolha a origem')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: '2. Selecione os arquivos' })).toBeInTheDocument();
+    expect(screen.getByText('3. Defina a profundidade')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Profundidade da busca' })).toHaveValue('5');
+    expect(screen.getByText('O que você quer entender hoje?')).toBeInTheDocument();
+    expect(screen.getByText('Quais padrões existem nos meus gastos?')).toBeInTheDocument();
+    expect(screen.queryByText('Top-k')).not.toBeInTheDocument();
+    expect(screen.queryByText('rag_retrieval')).not.toBeInTheDocument();
   });
 });

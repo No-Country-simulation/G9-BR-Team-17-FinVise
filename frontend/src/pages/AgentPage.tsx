@@ -44,7 +44,14 @@ const toolLabels: Record<string, string> = {
   financial_tools: 'Calculando indicadores',
   get_financial_profile: 'Lendo perfil financeiro',
   get_financial_indicators: 'Calculando indicadores',
+  get_spending_summary: 'Analisando despesas',
+  get_transactions: 'Consultando transações',
+  get_recurring_expenses: 'Verificando gastos recorrentes',
+  compare_periods: 'Comparando períodos',
+  simulate_savings_plan: 'Simulando plano de economia',
   get_recommendations: 'Preparando recomendações',
+  resposta_segura: 'Resposta de segurança',
+  regra_financeira_fallback: 'Análise financeira local',
 };
 
 function sourceMatches(source: ImportSource, transactionSource: TransactionSource) {
@@ -207,7 +214,14 @@ export function AgentPage() {
             ensureAssistantMessage();
             setIsLoading(false);
             setMessages((current) => current.map((item) =>
-              item.id === assistantId ? message : item
+              item.id === assistantId
+                ? {
+                  ...message,
+                  content: message.content.trim() ? message.content : item.content,
+                  tools: message.tools?.length ? message.tools : item.tools,
+                  sources: message.sources?.length ? message.sources : item.sources,
+                }
+                : item
             ));
           },
         },

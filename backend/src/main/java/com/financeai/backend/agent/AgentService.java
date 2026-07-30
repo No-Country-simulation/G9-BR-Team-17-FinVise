@@ -334,17 +334,20 @@ public class AgentService {
             });
         } catch (Exception exception) {
             log.warn("Falha durante streaming do agente: {}", exception.getMessage());
-            if (!content.isEmpty()) {
+            if (!content.toString().isBlank()) {
                 sendEvent(outputStream, clientConnected, "error",
                     Map.of("message", "A resposta da IA foi interrompida. Tente novamente."));
                 return;
             }
 
-            tools.clear();
-            tools.add("regra_financeira_fallback");
-            content.append(fallbackReply);
-            sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
-            sendEvent(outputStream, clientConnected, "token", Map.of("token", fallbackReply));
+            sendFallbackReply(
+                outputStream, clientConnected, content, tools, fallbackReply);
+        }
+
+        if (content.toString().isBlank()) {
+            log.warn("O agente concluiu o streaming sem texto; usando resposta segura");
+            sendFallbackReply(
+                outputStream, clientConnected, content, tools, fallbackReply);
         }
 
         AgentMessageDto savedMessage = saveAssistantMessage(
@@ -360,6 +363,21 @@ public class AgentService {
             "conversationId", conversationId.toString(),
             "message", messagePayload
         ));
+    }
+
+    private void sendFallbackReply(
+        OutputStream outputStream,
+        AtomicBoolean clientConnected,
+        StringBuilder content,
+        List<String> tools,
+        String fallbackReply
+    ) {
+        tools.clear();
+        tools.add("resposta_segura");
+        content.setLength(0);
+        content.append(fallbackReply);
+        sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
+        sendEvent(outputStream, clientConnected, "token", Map.of("token", fallbackReply));
     }
 
     private AgentMessageDto saveAssistantMessage(

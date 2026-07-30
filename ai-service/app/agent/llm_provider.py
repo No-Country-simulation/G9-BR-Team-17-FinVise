@@ -107,6 +107,7 @@ class OpenAIProvider(LLMProvider):
             json=payload,
             timeout=self.timeout,
         ) as response:
+            response.raise_for_status()
             for line in response.iter_lines():
                 if line.startswith("data: ") and line != "data: [DONE]":
                     import json

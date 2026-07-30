@@ -108,4 +108,36 @@ describe('agentService streaming', () => {
       source: 'CSV_IMPORT',
     })).rejects.toThrow('sem confirmar a mensagem');
   });
+
+  it('stops reading after done and ignores a later transport failure', async () => {
+    const encoder = new TextEncoder();
+    let readCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        readCount += 1;
+        if (readCount === 1) {
+          controller.enqueue(encoder.encode(
+            'event: done\n'
+            + 'data: {"conversationId":"conversation-1","message":'
+            + '{"id":"message-1","role":"assistant","content":"Pronto",'
+            + '"timestamp":"2026-07-30T12:00:01Z"}}\n\n'
+          ));
+          return;
+        }
+        controller.error(new TypeError('network error'));
+      },
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    }));
+
+    const result = await agentService.sendMessageStream({
+      message: 'Teste',
+      conversationId: 'conversation-1',
+      source: 'CSV_IMPORT',
+    });
+
+    expect(result.message.content).toBe('Pronto');
+  });
 });

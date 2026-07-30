@@ -10,7 +10,6 @@ services:
       PGDATA: ${PGDATA:-/var/lib/postgresql/data/pgdata}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/main/resources/db/migration:/docker-entrypoint-initdb.d:ro
     networks:
       - finvise_internal
     healthcheck:

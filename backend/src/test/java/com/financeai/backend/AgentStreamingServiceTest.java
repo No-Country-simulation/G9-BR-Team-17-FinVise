@@ -28,6 +28,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 class AgentStreamingServiceTest {
@@ -115,5 +116,62 @@ class AgentStreamingServiceTest {
         assertThat(savedMessages.getAllValues().get(1).getContent()).isEqualTo("Olá!");
         assertThat(savedMessages.getAllValues().get(1).getToolCalls())
             .isEqualTo("[\"get_financial_profile\"]");
+    }
+
+    @Test
+    void shouldReportAnInterruptedStreamWithoutPersistingPartialResponse() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        AgentConversation conversation = new AgentConversation();
+        conversation.setId(conversationId);
+        conversation.setUser(user);
+        conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
+
+        AgentConversationRepository conversationRepository =
+            mock(AgentConversationRepository.class);
+        AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
+        TransactionRepository transactionRepository = mock(TransactionRepository.class);
+        AiServiceClient aiServiceClient = mock(AiServiceClient.class);
+        when(conversationRepository.findByIdAndUserId(conversationId, userId))
+            .thenReturn(Optional.of(conversation));
+        when(transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
+            userId, TransactionSource.CSV_IMPORT.name()))
+            .thenReturn(List.of());
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
+            .thenReturn(List.of());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(new AiServiceClient.AgentStreamEvent(
+                "token", "Resposta parcial", List.of(), null));
+            consumer.accept(new AiServiceClient.AgentStreamEvent(
+                "error", null, List.of(), "Falha no modelo"));
+            return null;
+        }).when(aiServiceClient).agentRespondStream(any(), any());
+
+        AgentService service = new AgentService(
+            conversationRepository,
+            messageRepository,
+            mock(UserRepository.class),
+            transactionRepository,
+            aiServiceClient,
+            new ObjectMapper()
+        );
+
+        StreamingResponseBody stream = service.streamMessage(
+            userId, conversationId, new SendMessageRequest("Como estou?"));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        stream.writeTo(output);
+        String sse = output.toString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(sse)
+            .contains("event: token")
+            .contains("event: error")
+            .contains("A resposta da IA foi interrompida")
+            .doesNotContain("event: done");
+        verify(messageRepository, times(1)).save(any(AgentMessage.class));
+        verify(conversationRepository, never()).findById(conversationId);
     }
 }

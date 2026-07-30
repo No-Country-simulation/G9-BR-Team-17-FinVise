@@ -284,4 +284,75 @@ class RagIngestionServiceTest {
         assertThat(response.status()).isEqualTo("FAILED");
         assertThat(response.failedDocuments()).isEqualTo(1);
     }
+
+    @Test
+    void shouldOnlyAddNewTransactionChunkOnIncrementalIngestion() {
+        UUID userId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        Transaction first = transaction(
+            "Compra inicial", "40.00", LocalDate.of(2026, 7, 1));
+        Transaction second = transaction(
+            "Compra incremental", "75.00", LocalDate.of(2026, 7, 30));
+
+        when(ragDocumentRepository.findTransactionIdsBySource(
+            userId, "OPEN_FINANCE", sourceId.toString()))
+            .thenReturn(Set.of(), Set.of(first.getId()));
+        when(transactionRepository
+            .findByUserIdAndImportSourceIdOrderByTransactionDateDesc(userId, sourceId))
+            .thenReturn(List.of(first), List.of(second, first));
+
+        ragIngestionService.ingestTransactions(
+            userId,
+            "OPEN_FINANCE",
+            sourceId.toString(),
+            "Conta principal",
+            List.of(first)
+        );
+        ragIngestionService.ingestTransactions(
+            userId,
+            "OPEN_FINANCE",
+            sourceId.toString(),
+            "Conta principal",
+            List.of(second)
+        );
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RagDocument>> batches = ArgumentCaptor.forClass(List.class);
+        verify(ragDocumentRepository, times(2)).saveAll(batches.capture());
+        List<RagDocument> firstBatch = batches.getAllValues().get(0);
+        List<RagDocument> incrementalBatch = batches.getAllValues().get(1);
+
+        assertThat(firstBatch)
+            .filteredOn(document -> "TRANSACTION".equals(document.getChunkType()))
+            .extracting(RagDocument::getTransactionId)
+            .containsExactly(first.getId());
+        assertThat(incrementalBatch)
+            .filteredOn(document -> "TRANSACTION".equals(document.getChunkType()))
+            .extracting(RagDocument::getTransactionId)
+            .containsExactly(second.getId());
+        assertThat(incrementalBatch)
+            .filteredOn(document -> "MONTHLY_SUMMARY".equals(document.getChunkType()))
+            .singleElement()
+            .satisfies(document -> {
+                assertThat(document.getDocumentChunk())
+                    .contains("Quantidade de transações: 2");
+                assertThat(document.getIndexStatus()).isEqualTo(RagIndexStatus.PENDING);
+            });
+        verify(ragDocumentRepository, times(2)).deleteDerivedChunks(
+            userId, "OPEN_FINANCE", sourceId.toString(), "TRANSACTION");
+        verify(eventPublisher, times(2)).publishEvent(
+            any(com.financeai.backend.rag.RagIndexRequestedEvent.class));
+    }
+
+    private Transaction transaction(String description,
+                                    String amount,
+                                    LocalDate date) {
+        Transaction transaction = new Transaction();
+        transaction.setId(UUID.randomUUID());
+        transaction.setDescription(description);
+        transaction.setAmount(new BigDecimal(amount));
+        transaction.setTransactionDate(date);
+        transaction.setType(TransactionType.EXPENSE);
+        return transaction;
+    }
 }

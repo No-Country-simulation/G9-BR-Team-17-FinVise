@@ -191,7 +191,14 @@ export const agentService = {
       while (boundary >= 0) {
         processEvent(buffer.slice(0, boundary));
         buffer = buffer.slice(boundary + 2);
+        if (completedMessage) {
+          break;
+        }
         boundary = buffer.indexOf('\n\n');
+      }
+      if (completedMessage) {
+        await reader.cancel().catch(() => undefined);
+        break;
       }
     }
     if (buffer.trim()) {

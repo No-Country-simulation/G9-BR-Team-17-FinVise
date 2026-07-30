@@ -86,6 +86,7 @@ describe('AgentPage streaming feedback', () => {
     );
 
     expect(await screen.findByText('Pensando...')).toBeInTheDocument();
+    expect(screen.queryByText('Vamos começar?')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Parar resposta' })).toBeInTheDocument();
     expect(screen.getByText('Buscando evidências')).toBeInTheDocument();
     expect(screen.getByText('Calculando indicadores')).toBeInTheDocument();
@@ -207,8 +208,9 @@ describe('AgentPage streaming feedback', () => {
     expect(selectedFile).toBeChecked();
     expect(selectedFile.closest('label')).toHaveClass('bg-slate-100');
     expect(selectedFile.closest('label')).not.toHaveClass('focus-within:ring-2');
-    expect(screen.getByText('O que você quer entender hoje?')).toBeInTheDocument();
-    expect(screen.getByText('Quais padrões existem nos meus gastos?')).toBeInTheDocument();
+    expect(screen.getByText('Vamos começar?')).toBeInTheDocument();
+    expect(screen.queryByText('Assistente Financeiro')).not.toBeInTheDocument();
+    expect(screen.queryByText('Quais padrões existem nos meus gastos?')).not.toBeInTheDocument();
     expect(screen.queryByText('Dados usados na resposta')).not.toBeInTheDocument();
     expect(screen.queryByText('rag_retrieval')).not.toBeInTheDocument();
   });

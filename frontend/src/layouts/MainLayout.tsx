@@ -4,10 +4,12 @@ import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Footer } from '@/components/layout/Footer';
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation';
+import { cn } from '@/lib/utils';
 
 export function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { pathname } = useLocation();
+  const isAgentPage = pathname === '/agent';
 
   useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
@@ -56,13 +58,20 @@ export function MainLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Header userName="Demo User" onMenuClick={() => setIsSidebarOpen(true)} />
 
-        <main className="w-full min-w-0 max-w-full flex-1 overflow-x-hidden px-3 pb-24 pt-4 sm:px-5 sm:pt-5 lg:p-6 xl:p-8">
-          <div className="mx-auto w-full max-w-[100rem]">
+        <main
+          className={cn(
+            'w-full min-w-0 max-w-full flex-1 overflow-x-hidden',
+            isAgentPage
+              ? 'p-0 pb-16 lg:p-6 xl:p-8'
+              : 'px-3 pb-24 pt-4 sm:px-5 sm:pt-5 lg:p-6 xl:p-8'
+          )}
+        >
+          <div className={cn('mx-auto w-full', isAgentPage ? 'max-w-none' : 'max-w-[100rem]')}>
             <Outlet />
           </div>
         </main>
 
-        <Footer />
+        {!isAgentPage && <Footer />}
       </div>
 
       <MobileBottomNavigation

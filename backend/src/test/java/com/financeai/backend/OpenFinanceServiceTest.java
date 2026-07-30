@@ -106,7 +106,7 @@ class OpenFinanceServiceTest {
             });
         verify(transactionRepository).saveAll(transactions.getValue());
         verify(ragIngestionService).ingestTransactions(
-            userId, "OPEN_FINANCE", connectionId.toString(), transactions.getValue());
+            userId, "OPEN_FINANCE", connectionId.toString(), null, transactions.getValue());
         verify(connection).setLastSyncAt(any(Instant.class));
         verify(analysisService).analyzeStoredTransactions(
             eq(userId), eq(ProfileAnalysisModel.FINANCIAL_RULES),

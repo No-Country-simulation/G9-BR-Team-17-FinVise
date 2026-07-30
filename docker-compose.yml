@@ -89,7 +89,12 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
-      LLM_TIMEOUT: ${LLM_TIMEOUT:-30}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT:-30}
+      RAG_ENABLE_REMOTE_EMBEDDINGS: ${RAG_ENABLE_REMOTE_EMBEDDINGS:-true}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-text-embedding-3-small}
+      RAG_EMBEDDING_BATCH_SIZE: ${RAG_EMBEDDING_BATCH_SIZE:-200}
+      RAG_INDEX_MAX_BATCHES: ${RAG_INDEX_MAX_BATCHES:-100}
+      RAG_MIN_RELEVANCE: ${RAG_MIN_RELEVANCE:-0.18}
     volumes:
       - ./ai-service/models:/app/models:ro
     networks:

@@ -17,6 +17,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     List<Transaction> findByUserIdAndSourceOrderByTransactionDateDesc(UUID userId, String source);
 
+    List<Transaction> findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
+        UUID userId, String source, List<UUID> importSourceIds);
+
     List<Transaction> findByUserIdAndImportSourceIdOrderByTransactionDateDesc(UUID userId, UUID importSourceId);
 
     List<Transaction> findByUserIdAndTransactionDateBetweenOrderByTransactionDateDesc(

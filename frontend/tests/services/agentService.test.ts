@@ -43,6 +43,9 @@ describe('agentService streaming', () => {
       'event: tools',
       'data: {"tools":["get_financial_profile"]}',
       '',
+      'event: sources',
+      'data: {"sources":[{"id":"chunk-1","source_name":"extrato.csv","chunk_type":"MONTHLY_SUMMARY","score":0.91}]}',
+      '',
       'event: token',
       'data: {"token":"Olá"}',
       '',
@@ -63,18 +66,22 @@ describe('agentService streaming', () => {
     localStorage.setItem('finance_ai_token', 'jwt-token');
     const tokens: string[] = [];
     const tools: string[][] = [];
+    const sources: string[] = [];
 
     const result = await agentService.sendMessageStream(
       { message: 'Como estou?', source: 'CSV_IMPORT' },
       {
         onToken: (token) => tokens.push(token),
         onTools: (eventTools) => tools.push(eventTools),
+        onSources: (eventSources) => sources.push(eventSources[0].source_name || ''),
       }
     );
 
     expect(mockedPost).toHaveBeenCalledWith('/agent/conversations', {
       source: 'CSV_IMPORT',
       title: 'Como estou?',
+      sourceIds: [],
+      topK: 5,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/agent/conversations/conversation-1/messages/stream',
@@ -88,6 +95,7 @@ describe('agentService streaming', () => {
     );
     expect(tokens).toEqual(['Olá', '!']);
     expect(tools).toEqual([['get_financial_profile']]);
+    expect(sources).toEqual(['extrato.csv']);
     expect(result).toEqual({
       conversationId: 'conversation-1',
       message: finalMessage,

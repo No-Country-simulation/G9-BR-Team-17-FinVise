@@ -42,7 +42,7 @@ class IntegrationTest extends PostgresTestSupport {
         String usersTable = jdbcTemplate.queryForObject(
             "select to_regclass('public.users')", String.class);
 
-        assertThat(appliedMigrations).isEqualTo(17);
+        assertThat(appliedMigrations).isEqualTo(19);
         assertThat(usersTable).isEqualTo("users");
     }
 }

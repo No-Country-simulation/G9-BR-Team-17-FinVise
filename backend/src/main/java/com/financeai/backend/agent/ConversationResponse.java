@@ -11,6 +11,8 @@ public record ConversationResponse(
     String title,
     ConversationStatus status,
     TransactionSource source,
+    List<UUID> sourceIds,
+    int topK,
     List<AgentMessageDto> messages,
     Instant createdAt
 ) {

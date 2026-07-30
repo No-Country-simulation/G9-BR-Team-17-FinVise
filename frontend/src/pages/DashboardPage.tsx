@@ -82,16 +82,19 @@ export function DashboardPage() {
   } = useQuery({
     queryKey: ['transactions', 'summary', source, importSourceId],
     queryFn: () => transactionService.getSummary(source, importSourceId),
+    enabled: !sourcesLoading,
   });
 
   const { data: monthlySummary = [], isLoading: monthlyLoading } = useQuery({
     queryKey: ['transactions', 'monthly-summary', source, importSourceId],
     queryFn: () => transactionService.getMonthlySummary(source, importSourceId),
+    enabled: !sourcesLoading,
   });
 
   const { data: categorySummary = [], isLoading: categoryLoading } = useQuery({
     queryKey: ['transactions', 'category-summary', source, importSourceId],
     queryFn: () => transactionService.getCategorySummary(source, importSourceId),
+    enabled: !sourcesLoading,
   });
 
   const {
@@ -102,6 +105,7 @@ export function DashboardPage() {
     queryKey: ['analyses', 'latest', source, importSourceId],
     queryFn: () => analysisService.getLatest(source, importSourceId),
     retry: false,
+    enabled: !sourcesLoading,
   });
 
   const analysis = latestAnalysis ?? null;

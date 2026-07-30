@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { Spinner } from '@/components/ui/Spinner';
 import { authService } from '@/services/authService';
+import { DashboardSkeleton } from '@/components/skeletons/PageSkeletons';
 
 const LoginPage = lazy(() =>
   import('@/pages/LoginPage').then((module) => ({ default: module.LoginPage }))
@@ -81,7 +82,14 @@ export function AppRoutes() {
             </PrivateRoute>
           }
         >
-          <Route index element={<DashboardPage />} />
+          <Route
+            index
+            element={
+              <Suspense fallback={<DashboardSkeleton />}>
+                <DashboardPage />
+              </Suspense>
+            }
+          />
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="analyses/new" element={<NewAnalysisPage />} />
           <Route path="analyses/:analysisId" element={<AnalysisResultPage />} />

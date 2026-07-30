@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  ArrowUpRight,
   Bot,
-  Database,
-  FileText,
+  CheckCircle2,
   Loader2,
+  Search,
   Send,
-  SlidersHorizontal,
   Sparkles,
   User,
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
-import { TransactionSourceSelector } from '@/components/transactions/TransactionSourceSelector';
+import { AgentContextPanel } from '@/components/agent/AgentContextPanel';
+import { retrievalDepthLabel } from '@/components/agent/agentContextOptions';
 import { MarkdownText } from '@/components/ui/MarkdownText';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { agentService } from '@/services/agentService';
@@ -27,19 +26,26 @@ import { extractErrorMessage } from '@/lib/api';
 const welcomeMessage: AgentMessage = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Olá! Selecione as fontes e faça uma pergunta. Vou explicar os dados e citar o contexto recuperado.',
+  content: 'Pronto para ajudar você a entender seus dados.',
   timestamp: new Date().toISOString(),
 };
 
 const suggestionQuestions = [
-  'Quais padrões aparecem nos meus gastos?',
-  'Explique meu saldo mensal de forma simples',
-  'Onde posso reduzir despesas?',
-  'Compare receitas e despesas por categoria',
+  'Quais padrões existem nos meus gastos?',
+  'Explique meu saldo mensal em linguagem simples',
+  'Onde tenho oportunidade de economizar?',
+  'Compare minhas receitas e despesas',
 ];
 
 const defaultThinkingTools = ['rag_retrieval', 'financial_tools'];
 const emptyImportSources: ImportSource[] = [];
+const toolLabels: Record<string, string> = {
+  rag_retrieval: 'Buscando evidências',
+  financial_tools: 'Calculando indicadores',
+  get_financial_profile: 'Lendo perfil financeiro',
+  get_financial_indicators: 'Calculando indicadores',
+  get_recommendations: 'Preparando recomendações',
+};
 
 function sourceMatches(source: ImportSource, transactionSource: TransactionSource) {
   return transactionSource === 'CSV_IMPORT'
@@ -53,6 +59,10 @@ function chunkLabel(type: string) {
   return 'Transação';
 }
 
+function toolLabel(name: string) {
+  return toolLabels[name] ?? name.replaceAll('_', ' ');
+}
+
 export function AgentPage() {
   const { source, setSource } = useTransactionSource();
   const [messages, setMessages] = useState<AgentMessage[]>([welcomeMessage]);
@@ -64,7 +74,9 @@ export function AgentPage() {
   const [conversationId, setConversationId] = useState<string>();
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [topK, setTopK] = useState(5);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeStreamRef = useRef<AbortController | null>(null);
   const { data: loadedImportSources, isLoading: sourcesLoading } = useQuery({
     queryKey: ['import-sources'],
@@ -117,8 +129,9 @@ export function AgentPage() {
 
   const handleSend = async (text: string) => {
     if (!text.trim() || isLoading || isStreaming || sourcesLoading) return;
-    if (availableSources.length > 0 && selectedSourceIds.length === 0) {
-      setError('Selecione ao menos uma fonte para a recuperação RAG.');
+    if (selectedSourceIds.length === 0) {
+      setFiltersOpen(true);
+      setError('Selecione ao menos um arquivo para que eu possa consultar seus dados.');
       return;
     }
 
@@ -130,6 +143,8 @@ export function AgentPage() {
     };
     setMessages((current) => [...current, userMessage]);
     setInput('');
+    setFiltersOpen(false);
+    if (inputRef.current) inputRef.current.style.height = '44px';
     setIsLoading(true);
     setThinkingTools(defaultThinkingTools);
     setError(null);
@@ -215,197 +230,209 @@ export function AgentPage() {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[34rem] max-w-4xl flex-col lg:h-[calc(100vh-12rem)]">
-      <div className="mb-4 flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900">Assistente Financeiro</h1>
-          <p className="text-slate-500">Respostas educativas fundamentadas nos seus próprios dados</p>
+    <div className="mx-auto flex h-[calc(100dvh-9rem)] min-h-[38rem] max-w-5xl flex-col lg:h-[calc(100vh-10rem)]">
+      <div className="mb-4 min-w-0">
+        <h1 className="text-2xl font-bold text-slate-900">Assistente Financeiro</h1>
+        <p className="mt-1 text-sm text-slate-500 sm:text-base">
+          Entenda suas finanças com respostas baseadas nos seus próprios dados
+        </p>
+      </div>
+
+      <Card className="flex flex-1 flex-col overflow-hidden border-slate-200 shadow-md shadow-slate-200/40">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-200">
+              <Bot className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">FinVise</p>
+              <p className="truncate text-xs text-slate-500">Seus dados explicados com clareza</p>
+            </div>
+          </div>
+          <div className={`hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium sm:flex ${
+            isLoading || isStreaming
+              ? 'bg-primary-50 text-primary-700'
+              : 'bg-emerald-50 text-emerald-700'
+          }`}>
+            <span className={`h-2 w-2 rounded-full ${
+              isLoading || isStreaming ? 'animate-pulse bg-primary-500' : 'bg-emerald-500'
+            }`} />
+            {isLoading || isStreaming ? 'Analisando dados' : 'Pronto para ajudar'}
+          </div>
         </div>
-        <TransactionSourceSelector
-          value={source}
+
+        <AgentContextPanel
+          source={source}
+          availableSources={availableSources}
+          selectedSourceIds={selectedSourceIds}
+          topK={topK}
+          isOpen={filtersOpen}
           disabled={isLoading || isStreaming}
-          onChange={(next) => {
+          sourcesLoading={sourcesLoading}
+          onToggleOpen={() => setFiltersOpen((current) => !current)}
+          onSourceChange={(next) => {
+            if (next === source) return;
             setSource(next);
             setSelectedSourceIds(
               importSources.filter((item) => sourceMatches(item, next)).map((item) => item.id)
             );
             resetConversation(next);
           }}
-          label="Tipo de fonte"
+          onToggleSource={updateSourceSelection}
+          onToggleAll={() => {
+            setSelectedSourceIds(
+              selectedSourceIds.length === availableSources.length
+                ? []
+                : availableSources.map((item) => item.id)
+            );
+            resetConversation();
+          }}
+          onTopKChange={(nextTopK) => {
+            setTopK(nextTopK);
+            resetConversation();
+          }}
         />
-      </div>
-
-      <Card className="flex flex-1 flex-col overflow-hidden shadow-sm">
-        <CardHeader className="space-y-3 border-b border-slate-100 bg-slate-50">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Bot className="h-5 w-5 text-primary-600" />
-                FinVise Assistant
-              </CardTitle>
-              <CardDescription>Recuperação vetorial com evidências e filtros por fonte</CardDescription>
-            </div>
-            <label className="flex w-full items-center gap-2 text-xs font-medium text-slate-600 sm:w-44">
-              <SlidersHorizontal className="h-4 w-4" />
-              <span className="whitespace-nowrap">Top-k</span>
-              <Select
-                aria-label="Quantidade de contextos recuperados"
-                value={String(topK)}
-                disabled={isLoading || isStreaming}
-                onChange={(event) => {
-                  setTopK(Number(event.target.value));
-                  resetConversation();
-                }}
-                options={[3, 5, 8, 10, 15].map((value) => ({
-                  value: String(value),
-                  label: `${value} contextos`,
-                }))}
-              />
-            </label>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <Database className="h-3.5 w-3.5" />
-                Fontes permitidas
-              </span>
-              {availableSources.length > 0 && (
-                <button
-                  type="button"
-                  className="text-xs font-medium text-primary-700 hover:text-primary-800"
-                  disabled={isLoading || isStreaming}
-                  onClick={() => {
-                    setSelectedSourceIds(
-                      selectedSourceIds.length === availableSources.length
-                        ? []
-                        : availableSources.map((item) => item.id)
-                    );
-                    resetConversation();
-                  }}
-                >
-                  {selectedSourceIds.length === availableSources.length
-                    ? 'Limpar seleção'
-                    : 'Selecionar todas'}
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {sourcesLoading && (
-                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Carregando fontes
-                </span>
-              )}
-              {!sourcesLoading && availableSources.length === 0 && (
-                <span className="text-xs text-slate-500">
-                  Nenhuma fonte desse tipo foi importada.
-                </span>
-              )}
-              {availableSources.map((item) => (
-                <label
-                  key={item.id}
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                    checked={selectedSourceIds.includes(item.id)}
-                    disabled={isLoading || isStreaming}
-                    onChange={() => updateSourceSelection(item.id)}
-                  />
-                  {item.type === 'CSV'
-                    ? <FileText className="h-3.5 w-3.5 text-primary-600" />
-                    : <Database className="h-3.5 w-3.5 text-primary-600" />}
-                  <span className="max-w-48 truncate" title={item.displayName}>
-                    {item.displayName}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </CardHeader>
 
         <CardContent className="flex flex-1 flex-col overflow-hidden p-0">
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`flex max-w-[90%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[82%] ${
-                  message.role === 'user'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-100 text-slate-900'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {message.role === 'user'
-                      ? <User className="h-4 w-4 shrink-0" />
-                      : <Bot className="h-4 w-4 shrink-0 text-primary-600" />}
-                    <span className="text-xs font-semibold opacity-75">
-                      {message.role === 'user' ? 'Você' : 'FinVise Agent'}
-                    </span>
-                  </div>
-                  <MarkdownText content={message.content} />
+          <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/50 p-4 sm:p-5">
+            {messages.map((message) => {
+              if (message.id.startsWith('welcome')) {
+                return (
+                  <div
+                    key={message.id}
+                    className="mx-auto flex max-w-2xl flex-col items-center px-1 py-4 text-center sm:py-7"
+                  >
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-100 text-primary-700">
+                      <Sparkles className="h-7 w-7" />
+                    </div>
+                    <h2 className="mt-4 text-lg font-bold text-slate-900">
+                      O que você quer entender hoje?
+                    </h2>
+                    <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">
+                      {selectedSourceIds.length > 0
+                        ? `Vou consultar ${selectedSourceIds.length} ${
+                          selectedSourceIds.length === 1 ? 'arquivo' : 'arquivos'
+                        } e mostrar as evidências usadas na resposta.`
+                        : 'Selecione ao menos um arquivo acima para começar a análise.'}
+                    </p>
 
-                  {message.role === 'assistant' && message.sources && message.sources.length > 0 && (
-                    <div className="mt-2 border-t border-slate-200/70 pt-2">
-                      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Evidências recuperadas
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {message.sources.map((ragSource, index) => (
+                    <div className="mt-5 grid w-full gap-2 sm:grid-cols-2">
+                      {suggestionQuestions.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          disabled={
+                            sourcesLoading
+                            || isLoading
+                            || isStreaming
+                            || selectedSourceIds.length === 0
+                          }
+                          onClick={() => handleSend(question)}
+                          className="group flex min-h-14 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left text-xs font-medium leading-5 text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary-200 hover:text-primary-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                        >
+                          <span>{question}</span>
+                          <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-primary-600" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`flex max-w-[92%] flex-col gap-2 rounded-2xl px-4 py-3 sm:max-w-[82%] ${
+                    message.role === 'user'
+                      ? 'bg-primary-600 text-white shadow-sm shadow-primary-200'
+                      : 'border border-slate-200 bg-white text-slate-900 shadow-sm'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {message.role === 'user'
+                        ? <User className="h-4 w-4 shrink-0" />
+                        : <Bot className="h-4 w-4 shrink-0 text-primary-600" />}
+                      <span className="text-xs font-semibold opacity-75">
+                        {message.role === 'user' ? 'Você' : 'FinVise'}
+                      </span>
+                    </div>
+                    <MarkdownText content={message.content} />
+
+                    {message.role === 'assistant' && message.sources && message.sources.length > 0 && (
+                      <details className="mt-2 border-t border-slate-200 pt-2">
+                        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-primary-700">
+                          <Search className="h-3.5 w-3.5" />
+                          {message.sources.length}{' '}
+                          {message.sources.length === 1 ? 'evidência consultada' : 'evidências consultadas'}
+                        </summary>
+                        <div className="mt-2 grid gap-2">
+                          {message.sources.map((ragSource, index) => (
+                            <div
+                              key={`${ragSource.id}-${index}`}
+                              className="flex min-w-0 items-start gap-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-600"
+                            >
+                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-primary-100 px-1 font-bold text-primary-700">
+                                S{index + 1}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-semibold text-slate-700">
+                                  {ragSource.source_name || 'Fonte selecionada'}
+                                </span>
+                                <span>
+                                  {chunkLabel(ragSource.chunk_type)}
+                                  {ragSource.score != null
+                                    ? ` · ${Math.round(ragSource.score * 100)}% de relevância`
+                                    : ''}
+                                </span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+
+                    {message.role === 'assistant' && message.tools && message.tools.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1.5 border-t border-slate-200 pt-2">
+                        {message.tools.map((toolName) => (
                           <span
-                            key={`${ragSource.id}-${index}`}
-                            className="inline-flex items-center gap-1 rounded-full border border-primary-100 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600"
-                            title={`${chunkLabel(ragSource.chunk_type)}${
-                              ragSource.score != null
-                                ? ` · relevância ${Math.round(ragSource.score * 100)}%`
-                                : ''
-                            }`}
+                            key={toolName}
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700"
                           >
-                            <FileText className="h-2.5 w-2.5 text-primary-600" />
-                            <span>S{index + 1}: {ragSource.source_name || 'Fonte selecionada'}</span>
+                            <CheckCircle2 className="h-3 w-3" />
+                            {toolLabel(toolName)}
                           </span>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {message.role === 'assistant' && message.tools && message.tools.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1.5 border-t border-slate-200/60 pt-2">
-                      {message.tools.map((toolName) => (
-                        <span
-                          key={toolName}
-                          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600"
-                        >
-                          <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                          {toolName}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="flex max-w-[88%] flex-col gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-slate-900">
+                <div className="flex max-w-[92%] flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <Bot className="h-4 w-4 shrink-0 text-primary-600" />
-                    <span className="text-xs font-semibold text-slate-700">FinVise Agent</span>
-                    <Loader2 className="ml-1 h-3.5 w-3.5 shrink-0 animate-spin text-primary-600" />
-                    <span className="text-xs text-slate-500">Pensando...</span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50">
+                      <Bot className="h-4 w-4 shrink-0 text-primary-600" />
+                    </span>
+                    <div>
+                      <p className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                        Pensando...
+                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary-600" />
+                      </p>
+                      <p className="text-[10px] text-slate-500">Analisando seus dados com segurança</p>
+                    </div>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {thinkingTools.map((toolName) => (
                       <span
                         key={toolName}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-medium text-slate-600"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-primary-100 bg-primary-50 px-2.5 py-1 text-[10px] font-medium text-primary-700"
                       >
-                        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary-600" />
-                        {toolName}
+                        <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                        {toolLabel(toolName)}
                       </span>
                     ))}
                   </div>
@@ -415,62 +442,67 @@ export function AgentPage() {
 
             {error && (
               <Alert variant="danger">
-                <AlertTitle>Erro</AlertTitle>
+                <AlertTitle>Não foi possível responder</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
             <div ref={bottomRef} />
           </div>
 
-          {messages.length === 1 && (
-            <div className="border-t border-slate-100 bg-slate-50 p-3">
-              <p className="mb-2 flex items-center gap-1 text-xs font-medium text-slate-500">
-                <Sparkles className="h-3 w-3" />
-                Sugestões
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {suggestionQuestions.map((question) => (
-                  <button
-                    key={question}
-                    type="button"
-                    onClick={() => handleSend(question)}
-                    className="min-h-9 shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 transition-colors hover:bg-slate-100"
-                  >
-                    {question}
-                  </button>
-                ))}
-              </div>
+          <div className="border-t border-slate-200 bg-white p-3 sm:p-4">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3 px-0.5 text-[11px] text-slate-500">
+              <span className="truncate">
+                {selectedSourceIds.length > 0
+                  ? `${selectedSourceIds.length} ${
+                    selectedSourceIds.length === 1 ? 'arquivo' : 'arquivos'
+                  } · Busca ${retrievalDepthLabel(topK).toLocaleLowerCase('pt-BR')}`
+                  : 'Selecione um arquivo para conversar'}
+              </span>
+              <span className="hidden shrink-0 sm:inline">Enter envia · Shift + Enter quebra a linha</span>
             </div>
-          )}
-
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              handleSend(input);
-            }}
-            className="flex gap-2 border-t border-slate-100 p-3"
-          >
-            <Input
-              placeholder="Pergunte sobre os dados selecionados..."
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              disabled={sourcesLoading || isLoading || isStreaming}
-              className="flex-1"
-            />
-            <Button
-              type="submit"
-              aria-label="Enviar mensagem"
-              disabled={
-                isLoading
-                || isStreaming
-                || sourcesLoading
-                || !input.trim()
-                || (availableSources.length > 0 && selectedSourceIds.length === 0)
-              }
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleSend(input);
+              }}
+              className="flex items-end gap-2 rounded-xl border border-slate-300 bg-white p-1.5 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100"
             >
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
+              <textarea
+                ref={inputRef}
+                placeholder="Pergunte sobre os dados selecionados..."
+                value={input}
+                rows={1}
+                onChange={(event) => {
+                  setInput(event.target.value);
+                  event.target.style.height = '44px';
+                  event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    handleSend(input);
+                  }
+                }}
+                disabled={sourcesLoading || isLoading || isStreaming}
+                className="min-h-11 max-h-32 flex-1 resize-none bg-transparent px-2.5 py-3 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <Button
+                type="submit"
+                aria-label="Enviar mensagem"
+                className="mb-0.5 h-10 shrink-0 gap-2 rounded-lg px-3 sm:px-4"
+                disabled={
+                  isLoading
+                  || isStreaming
+                  || sourcesLoading
+                  || !input.trim()
+                  || selectedSourceIds.length === 0
+                }
+              >
+                <Send className="h-4 w-4" />
+                <span className="hidden sm:inline">Enviar</span>
+              </Button>
+            </form>
+          </div>
         </CardContent>
       </Card>
     </div>

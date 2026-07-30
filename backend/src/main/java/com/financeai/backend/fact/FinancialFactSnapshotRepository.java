@@ -11,6 +11,9 @@ public interface FinancialFactSnapshotRepository
     Optional<FinancialFactSnapshot> findByUserIdAndSourceTypeAndSourceId(
         UUID userId, String sourceType, UUID sourceId);
 
+    Optional<FinancialFactSnapshot> findByUserIdAndSourceId(
+        UUID userId, UUID sourceId);
+
     long deleteByUserIdAndSourceTypeAndSourceId(
         UUID userId, String sourceType, UUID sourceId);
 }

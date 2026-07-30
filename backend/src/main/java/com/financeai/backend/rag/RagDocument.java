@@ -37,6 +37,16 @@ public class RagDocument {
     @Column(name = "content_hash", length = 64)
     private String contentHash;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "index_status", nullable = false)
+    private RagIndexStatus indexStatus = RagIndexStatus.PENDING;
+
+    @Column(name = "index_error", columnDefinition = "TEXT")
+    private String indexError;
+
+    @Column(name = "index_attempted_at")
+    private Instant indexAttemptedAt;
+
     @Column(name = "document_chunk", nullable = false, columnDefinition = "TEXT")
     private String documentChunk;
 
@@ -102,6 +112,30 @@ public class RagDocument {
 
     public void setContentHash(String contentHash) {
         this.contentHash = contentHash;
+    }
+
+    public RagIndexStatus getIndexStatus() {
+        return indexStatus;
+    }
+
+    public void setIndexStatus(RagIndexStatus indexStatus) {
+        this.indexStatus = indexStatus;
+    }
+
+    public String getIndexError() {
+        return indexError;
+    }
+
+    public void setIndexError(String indexError) {
+        this.indexError = indexError;
+    }
+
+    public Instant getIndexAttemptedAt() {
+        return indexAttemptedAt;
+    }
+
+    public void setIndexAttemptedAt(Instant indexAttemptedAt) {
+        this.indexAttemptedAt = indexAttemptedAt;
     }
 
     public String getDocumentChunk() {

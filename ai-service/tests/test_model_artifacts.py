@@ -11,7 +11,7 @@ def _write_artifacts(model_dir, version="1.1.0"):
     model_dir.mkdir(parents=True)
     (model_dir / "model.joblib").write_bytes(b"active-model")
     (model_dir / "metadata.json").write_text(
-        json.dumps({"version": version}),
+        json.dumps({"version": version, "status": "ACTIVE"}),
         encoding="utf-8",
     )
     (model_dir / "labels.json").write_text(
@@ -32,6 +32,7 @@ def test_validates_required_artifacts_and_active_version(tmp_path):
     )
 
     assert result.version == "1.1.0"
+    assert result.status == "ACTIVE"
     assert result.model_dir == model_dir.resolve()
     assert len(result.checksums["model.joblib"]) == 64
 

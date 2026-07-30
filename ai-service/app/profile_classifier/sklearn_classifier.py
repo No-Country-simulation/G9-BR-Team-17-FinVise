@@ -52,6 +52,7 @@ class SklearnProfileClassifier(BaseProfileClassifier):
         feature_names_path = self.model_dir / "feature_names.json"
         self.metadata = validation.metadata
         self.artifact_checksums = validation.checksums
+        self.artifact_status = validation.status
 
         self.model = joblib.load(model_path)
         if preprocessor_path.exists():

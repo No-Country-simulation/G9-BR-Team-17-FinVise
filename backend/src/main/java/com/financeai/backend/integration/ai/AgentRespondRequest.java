@@ -23,11 +23,12 @@ public record AgentRespondRequest(
         @JsonProperty("transactions") List<Object> transactions,
         @JsonProperty("recurring_expenses") List<Object> recurringExpenses,
         @JsonProperty("previous_period_indicators") Map<String, Object> previousPeriodIndicators,
+        @JsonProperty("analytical_facts") Map<String, Object> analyticalFacts,
         @JsonProperty("retrieval") RetrievalDto retrieval
     ) {
         /** Convenience constructor for empty context. */
         public AgentContextDto() {
-            this(Map.of(), Map.of(), Map.of(), List.of(), List.of(), List.of(), Map.of(),
+            this(Map.of(), Map.of(), Map.of(), List.of(), List.of(), List.of(), Map.of(), Map.of(),
                 new RetrievalDto(5, List.of()));
         }
     }

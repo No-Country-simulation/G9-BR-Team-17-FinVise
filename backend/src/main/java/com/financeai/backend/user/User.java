@@ -1,5 +1,6 @@
 package com.financeai.backend.user;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -51,6 +52,7 @@ public class User {
         this.email = email;
     }
 
+    @JsonIgnore
     public String getPasswordHash() {
         return passwordHash;
     }

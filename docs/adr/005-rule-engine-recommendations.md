@@ -6,14 +6,15 @@ Aceito
 
 ## Contexto
 
-As recomendações financeiras devem ser explicáveis e determinísticas, sem depender de LLM para cálculos.
+As recomendações persistidas junto às análises financeiras devem ser explicáveis e determinísticas, sem depender de LLM para cálculos.
 
 ## Decisão
 
-Implementar um motor de regras simples no backend Java para gerar recomendações a partir dos indicadores financeiros.
+Implementar um motor de regras no backend Java para gerar as entidades `Recommendation` a partir dos indicadores financeiros.
 
 ## Consequências
 
 - Recomendações previsíveis e auditáveis.
 - Fácil de manter e testar.
-- LLM pode ser usada apenas para explicar recomendações já existentes, nunca para criá-las.
+- O agente pode explicar os resultados e produzir orientação educacional em texto, mas esse texto não é persistido como uma nova entidade `Recommendation`.
+- Existe um endpoint interno de recomendações no AI Service, porém o backend atual não o usa no fluxo que persiste análises.

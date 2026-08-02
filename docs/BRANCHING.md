@@ -19,7 +19,7 @@ O projeto usa um fluxo de promoção com três branches permanentes:
 
 ## Fluxo operacional do time
 
-Para três desenvolvedores, o fluxo recomendado é:
+Para a equipe, o fluxo operacional é:
 
 1. Cada dev cria sua branch de trabalho a partir de `dev`.
 2. O dev implementa a tarefa e abre PR para `dev`.

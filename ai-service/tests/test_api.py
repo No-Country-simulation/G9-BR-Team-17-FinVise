@@ -1,3 +1,16 @@
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+
+def test_clean_startup_loads_the_application():
+    with TestClient(app) as startup_client:
+        response = startup_client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
@@ -8,6 +21,9 @@ def test_models_status(client):
     response = client.get("/internal/v1/models/status")
     assert response.status_code == 200
     data = response.json()
+    assert data["status"] in {"READY", "DEGRADED"}
+    assert data["registered_at"]
+    assert isinstance(data["models_required"], bool)
     assert "transaction_classifier" in data
     assert "profile_classifier" in data
     assert data["transaction_classifier"]["status"] in {"LOADED", "FALLBACK"}
@@ -120,3 +136,31 @@ def test_agent_respond(client):
     assert data["message"]["role"] == "assistant"
     assert "educacional" in data["disclaimer"].lower()
     assert len(data["tool_calls"]) > 0
+
+
+def test_agent_respond_stream_uses_named_sse_events(client):
+    payload = {
+        "conversation_id": "conv-1",
+        "user_id": "user-1",
+        "messages": [{"role": "user", "content": "Como esta meu perfil financeiro?"}],
+        "context": {
+            "financial_profile": {"monthlyIncome": 5000.0},
+            "indicators": {"savingsRatePercentage": 5.0},
+            "spending_summary": {},
+            "recommendations": [],
+        },
+    }
+
+    with client.stream(
+        "POST",
+        "/internal/v1/agent/respond/stream",
+        json=payload,
+    ) as response:
+        body = response.read().decode()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: tools" in body
+    assert "event: sources" in body
+    assert "event: token" in body
+    assert 'event: done\ndata: {"type":"done"}' in body

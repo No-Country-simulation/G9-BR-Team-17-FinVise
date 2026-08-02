@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -143,6 +144,8 @@ def train() -> None:
         json.dump(
             {
                 "version": MODEL_VERSION,
+                "status": "ACTIVE",
+                "trained_at": datetime.now(UTC).isoformat(),
                 "model": "TfidfVectorizer + LogisticRegression",
                 "confidence_threshold": CONFIDENCE_THRESHOLD,
                 "split_policy": "official user-level TRAIN/VALIDATION/TEST",

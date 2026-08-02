@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npm test -- --run
+      - run: npm run test:coverage -- --run
       - run: npm run build
 
   ai-service:
@@ -55,8 +55,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install ".[dev]"
+      - run: python -m pip install -r requirements.lock
+      - run: python -m pip install --no-deps -e .
       - run: ruff check .
       - run: pytest
 

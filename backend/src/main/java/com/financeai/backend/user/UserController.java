@@ -1,6 +1,5 @@
 package com.financeai.backend.user;
 
-import com.financeai.backend.analysis.FinancialAnalysis;
 import com.financeai.backend.common.response.ApiResponse;
 import com.financeai.backend.auth.AuthenticatedUserProvider;
 import com.financeai.backend.recommendation.RecommendationDto;
@@ -31,7 +30,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/history")
-    public ResponseEntity<ApiResponse<List<FinancialAnalysis>>> getHistory(@PathVariable UUID userId) {
+    public ResponseEntity<ApiResponse<List<FinancialAnalysisHistoryDto>>> getHistory(@PathVariable UUID userId) {
         return ResponseEntity.ok(ApiResponse.success(
             userService.getHistory(authenticatedUserProvider.requireCurrentUser(userId))));
     }

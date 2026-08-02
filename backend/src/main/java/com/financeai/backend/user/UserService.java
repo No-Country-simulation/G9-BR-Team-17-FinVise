@@ -108,9 +108,11 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<FinancialAnalysis> getHistory(UUID userId) {
+    public List<FinancialAnalysisHistoryDto> getHistory(UUID userId) {
         findUser(userId);
-        return analysisRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return analysisRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+            .map(FinancialAnalysisHistoryDto::from)
+            .toList();
     }
 
     @Transactional(readOnly = true)

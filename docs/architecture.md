@@ -9,8 +9,8 @@ O FinVise é um assistente inteligente de saúde financeira. A proposta central 
 A solução é composta por três aplicações principais:
 
 1. **Frontend** — React + TypeScript + Vite + PWA.
-2. **Backend** — Java 21 + Spring Boot 3 + PostgreSQL.
-3. **AI Service** — Python + FastAPI + Pandas + Scikit-learn.
+2. **Backend** — Java 21 + Spring Boot 3 + PostgreSQL 16 com extensão `pgvector`.
+3. **AI Service** — Python + FastAPI + Scikit-learn + OpenAI Embeddings & RAG.
 
 A comunicação entre os componentes segue o fluxo:
 
@@ -18,12 +18,10 @@ A comunicação entre os componentes segue o fluxo:
 Usuário
    ↓ HTTPS
 Nginx
-   ├── /                 → frontend
-   └── /api              → backend Spring Boot
-                                ↓
-                         ai-service FastAPI
-                                ↓
-                         modelos de ML
+   ├── /                 → frontend (React 19)
+   └── /api              → backend (Spring Boot 3)
+                                ├── PostgreSQL 16 + pgvector (Embeddings & Ingestão RAG)
+                                └── ai-service (FastAPI + LLM + SSE Streaming)
 ```
 
 ## Princípios arquiteturais

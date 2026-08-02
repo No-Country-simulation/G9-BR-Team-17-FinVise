@@ -1,11 +1,15 @@
 package com.financeai.backend;
 
+import com.financeai.backend.analysis.AnalysisService;
+import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.importation.*;
 import com.financeai.backend.common.exception.BusinessException;
+import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +47,12 @@ class CsvImportServiceTest {
     private UserRepository userRepository;
     @Mock
     private ObjectStorageService objectStorageService;
+    @Mock
+    private com.financeai.backend.rag.RagIngestionService ragIngestionService;
+    @Mock
+    private FinancialFactsService financialFactsService;
+    @Mock
+    private AnalysisService analysisService;
 
     @InjectMocks
     private CsvImportService csvImportService;
@@ -98,6 +108,16 @@ class CsvImportServiceTest {
             .allMatch(t -> t.getUser().getId().equals(userId));
         assertThat(transactionCaptor.getValue())
             .anyMatch(t -> "Supermercado".equals(t.getDescription()));
+        verify(financialFactsService).rebuild(
+            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
+        verify(analysisService).analyzeStoredTransactions(
+            eq(userId),
+            eq(ProfileAnalysisModel.MACHINE_LEARNING),
+            eq(TransactionSource.CSV_IMPORT),
+            any(UUID.class),
+            eq(null),
+            eq(null)
+        );
 
         ArgumentCaptor<ImportedFile> importedFileCaptor = ArgumentCaptor.forClass(ImportedFile.class);
         verify(importedFileRepository, atLeast(2)).save(importedFileCaptor.capture());
@@ -149,6 +169,45 @@ class CsvImportServiceTest {
         verifyNoInteractions(objectStorageService, transactionRepository);
     }
 
+    @Test
+    void shouldKeepImportWhenFinancialProfileHasNoIncome() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(objectStorageService.store(any(InputStream.class), anyString(), anyLong()))
+            .thenReturn("stored.csv");
+        String content = expenseOnlyCsvContent();
+        when(objectStorageService.retrieve("stored.csv")).thenReturn(
+            new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)));
+        when(importedFileRepository.save(any(ImportedFile.class))).thenAnswer(invocation -> {
+            ImportedFile imported = invocation.getArgument(0);
+            if (imported.getId() == null) {
+                imported.setId(UUID.randomUUID());
+            }
+            return imported;
+        });
+        when(transactionRepository.saveAll(anyList()))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(analysisService.analyzeStoredTransactions(
+            eq(userId),
+            eq(ProfileAnalysisModel.MACHINE_LEARNING),
+            eq(TransactionSource.CSV_IMPORT),
+            any(UUID.class),
+            eq(null),
+            eq(null)
+        )).thenThrow(new BusinessException(
+            "NO_INCOME_TRANSACTIONS",
+            "Não há transações de receita suficientes"
+        ));
+        MultipartFile file = new MockMultipartFile(
+            "file", "despesas.csv", "text/csv", content.getBytes(StandardCharsets.UTF_8));
+
+        ImportResultResponse result = csvImportService.importTransactionsCsv(userId, file);
+
+        assertThat(result.status()).isEqualTo(ImportStatus.COMPLETED);
+        assertThat(result.processedCount()).isEqualTo(1);
+        verify(financialFactsService).rebuild(
+            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
+    }
+
     private String csvContent() {
         return "description,amount,date,type,payment_method,recurrent\n" +
                "Salário,5000.00,2024-01-01,INCOME,PIX,false\n" +
@@ -159,5 +218,10 @@ class CsvImportServiceTest {
         return "description,amount,date,type,payment_method,recurrent\n" +
                "Aluguel,1200.00,2024-01-05,EXPENSE,BOLETO,false\n" +
                ",abc,2024-01-10,EXPENSE,CARTAO,true\n";
+    }
+
+    private String expenseOnlyCsvContent() {
+        return "description,amount,date,type,payment_method,recurrent\n" +
+               "Aluguel,1200.00,2024-01-05,EXPENSE,BOLETO,true\n";
     }
 }

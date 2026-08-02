@@ -27,12 +27,12 @@ Corpo:
 
 ```json
 {
-  "email": "demo@financeai.com",
-  "password": "demo123"
+  "email": "usuario@example.com",
+  "password": "sua-senha-forte"
 }
 ```
 
-> O usuário demo existe apenas para desenvolvimento.
+Crie a conta previamente pelo fluxo de cadastro da aplicação.
 
 ## Endpoints
 
@@ -145,8 +145,11 @@ Corpo da sincronização:
 |--------|----------|-----------|
 | POST | `/api/v1/agent/conversations` | Cria uma conversa |
 | GET | `/api/v1/agent/conversations/{conversationId}` | Retorna detalhes da conversa |
-| POST | `/api/v1/agent/conversations/{conversationId}/messages` | Envia mensagem |
+| POST | `/api/v1/agent/conversations/{conversationId}/messages` | Envia mensagem e retorna a conversa completa |
+| POST | `/api/v1/agent/conversations/{conversationId}/messages/stream` | Envia mensagem e transmite eventos SSE (`tools`, `token`, `done`) |
 | GET | `/api/v1/agent/conversations` | Lista todas as conversas do usuário |
+| POST (Interno) | `/internal/v1/agent/respond/stream` | Endpoint FastAPI de Server-Sent Events (SSE) para respostas em tempo real |
+| POST (Interno) | `/internal/v1/rag/search` | Busca contextual de similaridade vetorial no `pgvector` |
 
 Ao criar uma conversa, envie a mesma origem selecionada na interface:
 

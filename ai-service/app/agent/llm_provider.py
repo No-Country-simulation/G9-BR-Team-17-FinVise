@@ -19,6 +19,15 @@ class LLMProvider(ABC):
     ) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def stream_complete(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        raise NotImplementedError
+
 
 class OpenAIProvider(LLMProvider):
     def __init__(self) -> None:
@@ -66,6 +75,50 @@ class OpenAIProvider(LLMProvider):
             logger.error("LLM request failed: %s", exc)
             raise
 
+    def stream_complete(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        if not self.api_key:
+            raise RuntimeError("OpenAI API key is not configured")
+
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system_prompt}, *messages],
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        with httpx.stream(
+            "POST",
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=self.timeout,
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line.startswith("data: ") and line != "data: [DONE]":
+                    import json
+                    try:
+                        chunk_data = json.loads(line[6:])
+                        delta = chunk_data["choices"][0]["delta"].get("content", "")
+                        if delta:
+                            yield delta
+                    except Exception:
+                        continue
+
 
 class FallbackTemplateProvider(LLMProvider):
     """Deterministic provider used when ENABLE_LLM=false or no API key is set."""
@@ -82,44 +135,56 @@ class FallbackTemplateProvider(LLMProvider):
                 {
                     "message": {
                         "role": "assistant",
-                        "content": self._render(user_message, tools),
+                        "content": self._render(user_message, system_prompt, tools),
                     }
                 }
             ]
         }
 
-    def _render(self, user_message: str, tools: list[dict[str, Any]] | None) -> str:
+    def stream_complete(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ):
+        user_message = messages[-1]["content"] if messages else ""
+        text = self._render(user_message, system_prompt, tools)
+        words = text.split(" ")
+        for i, word in enumerate(words):
+            yield word + (" " if i < len(words) - 1 else "")
+
+    def _render(self, user_message: str, system_prompt: str, tools: list[dict[str, Any]] | None) -> str:
         lower = user_message.lower()
+        rag_context = ""
+        tool_context = ""
 
-        if any(word in lower for word in ["perfil", "situacao", "como estou"]):
-            return (
-                "Com base nos indicadores financeiros disponiveis, seu perfil reflete a combinacao "
-                "entre renda comprometida, nivel de endividamento, taxa de poupanca e reserva de emergencia. "
-                "Recomendo acompanhar a evolucao mensal desses indicadores."
-            )
+        if "[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:" in system_prompt:
+            rag_context = system_prompt.split("[CONTEXTO RAG RECUPERADO DO BANCO VETORIAL DO USUARIO]:")[-1].strip()
 
-        if any(word in lower for word in ["dica", "recomendacao", "sugestao", "melhorar"]):
-            return (
-                "As recomendacoes atuais priorizam o equilibrio entre poupanca, controle de dividas "
-                "e reducao de gastos nao essenciais. Comece pela acao de maior prioridade indicada."
-            )
+        if "[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:" in system_prompt:
+            tool_context = system_prompt.split("[MÉTRICAS E MODELOS PRÉ-CALCULADOS DO USUÁRIO]:")[1].split("[CONTEXTO RAG")[0].strip()
 
-        if any(word in lower for word in ["gasto", "despesa", "transacao"]):
-            return (
-                "Suas transacoes e despesas recorrentes estao disponiveis no contexto. "
-                "Analise categorias que mais comprometem o orcamento."
-            )
+        # Resposta inteligente combinada sem emojis
+        response_parts = []
 
-        if any(word in lower for word in ["poupanca", "economizar", "meta", "simular", "juntar"]):
-            return (
-                "Para formar uma reserva ou atingir uma meta, mantenha uma taxa de poupanca consistente "
-                "e revise gastos nao essenciais. Use a simulacao para ajustar prazo e valor mensal."
-            )
+        if rag_context:
+            response_parts.append(f"**Dados do Histórico Financeiro (RAG)**:\n{rag_context}")
 
-        return (
-            "Entendi sua pergunta. Posso ajudar com analise de perfil, indicadores, gastos, "
-            "recomendacoes e simulacoes de poupanca. Qual desses topicos voce gostaria de explorar?"
-        )
+        if tool_context:
+            response_parts.append(f"**Métricas e Indicadores Calculados**:\n{tool_context}")
+
+        if any(word in lower for word in ["pior", "piores", "mes", "meses", "alto", "maior"]):
+            response_parts.append("\n**Análise de Meses e Gastos Elevados**:\nCom base no seu histórico e categorias analisadas, recomendamos focar na redução de despesas variáveis não essenciais que apresentaram picos de gastos.")
+        elif any(word in lower for word in ["saude", "saúde", "situacao", "situação", "como estou"]):
+            response_parts.append("\n**Diagnóstico de Saúde Financeira**:\nSeus indicadores mostram a relação entre sua receita total, gastos e taxa de comprometimento. Mantenha sua taxa de poupança acima de 20% para garantir estabilidade.")
+        elif any(word in lower for word in ["poupan", "economizar", "meta", "simular", "juntar"]):
+            response_parts.append("\n**Estratégia de Poupança**:\nRecomendamos separar pelo menos 15% a 20% da sua receita mensal logo após o recebimento para construir sua reserva de emergência.")
+        elif any(word in lower for word in ["divida", "dívida", "endividamento"]):
+            response_parts.append("\n**Plano de Quitação de Dívidas**:\nPriorize o pagamento de modalidades com maiores juros nominais e evite novos parcelamentos até estabilizar seu saldo.")
+        else:
+            response_parts.append("\n**Análise Personalizada**:\nEstou à disposição para responder dúvidas específicas sobre seus extratos importados, calcular simuladores de reserva ou analisar seus piores meses de gastos.")
+
+        return "\n\n".join(response_parts)
 
 
 def get_llm_provider() -> LLMProvider:

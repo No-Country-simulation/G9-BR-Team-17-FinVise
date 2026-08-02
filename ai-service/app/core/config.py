@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     profile_model_path: Path = Field(
         default=Path("models/profile-classifier"), alias="PROFILE_MODEL_PATH"
     )
+    require_active_models: bool = Field(
+        default=False, alias="REQUIRE_ACTIVE_MODELS"
+    )
+    transaction_model_version: str = Field(
+        default="", alias="TRANSACTION_MODEL_VERSION"
+    )
+    profile_model_version: str = Field(
+        default="", alias="PROFILE_MODEL_VERSION"
+    )
     evaluation_report_dir: Path = Field(
         default=Path("reports/final-test"), alias="MODEL_EVALUATION_REPORT_DIR"
     )
@@ -36,6 +45,16 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = Field(default=30, alias="LLM_TIMEOUT_SECONDS")
     llm_max_tokens: int = Field(default=1024, alias="LLM_MAX_TOKENS")
     llm_temperature: float = Field(default=0.2, alias="LLM_TEMPERATURE")
+
+    rag_enable_remote_embeddings: bool = Field(
+        default=True, alias="RAG_ENABLE_REMOTE_EMBEDDINGS"
+    )
+    rag_embedding_model: str = Field(
+        default="text-embedding-3-small", alias="RAG_EMBEDDING_MODEL"
+    )
+    rag_embedding_batch_size: int = Field(default=200, alias="RAG_EMBEDDING_BATCH_SIZE")
+    rag_index_max_batches: int = Field(default=100, alias="RAG_INDEX_MAX_BATCHES")
+    rag_min_relevance: float = Field(default=0.18, alias="RAG_MIN_RELEVANCE")
 
     agent_system_prompt_path: Path = Field(
         default=Path("app/agent/prompts/system_prompt.txt"), alias="AGENT_SYSTEM_PROMPT_PATH"

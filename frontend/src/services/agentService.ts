@@ -1,25 +1,57 @@
 import { api } from '@/lib/api';
-import { AgentRequest, AgentResponse, AgentConversation, AgentMessage } from '@/types/agent';
+import {
+  AgentRequest,
+  AgentResponse,
+  AgentConversation,
+  AgentMessage,
+  RagSource,
+} from '@/types/agent';
 import { ApiResponse } from '@/types/common';
+
+interface BackendMessage {
+  id: string;
+  role: string;
+  content: string;
+  toolCalls?: string;
+  ragSources?: string;
+  createdAt: string;
+}
 
 interface BackendConversation {
   id: string;
   source: 'CSV_IMPORT' | 'OPEN_FINANCE_PLUGGY';
-  messages: Array<{
-    id: string;
-    role: string;
-    content: string;
-    createdAt: string;
-  }>;
+  sourceIds: string[];
+  topK: number;
+  messages: BackendMessage[];
   createdAt: string;
 }
 
-function mapMessage(message: BackendConversation['messages'][number]): AgentMessage {
+interface AgentStreamHandlers {
+  onConversation?: (conversationId: string) => void;
+  onTools?: (tools: string[]) => void;
+  onSources?: (sources: RagSource[]) => void;
+  onToken?: (token: string) => void;
+  onDone?: (message: AgentMessage) => void;
+}
+
+function parseArray<T>(value?: string): T[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function mapMessage(message: BackendMessage): AgentMessage {
   return {
     id: message.id,
     role: message.role.toLowerCase() === 'user' ? 'user' : 'assistant',
     content: message.content,
     timestamp: message.createdAt,
+    tools: parseArray<string>(message.toolCalls),
+    sources: parseArray<RagSource>(message.ragSources),
   };
 }
 
@@ -30,29 +62,32 @@ function mapConversation(source: BackendConversation): AgentConversation {
     createdAt: source.createdAt,
     updatedAt: source.messages.at(-1)?.createdAt || source.createdAt,
     source: source.source,
+    sourceIds: source.sourceIds || [],
+    topK: source.topK || 5,
   };
+}
+
+async function createConversation(request: AgentRequest): Promise<string> {
+  const { data: response } = await api.post<ApiResponse<BackendConversation>>(
+    '/agent/conversations',
+    {
+      source: request.source,
+      title: request.message.slice(0, 80),
+      sourceIds: request.sourceIds || [],
+      topK: request.topK || 5,
+    }
+  );
+  return response.data.id;
 }
 
 export const agentService = {
   async sendMessage(request: AgentRequest): Promise<AgentResponse> {
-    let conversationId = request.conversationId;
-
-    if (!conversationId) {
-      const { data: createResponse } = await api.post<ApiResponse<BackendConversation>>(
-        '/agent/conversations',
-        {
-          source: request.source,
-          title: request.message.slice(0, 80),
-        }
-      );
-      conversationId = createResponse.data.id;
-    }
-
-    const { data: sendResponse } = await api.post<ApiResponse<BackendConversation>>(
+    const conversationId = request.conversationId || await createConversation(request);
+    const { data: response } = await api.post<ApiResponse<BackendConversation>>(
       `/agent/conversations/${conversationId}/messages`,
       { content: request.message }
     );
-    const assistantMessage = sendResponse.data.messages
+    const assistantMessage = response.data.messages
       .map(mapMessage)
       .filter((message) => message.role === 'assistant')
       .at(-1);
@@ -60,8 +95,139 @@ export const agentService = {
     if (!assistantMessage) {
       throw new Error('O assistente não retornou uma resposta');
     }
-
     return { message: assistantMessage, conversationId };
+  },
+
+  async sendMessageStream(
+    request: AgentRequest,
+    handlers: AgentStreamHandlers = {},
+    signal?: AbortSignal
+  ): Promise<AgentResponse> {
+    const conversationId = request.conversationId || await createConversation(request);
+    handlers.onConversation?.(conversationId);
+
+    const token = localStorage.getItem('finance_ai_token');
+    const baseUrl = String(api.defaults.baseURL || '/api/v1').replace(/\/$/, '');
+    const response = await fetch(
+      `${baseUrl}/agent/conversations/${conversationId}/messages/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ content: request.message }),
+        signal,
+      }
+    );
+
+    if (!response.ok) {
+      let message = `Falha ao iniciar streaming (${response.status})`;
+      try {
+        const errorBody = await response.json() as { message?: string };
+        message = errorBody.message || message;
+      } catch {
+        // Mantém a mensagem baseada no status quando a resposta não é JSON.
+      }
+      throw new Error(message);
+    }
+    if (!response.body) {
+      throw new Error('O navegador não disponibilizou o stream da resposta');
+    }
+
+    let completedMessage: AgentMessage | undefined;
+    let streamedContent = '';
+    let latestTools: string[] = [];
+    let latestSources: RagSource[] = [];
+    let buffer = '';
+    const decoder = new TextDecoder();
+    const reader = response.body.getReader();
+
+    const processEvent = (block: string) => {
+      let eventName = 'message';
+      const dataLines: string[] = [];
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) {
+          eventName = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).trimStart());
+        }
+      }
+      if (dataLines.length === 0) return;
+
+      const rawData = dataLines.join('\n');
+      if (rawData === '[DONE]') return;
+      const payload = JSON.parse(rawData) as {
+        conversationId?: string;
+        token?: string;
+        tools?: string[];
+        sources?: RagSource[];
+        message?: AgentMessage | string;
+      };
+
+      if (eventName === 'conversation' && payload.conversationId) {
+        handlers.onConversation?.(payload.conversationId);
+      } else if (eventName === 'tools') {
+        latestTools = payload.tools || [];
+        handlers.onTools?.(latestTools);
+      } else if (eventName === 'sources') {
+        latestSources = payload.sources || [];
+        handlers.onSources?.(latestSources);
+      } else if (eventName === 'token' && payload.token) {
+        streamedContent += payload.token;
+        handlers.onToken?.(payload.token);
+      } else if (eventName === 'done' && typeof payload.message === 'object') {
+        completedMessage = {
+          ...payload.message,
+          content: payload.message.content?.trim()
+            ? payload.message.content
+            : streamedContent,
+          tools: payload.message.tools?.length
+            ? payload.message.tools
+            : latestTools,
+          sources: payload.message.sources?.length
+            ? payload.message.sources
+            : latestSources,
+        };
+        if (!completedMessage.content.trim()) {
+          throw new Error('O assistente concluiu sem gerar uma resposta. Tente novamente.');
+        }
+        handlers.onDone?.(completedMessage);
+      } else if (eventName === 'error') {
+        throw new Error(
+          typeof payload.message === 'string'
+            ? payload.message
+            : 'O streaming da resposta foi interrompido'
+        );
+      }
+    };
+
+    let streamEnded = false;
+    while (!streamEnded) {
+      const { value, done } = await reader.read();
+      streamEnded = done;
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = buffer.replace(/\r\n/g, '\n');
+
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary >= 0) {
+        processEvent(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        if (completedMessage) break;
+        boundary = buffer.indexOf('\n\n');
+      }
+      if (completedMessage) {
+        await reader.cancel().catch(() => undefined);
+        break;
+      }
+    }
+    if (buffer.trim()) processEvent(buffer.trim());
+    if (!completedMessage) {
+      throw new Error('O streaming terminou sem confirmar a mensagem');
+    }
+
+    return { message: completedMessage, conversationId };
   },
 
   async getConversation(id: string): Promise<AgentConversation> {

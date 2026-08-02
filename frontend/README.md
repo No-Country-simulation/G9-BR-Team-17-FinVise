@@ -46,9 +46,8 @@ npm run test -- --run # testes em CI
 
 Copie `.env.example` para `.env.local` e ajuste conforme necessário.
 
-## Acesso demo
+## Acesso
 
-- E-mail: `demo@finvise.com`
-- Senha: `demo123`
+Crie uma conta pela rota `/register`. O projeto não distribui credenciais de demonstração.
 
 O frontend espera o backend em `/api/v1` via Nginx. Em desenvolvimento, o Vite proxya requisições para o alvo configurado em `VITE_API_PROXY_TARGET`.

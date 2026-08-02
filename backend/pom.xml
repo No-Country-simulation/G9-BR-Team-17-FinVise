@@ -125,7 +125,7 @@
         <dependency>
             <groupId>com.resend</groupId>
             <artifactId>resend-java</artifactId>
-            <version>LATEST</version>
+            <version>4.13.0</version>
         </dependency>
 
         <!-- Testing -->

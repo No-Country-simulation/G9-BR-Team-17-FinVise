@@ -5,7 +5,9 @@ import com.financeai.backend.importation.ImportSourceType;
 import com.financeai.backend.importation.ImportedFile;
 import com.financeai.backend.importation.ImportedFileRepository;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
+import com.financeai.backend.openfinance.OpenFinanceConnection;
 import com.financeai.backend.openfinance.OpenFinanceConnectionRepository;
+import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.transaction.TransactionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +19,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +32,8 @@ class ImportSourceServiceTest {
     private OpenFinanceConnectionRepository connectionRepository;
     @Mock
     private TransactionRepository transactionRepository;
+    @Mock
+    private RagDocumentRepository ragDocumentRepository;
     @Mock
     private ObjectStorageService objectStorageService;
     @InjectMocks
@@ -61,7 +67,40 @@ class ImportSourceServiceTest {
         service.delete(userId, ImportSourceType.CSV, sourceId);
 
         verify(transactionRepository).deleteByUserIdAndImportSourceId(userId, sourceId);
+        verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(
+            userId, "CSV_IMPORT", sourceId.toString());
         verify(objectStorageService).delete("stored.csv");
         verify(importedFileRepository).delete(file);
+    }
+
+    @Test
+    void shouldDeleteOpenFinanceSourceAndItsRagDocuments() {
+        UUID userId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        OpenFinanceConnection connection = new OpenFinanceConnection();
+        when(connectionRepository.findByIdAndUserId(sourceId, userId))
+            .thenReturn(Optional.of(connection));
+
+        service.delete(userId, ImportSourceType.OPEN_FINANCE, sourceId);
+
+        verify(transactionRepository).deleteByUserIdAndImportSourceId(userId, sourceId);
+        verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(
+            userId, "OPEN_FINANCE", sourceId.toString());
+        verify(connectionRepository).delete(connection);
+    }
+
+    @Test
+    void shouldNotDeleteRagDocumentsFromAnotherUser() {
+        UUID userId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        when(importedFileRepository.findByIdAndUserId(sourceId, userId))
+            .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(
+            userId, ImportSourceType.CSV, sourceId))
+            .isInstanceOf(com.financeai.backend.common.exception.ResourceNotFoundException.class);
+
+        verifyNoInteractions(
+            transactionRepository, ragDocumentRepository, objectStorageService);
     }
 }

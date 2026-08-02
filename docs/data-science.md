@@ -2,58 +2,97 @@
 
 ## Objetivos
 
-- Classificar transações em categorias e subcategorias.
-- Classificar o perfil financeiro do usuário em `SAUDAVEL`, `EM_OBSERVACAO` ou `EM_RISCO`.
-- Fornecer explicabilidade para as classificações.
-- Servir como base para recomendações e para o agente financeiro.
+- Classificar despesas em categorias financeiras.
+- Classificar o perfil do usuário como `SAUDAVEL`, `EM_OBSERVACAO` ou `EM_RISCO`.
+- Expor confiança e fatores explicativos compatíveis com cada classificador.
+- Manter fallbacks determinísticos quando artefatos treinados não estão disponíveis.
+- Produzir evidências reproduzíveis de avaliação no split oficial `TEST`.
 
 ## Dataset
 
-O dataset sintético está em `data/raw/finance_ai_dataset/`:
+O dataset canônico está em `finance_ai_dataset/`. Com o diretório de trabalho em `ai-service/`, o padrão de `DATASET_RAW_DIR` (`../finance_ai_dataset`) resolve para esse local.
 
-- `transacoes.csv` — 169.546 transações com `descricao_normalizada`, `valor`, `categoria`, `subcategoria`, etc.
-- `perfis_mensais.csv` — 18.000 perfis mensais com indicadores e rótulo `perfil_financeiro`.
-- `categorias.csv` — mapeamento de categorias e palavras-chave de exemplos.
+| Arquivo | Volume | Uso |
+| --- | ---: | --- |
+| `usuarios.csv` | 1.500 usuários | identidade sintética e divisão por usuário |
+| `transacoes.csv` | 169.546 transações | classificador de categoria |
+| `perfis_mensais.csv` | 18.000 perfis | classificador de perfil |
+| `categorias.csv` | 47 pares categoria/subcategoria | catálogo e palavras-chave do fallback |
+| `dicionario_dados.csv` | — | definição de campos |
+| `manifesto.json` | — | seed, período e contagens |
 
-A coluna `split` (`TRAIN`, `VALIDATION`, `TEST`) já divide os dados. Não fazemos nova divisão aleatória.
+Período: julho de 2025 a junho de 2026. Seed: `20260715`.
+
+A coluna `split` foi definida por `usuario_id`: 1.050 usuários em `TRAIN`, 225 em `VALIDATION` e 225 em `TEST`. A avaliação final verifica que não existe sobreposição de usuários.
+
+`data/raw/finance_ai_dataset/` é um espelho opcional para o gerador de amostras `data/scripts/create_samples.py`; os CSVs/XLSX desse diretório são ignorados pelo Git. Ele não é o caminho padrão do pipeline de treinamento.
+
+## Preparação
+
+```bash
+cd ai-service
+python -m training.prepare_dataset
+```
+
+O script:
+
+- processa CSV em chunks de 10.000 linhas;
+- mantém somente `tipo == "DESPESA"` e splits `TRAIN`/`VALIDATION` para `transaction_train.parquet`;
+- mantém splits `TRAIN`/`VALIDATION` para `profile_train.parquet`;
+- grava os Parquet em `ai-service/data/processed/`;
+- gera amostras de 1.000 linhas em `ai-service/data/samples/` quando os arquivos brutos existem.
+
+`TEST` não é gravado nos Parquet de treino; os avaliadores o leem diretamente dos CSVs brutos.
 
 ## Classificador de transações
 
-### Entrada principal
+### Entrada e target
 
-`descricao_normalizada`
+- Feature treinada: somente `descricao_normalizada`.
+- Target treinado: `categoria`.
+- Filtro: somente despesas.
 
-### Features opcionais
+`amount`, `payment_method`, `recurrent` e `channel` fazem parte do schema interno de inferência, mas o pipeline Scikit-learn atual não os usa. O fallback por palavras-chave também decide pela descrição.
 
-`valor`, `forma_pagamento`, `recorrente`, `canal`
+O modelo não treina um target de subcategoria. Na inferência, a subcategoria vem do fallback quando ele concorda com a categoria prevista; caso contrário, recebe o próprio código de categoria.
 
-### Target
-
-`categoria` (principal) e `subcategoria` (secundário)
-
-### Filtro
-
-Apenas `tipo == "DESPESA"`.
-
-### Baseline
-
-Pipeline Scikit-learn:
+### Pipeline
 
 ```python
-TfidfVectorizer(
-    ngram_range=(1, 2),
-    max_features=5000,
-    min_df=2
-)
-LogisticRegression(
-    class_weight='balanced',
-    max_iter=1000
-)
+Pipeline([
+    (
+        "tfidf",
+        TfidfVectorizer(
+            ngram_range=(1, 2),
+            min_df=2,
+            max_features=20_000,
+            sublinear_tf=True,
+        ),
+    ),
+    (
+        "clf",
+        LogisticRegression(
+            class_weight="balanced",
+            max_iter=1000,
+            random_state=42,
+        ),
+    ),
+])
 ```
+
+Fluxo de `training.train_transaction_classifier`:
+
+1. treina em `TRAIN`;
+2. calcula métricas em `VALIDATION`;
+3. refaz o fit em `TRAIN + VALIDATION`;
+4. calcula métricas informativas no `TEST` oficial;
+5. grava o artefato final versão `1.1.0`.
+
+O script verifica que os três splits têm usuários disjuntos. A confiança mínima é `0.60`; previsões abaixo dela são substituídas pela previsão do fallback.
 
 ### Artefatos
 
-```
+```text
 ai-service/models/transaction-classifier/
 ├── model.joblib
 ├── metadata.json
@@ -61,129 +100,153 @@ ai-service/models/transaction-classifier/
 └── labels.json
 ```
 
-### Métricas
-
-- Accuracy
-- Macro F1
-- Weighted F1
-- Precision por categoria
-- Recall por categoria
-- Matriz de confusão
-- Quantidade de exemplos por classe
+Para ativação, `model.joblib`, `metadata.json` e `labels.json` devem existir e não estar vazios; `metadata.status` deve ser `ACTIVE`. Quando `TRANSACTION_MODEL_VERSION` é definida, ela deve coincidir com a versão do metadata.
 
 ## Classificador de perfil financeiro
 
-### Classes
+### Features usadas
 
-- `SAUDAVEL`
-- `EM_OBSERVACAO`
-- `EM_RISCO`
+Na ordem validada pelo runtime:
 
-### Features permitidas
+1. `percentual_renda_comprometida`;
+2. `nivel_endividamento_pct`;
+3. `taxa_poupanca_pct`;
+4. `percentual_despesas_fixas`;
+5. `percentual_gastos_nao_essenciais`;
+6. `quantidade_despesas_recorrentes`;
+7. `quantidade_transacoes_despesa`;
+8. `variacao_despesas_pct`;
+9. `reserva_em_meses`.
 
-- `percentual_renda_comprometida`
-- `nivel_endividamento_pct`
-- `taxa_poupanca_pct`
-- `percentual_despesas_fixas`
-- `percentual_gastos_nao_essenciais`
-- `quantidade_despesas_recorrentes`
-- `quantidade_transacoes_despesa`
-- `variacao_despesas_pct`
-- `reserva_em_meses`
+### Campos excluídos
 
-### Features proibidas (vazamento de dados)
+O treinamento mantém uma lista explícita de campos que não podem ser features:
 
-- `score_financeiro`
-- `confianca_perfil`
-- `fatores_risco`
-- `fatores_positivos`
-- `regra_rotulacao`
-- `perfil_sintetico_base`
+- vazamento de rótulo: `score_financeiro`, `confianca_perfil`, `fatores_risco`, `fatores_positivos`, `regra_rotulacao`, `perfil_financeiro`;
+- partição/metadados: `split`, `fonte`, `usuario_id`, `mes_referencia`;
+- redundância com os indicadores escolhidos: `renda_mensal`, `total_despesas`.
 
-### Baselines
+### Seleção do modelo
 
-1. Logistic Regression
-2. Random Forest
+O script `training.train_profile_classifier` recebe o Parquet que já contém os usuários dos splits oficiais `TRAIN` e `VALIDATION`, mas faz uma nova separação por usuário com `train_test_split(test_size=0.15, random_state=42)` sobre esse conjunto combinado.
 
-Seleção pelo melhor `macro F1`, estabilidade entre classes, explicabilidade e complexidade operacional.
+Candidatos:
+
+| Modelo | Configuração |
+| --- | --- |
+| Regressão Logística | `class_weight=balanced`, `max_iter=1000`, `random_state=42`, `n_jobs=5`; features padronizadas |
+| Random Forest | 200 árvores, `class_weight=balanced`, `random_state=42`, `n_jobs=5`; sem scaler |
+
+O vencedor é o maior macro F1 da validação recriada. O artefato salvo é o modelo já ajustado na porção de treino dessa divisão; o script não refaz o fit em todo `TRAIN + VALIDATION` após selecionar o vencedor.
+
+O relatório final versionado identifica o artefato atual como Random Forest `1.0.0`.
 
 ### Artefatos
 
-```
+```text
 ai-service/models/profile-classifier/
 ├── model.joblib
-├── preprocessor.joblib
 ├── metadata.json
 ├── metrics.json
-└── feature_names.json
+├── feature_names.json
+└── preprocessor.joblib  # presente apenas se o vencedor usar scaler
 ```
 
+Para ativação, `model.joblib`, `metadata.json` e `feature_names.json` são obrigatórios. A lista de features deve ser exatamente igual ao schema do runtime.
+
 ## Treinamento
+
+Na raiz:
 
 ```bash
 make train-transaction-model
 make train-profile-model
 ```
 
-Ou manualmente:
+Os alvos de treinamento não executam `prepare_dataset` automaticamente. Em uma instalação nova:
 
 ```bash
 cd ai-service
 python -m training.prepare_dataset
 python -m training.train_transaction_classifier
 python -m training.train_profile_classifier
-python -m training.evaluate_models
 ```
 
-## Avaliação final em teste independente
+Os scripts também estão registrados em `pyproject.toml` como `prepare-dataset`, `train-transaction`, `train-profile` e `evaluate-models` quando o pacote é instalado.
 
-Os modelos finais são carregados dos artefatos já treinados e avaliados exclusivamente no
-split oficial `TEST`. A avaliação não retreina modelos, não seleciona hiperparâmetros e não usa
-os rótulos de teste durante a seleção. A independência é verificada por `usuario_id` antes do
-cálculo: não há usuários compartilhados entre `TRAIN`, `VALIDATION` e `TEST`.
+Artefatos de modelo são ignorados pelo Git. O diretório versionado contém apenas `.gitkeep`; para Docker, os artefatos precisam existir no host porque `./ai-service/models` é montado read-only em `/app/models`.
 
-Resultados produzidos em 16/07/2026:
-
-| Modelo | Amostras TEST | Usuários TEST | Accuracy | Macro F1 | Weighted F1 | Erros |
-|---|---:|---:|---:|---:|---:|---:|
-| Transações 1.1.0 | 19.692 | 225 | 99,9898% | 99,9863% | 99,9898% | 2 |
-| Perfil 1.0.0 | 2.700 | 225 | 98,7778% | 98,7541% | 98,7819% | 33 |
-
-Intervalos de confiança de 95% por bootstrap (500 reamostragens, seed 42):
-
-- Transações — accuracy: `[99,9746%; 100%]`; macro F1: `[99,9654%; 100%]`.
-- Perfil — accuracy: `[98,3704%; 99,1481%]`; macro F1: `[98,3331%; 99,1282%]`.
-
-Para reproduzir:
+## Avaliação final no conjunto TEST
 
 ```bash
 make evaluate-models
 ```
 
-Artefatos gerados em `ai-service/reports/final-test/`:
+`training.evaluate_models`:
 
-- `final-test-metrics.json` — protocolo, evidências de independência, fingerprints e métricas.
-- `*-per-class.csv` — precision, recall, F1 e suporte por classe.
-- `*-confusion-matrix.csv` — matrizes de confusão com rótulos.
+- carrega os artefatos existentes, sem retreino;
+- usa somente linhas `TEST` para a avaliação final;
+- verifica independência por `usuario_id` entre `TRAIN`, `VALIDATION` e `TEST`;
+- calcula fingerprints SHA-256 dos dados avaliados;
+- produz accuracy, balanced accuracy, precision/recall/F1 macro, weighted F1, métricas por classe e matriz de confusão;
+- calcula intervalos de confiança percentis por bootstrap com 500 reamostragens e seed 42.
 
-### Limitação
+Resultados versionados, gerados em 16/07/2026:
 
-O conjunto `TEST` é independente por usuário, mas pertence ao mesmo gerador de dados sintéticos
-dos demais splits. As métricas medem generalização dentro desse domínio controlado e não devem ser
-interpretadas como desempenho em dados bancários reais. Uma validação externa, temporal e com dados
-reais autorizados continua necessária antes de uso em produção.
+| Modelo | Amostras TEST | Usuários TEST | Accuracy | Macro F1 | Weighted F1 | Erros |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Transações 1.1.0 | 19.692 | 225 | 99,9898% | 99,9863% | 99,9898% | 2 |
+| Perfil 1.0.0 | 2.700 | 225 | 98,7778% | 98,7541% | 98,7819% | 33 |
+
+Intervalos de 95%:
+
+- Transações — accuracy `[99,9746%; 100%]`; macro F1 `[99,9654%; 100%]`.
+- Perfil — accuracy `[98,3704%; 99,1481%]`; macro F1 `[98,3331%; 99,1282%]`.
+
+Saídas em `ai-service/reports/final-test/`:
+
+- `final-test-metrics.json` — protocolo, independência, fingerprints e consolidação;
+- `transaction-classifier.json` e `profile-classifier.json` — relatórios individuais;
+- `*-per-class.csv` — precision, recall, F1 e suporte;
+- `*-confusion-matrix.csv` — matrizes com rótulos;
+- `README.md` — resumo versionado.
+
+### Limitação das métricas
+
+O split é independente por usuário, mas todos os dados vêm do mesmo gerador sintético. As métricas medem generalização dentro desse domínio controlado; não comprovam desempenho em extratos bancários reais. Antes de uso decisório em produção, ainda é necessária validação externa, temporal e com dados reais autorizados.
+
+Além disso, `training.train_transaction_classifier` calcula métricas no `TEST` ao final do treinamento. O protocolo do relatório final declara que esses rótulos não foram usados para seleção/hiperparâmetros; preserve essa separação em mudanças futuras.
+
+## Registry e ativação
+
+Na inicialização, o `ModelRegistry` valida arquivos, metadata, versões opcionais e lista de labels/features. Status possíveis no registro incluem:
+
+- artefato `VALID` e classificador `LOADED`;
+- `MISSING` ou `INVALID`, com classificador `FALLBACK` quando modelos não são obrigatórios;
+- falha de startup quando `REQUIRE_ACTIVE_MODELS=true` ou `ENVIRONMENT` é `production`/`prod` e um artefato está ausente/inválido.
+
+O endpoint interno `/internal/v1/models/status` e o proxy autenticado `/api/v1/model-status` expõem estado, versões, caminhos, checksums e erros.
+
+No Compose atual, `ENVIRONMENT`, `REQUIRE_ACTIVE_MODELS`, `TRANSACTION_MODEL_VERSION` e `PROFILE_MODEL_VERSION` não são encaminhadas ao container do AI Service. Portanto, o requisito automático de modelos de produção não é ativado apenas por `SPRING_PROFILES_ACTIVE=production` no backend.
 
 ## Fallbacks
 
-Se os modelos treinados não estiverem disponíveis, o sistema usa:
+### Transações
 
-- **Transações**: classificador por keywords baseado em `categorias.csv`.
-- **Perfil**: classificador por regras baseado em thresholds dos indicadores.
+`FallbackTransactionClassifier` carrega palavras-chave de `categorias.csv` quando disponível e complementa com um mapa embutido. Correspondências têm confiança `0.75`; ausência de correspondência retorna `OUTROS/OUTROS` com `0.4`.
 
-O status `FALLBACK` é informado na resposta da API.
+### Perfil
+
+`FallbackProfileClassifier` aplica thresholds sobre endividamento, comprometimento, poupança, reserva, despesas fixas e gastos não essenciais. `RuleBasedProfileClassifier` reutiliza essa lógica com identidade/versionamento `RULES-1.0.0` e atende à opção pública `FINANCIAL_RULES`.
 
 ## Explicabilidade
 
-- Coeficientes da regressão logística indicam palavras/features mais importantes.
-- O agente explica recomendações a partir dos indicadores reais.
-- Nenhum valor é inventado pela LLM.
+- O classificador de transações extrai até três n-gramas com contribuição positiva a partir dos coeficientes TF-IDF/Regressão Logística; se isso não for possível, usa tokens normalizados.
+- O classificador de perfil retorna `main_factors` derivados de thresholds explícitos, inclusive quando a classe vem do modelo treinado.
+- `extract_feature_importance` oferece suporte genérico a `feature_importances_` ou `coef_`, mas não há endpoint público dedicado a esse mapa.
+- SHAP não está instalado nem integrado.
+- Recomendações principais são geradas por regras no backend, não pela LLM.
+
+## Notebook
+
+`notebooks/finance_ai_data_science.ipynb` contém exploração e experimentos. Os scripts em `ai-service/training/` são a referência executável para o pipeline usado pelos artefatos e relatórios versionados; afirmações do notebook que divergirem desses scripts não descrevem o runtime atual.

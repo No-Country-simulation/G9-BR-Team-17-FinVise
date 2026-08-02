@@ -1,14 +1,28 @@
 sequenceDiagram
     participant B as Backend Spring Boot
     participant AI as AI Service FastAPI
-    participant M as Modelos
+    participant M as Modelos/fallbacks
+    participant DB as PostgreSQL + pgvector
+    participant L as API LLM opcional
 
     B->>AI: POST /internal/v1/transactions/classify
-    AI->>M: predict(text)
-    M-->>AI: category, confidence
-    AI-->>B: TransactionClassificationResult
+    AI->>M: predict(items)
+    M-->>AI: categoria, subcategoria, confiança
+    AI-->>B: versão, status e predictions
 
     B->>AI: POST /internal/v1/profiles/analyze
-    AI->>M: predict(features)
-    M-->>AI: profile, score, confidence
-    AI-->>B: ProfileAnalysisResult
+    AI->>M: predict(features) ou regras
+    M-->>AI: perfil, score, confiança, fatores
+    AI-->>B: ProfileAnalyzeResponse
+
+    B->>AI: POST /internal/v1/agent/respond/stream
+    par ferramentas
+        AI->>AI: executa ferramentas sobre AgentContext
+    and retrieval
+        AI->>DB: busca vetorial/full-text por usuário/origem
+    end
+    opt LLM habilitada e chave configurada
+        AI->>L: POST /chat/completions stream=true
+        L-->>AI: deltas
+    end
+    AI-->>B: SSE tools, sources, token e done

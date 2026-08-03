@@ -490,7 +490,9 @@ class FinancialAgent:
             selected.extend(["get_spending_summary", "get_transactions", "get_recurring_expenses"])
         if any(w in last_message for w in ["recomendacao", "dica", "sugestao", "melhorar"]):
             selected.append("get_recommendations")
-        if any(w in last_message for w in ["comparar", "mes passado", "periodo", "evolucao"]):
+        if "compar" in last_message or any(
+            w in last_message for w in ["mes passado", "periodo", "evolucao"]
+        ):
             selected.append("compare_periods")
         if any(w in last_message for w in ["recorrente", "assinatura", "fixa"]):
             selected.append("get_recurring_expenses")

@@ -124,8 +124,9 @@ def test_agent_respond(client):
         "user_id": "user-1",
         "messages": [{"role": "user", "content": "Como esta meu perfil financeiro?"}],
         "context": {
-            "financial_profile": {"monthlyIncome": 5000.0},
-            "indicators": {"savingsRatePercentage": 5.0},
+            "schema_version": "1.0",
+            "financial_profile": {"monthly_income": 5000.0},
+            "indicators": {"savings_rate_pct": 5.0},
             "spending_summary": {},
             "recommendations": [],
         },
@@ -144,8 +145,9 @@ def test_agent_respond_stream_uses_named_sse_events(client):
         "user_id": "user-1",
         "messages": [{"role": "user", "content": "Como esta meu perfil financeiro?"}],
         "context": {
-            "financial_profile": {"monthlyIncome": 5000.0},
-            "indicators": {"savingsRatePercentage": 5.0},
+            "schema_version": "1.0",
+            "financial_profile": {"monthly_income": 5000.0},
+            "indicators": {"savings_rate_pct": 5.0},
             "spending_summary": {},
             "recommendations": [],
         },

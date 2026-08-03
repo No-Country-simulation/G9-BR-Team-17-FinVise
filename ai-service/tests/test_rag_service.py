@@ -125,10 +125,10 @@ def test_agent_maps_selected_source_to_rag_source_type():
 
     assert FinancialAgent._rag_source_type(request) == "OPEN_FINANCE"
 
-    request.context.financial_profile["source"] = "CSV_IMPORT"
+    request.context.financial_profile.source = "CSV_IMPORT"
     assert FinancialAgent._rag_source_type(request) == "CSV_IMPORT"
 
-    request.context.financial_profile["source"] = "ALL"
+    request.context.financial_profile.source = "ALL"
     assert FinancialAgent._rag_source_type(request) is None
 
 

@@ -115,7 +115,23 @@ class AgentStreamingServiceTest {
         ArgumentCaptor<AgentRespondRequest> captor =
             ArgumentCaptor.forClass(AgentRespondRequest.class);
         verify(aiServiceClient).agentRespondStream(captor.capture(), any());
-        Map<String, Object> analyticalFacts = captor.getValue().context().analyticalFacts();
+        AgentRespondRequest.AgentContextDto context = captor.getValue().context();
+        assertThat(context.schemaVersion())
+            .isEqualTo(AgentRespondRequest.CONTEXT_SCHEMA_VERSION);
+        assertThat(context.financialProfile().source()).isEqualTo("CSV_IMPORT");
+        assertThat(context.financialProfile().transactionCount()).isEqualTo(5);
+        assertThat(context.financialProfile().monthCount()).isEqualTo(2);
+        assertThat(context.financialProfile().monthlyIncome())
+            .isEqualByComparingTo("5500.00");
+        assertThat(context.financialProfile().monthlyExpenses())
+            .isEqualByComparingTo("760.00");
+        assertThat(context.indicators().totalIncome())
+            .isEqualByComparingTo("11000.00");
+        assertThat(context.indicators().totalExpenses())
+            .isEqualByComparingTo("1520.00");
+        assertThat(context.indicators().balance())
+            .isEqualByComparingTo("9480.00");
+        Map<String, Object> analyticalFacts = context.analyticalFacts();
         Map<String, Object> monthRankings =
             (Map<String, Object>) analyticalFacts.get("month_rankings");
         Map<String, Object> highestBalance =

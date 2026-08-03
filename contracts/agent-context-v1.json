@@ -1,0 +1,83 @@
+{
+  "conversation_id": "conversation-contract-test",
+  "user_id": "user-contract-test",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Como esta minha saude financeira?"
+    }
+  ],
+  "context": {
+    "schema_version": "1.0",
+    "financial_profile": {
+      "source": "CSV_IMPORT",
+      "transaction_count": 4,
+      "period_start": "2026-01-01",
+      "period_end": "2026-02-28",
+      "month_count": 2,
+      "monthly_income": 5000.00,
+      "monthly_expenses": 3500.00
+    },
+    "indicators": {
+      "total_income": 10000.00,
+      "total_expenses": 7000.00,
+      "balance": 3000.00,
+      "transaction_count": 4,
+      "savings_rate_pct": 30.00,
+      "income_commitment_pct": 70.00
+    },
+    "spending_summary": {
+      "by_category": {
+        "MORADIA": 3000.00,
+        "ALIMENTACAO": 1000.00
+      },
+      "total_expenses": 7000.00
+    },
+    "recommendations": [
+      {
+        "title": "Consolidar reserva",
+        "description": "Manter aportes mensais para a reserva de emergencia.",
+        "category": "POUPANCA",
+        "priority": "HIGH"
+      }
+    ],
+    "transactions": [
+      {
+        "description": "Salario",
+        "amount": 5000.00,
+        "type": "INCOME",
+        "date": "2026-02-01",
+        "payment_method": "TRANSFERENCIA",
+        "recurrent": true
+      }
+    ],
+    "recurring_expenses": [
+      {
+        "description": "Aluguel",
+        "amount": 1500.00,
+        "date": "2026-02-05"
+      }
+    ],
+    "previous_period_indicators": {
+      "total_income": 9000.00,
+      "total_expenses": 7200.00,
+      "balance": 1800.00,
+      "transaction_count": 4,
+      "savings_rate_pct": 20.00,
+      "income_commitment_pct": 80.00
+    },
+    "analytical_facts": {
+      "scope": {
+        "transaction_count": 4,
+        "period_start": "2026-01-01",
+        "period_end": "2026-02-28"
+      }
+    },
+    "retrieval": {
+      "top_k": 5,
+      "source_ids": [
+        "11111111-1111-1111-1111-111111111111"
+      ]
+    }
+  }
+}

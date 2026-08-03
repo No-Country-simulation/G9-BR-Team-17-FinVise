@@ -201,23 +201,48 @@ public class AgentService {
             BigDecimal totalIncome = totalByType(transactions, TransactionType.INCOME);
             BigDecimal totalExpenses = totalByType(transactions, TransactionType.EXPENSE);
             BigDecimal balance = totalIncome.subtract(totalExpenses);
-
-            Map<String, Object> indicators = new HashMap<>();
-            indicators.put("total_income", totalIncome);
-            indicators.put("total_expenses", totalExpenses);
-            indicators.put("monthly_balance", balance);
-            indicators.put("transaction_count", transactions.size());
+            String periodStart = transactions.stream()
+                .map(Transaction::getTransactionDate)
+                .filter(java.util.Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .map(Object::toString)
+                .orElse(null);
+            String periodEnd = transactions.stream()
+                .map(Transaction::getTransactionDate)
+                .filter(java.util.Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .map(Object::toString)
+                .orElse(null);
+            int monthCount = monthCount(periodStart, periodEnd);
+            BigDecimal monthlyIncome = monthlyAverage(totalIncome, monthCount);
+            BigDecimal monthlyExpenses = monthlyAverage(totalExpenses, monthCount);
+            BigDecimal savingsRate = null;
+            BigDecimal incomeCommitment = null;
             if (totalIncome.compareTo(BigDecimal.ZERO) > 0) {
-                indicators.put("savings_rate_pct",
-                    balance.multiply(BigDecimal.valueOf(100))
-                        .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP));
-                indicators.put("income_commitment_pct",
-                    totalExpenses.multiply(BigDecimal.valueOf(100))
-                        .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP));
+                savingsRate = balance.multiply(BigDecimal.valueOf(100))
+                    .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP);
+                incomeCommitment = totalExpenses.multiply(BigDecimal.valueOf(100))
+                    .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP);
             }
+            AgentRespondRequest.FinancialProfileDto financialProfile =
+                new AgentRespondRequest.FinancialProfileDto(
+                    source != null ? source : "ALL",
+                    transactions.size(),
+                    periodStart,
+                    periodEnd,
+                    monthCount,
+                    monthlyIncome,
+                    monthlyExpenses);
+            AgentRespondRequest.FinancialIndicatorsDto indicators =
+                new AgentRespondRequest.FinancialIndicatorsDto(
+                    totalIncome,
+                    totalExpenses,
+                    balance,
+                    transactions.size(),
+                    savingsRate,
+                    incomeCommitment);
 
             // Category-based spending summary
-            Map<String, Object> spendingSummary = new HashMap<>();
             Map<String, BigDecimal> categoryTotals = new HashMap<>();
             for (Transaction txn : transactions) {
                 if (txn.getType() == TransactionType.EXPENSE) {
@@ -225,45 +250,39 @@ public class AgentService {
                     categoryTotals.merge(cat, txn.getAmount(), BigDecimal::add);
                 }
             }
-            spendingSummary.put("by_category", categoryTotals);
-            spendingSummary.put("total_expenses", totalExpenses);
+            AgentRespondRequest.SpendingSummaryDto spendingSummary =
+                new AgentRespondRequest.SpendingSummaryDto(categoryTotals, totalExpenses);
 
             // Recent transactions (max 20 for context)
-            List<Object> recentTxns = transactions.stream()
+            List<AgentRespondRequest.TransactionContextDto> recentTxns = transactions.stream()
                 .limit(20)
-                .map(txn -> {
-                    Map<String, Object> t = new HashMap<>();
-                    t.put("description", txn.getDescription());
-                    t.put("amount", txn.getAmount());
-                    t.put("type", txn.getType().name());
-                    t.put("date", txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null);
-                    t.put("payment_method", txn.getPaymentMethod());
-                    t.put("recurrent", txn.getRecurrent());
-                    return (Object) t;
-                })
+                .map(txn -> new AgentRespondRequest.TransactionContextDto(
+                    txn.getDescription(),
+                    txn.getAmount(),
+                    txn.getType().name(),
+                    txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null,
+                    txn.getPaymentMethod(),
+                    Boolean.TRUE.equals(txn.getRecurrent())))
                 .toList();
 
             // Recurring expenses
-            List<Object> recurring = transactions.stream()
+            List<AgentRespondRequest.RecurringExpenseDto> recurring = transactions.stream()
                 .filter(txn -> txn.getType() == TransactionType.EXPENSE && Boolean.TRUE.equals(txn.getRecurrent()))
-                .map(txn -> {
-                    Map<String, Object> r = new HashMap<>();
-                    r.put("description", txn.getDescription());
-                    r.put("amount", txn.getAmount());
-                    r.put("date", txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null);
-                    return (Object) r;
-                })
+                .map(txn -> new AgentRespondRequest.RecurringExpenseDto(
+                    txn.getDescription(),
+                    txn.getAmount(),
+                    txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null))
                 .toList();
 
             return new AgentRespondRequest.AgentContextDto(
-                Map.of("source", source != null ? source : "ALL",
-                        "total_transactions", transactions.size()),
+                AgentRespondRequest.CONTEXT_SCHEMA_VERSION,
+                financialProfile,
                 indicators,
                 spendingSummary,
                 List.of(),
                 recentTxns,
                 recurring,
-                Map.of(),
+                null,
                 buildAnalyticalFacts(transactions),
                 new AgentRespondRequest.RetrievalDto(
                     clampTopK(conversation.getRagTopK()),
@@ -273,6 +292,24 @@ public class AgentService {
             log.warn("Falha ao construir contexto do agente, enviando contexto vazio: {}", e.getMessage());
             return new AgentRespondRequest.AgentContextDto();
         }
+    }
+
+    private int monthCount(String periodStart, String periodEnd) {
+        if (periodStart == null || periodEnd == null) {
+            return 0;
+        }
+        YearMonth firstMonth = YearMonth.from(java.time.LocalDate.parse(periodStart));
+        YearMonth lastMonth = YearMonth.from(java.time.LocalDate.parse(periodEnd));
+        return Math.toIntExact(
+            java.time.temporal.ChronoUnit.MONTHS.between(firstMonth, lastMonth) + 1);
+    }
+
+    private BigDecimal monthlyAverage(BigDecimal total, int monthCount) {
+        if (monthCount <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return total.divide(
+            BigDecimal.valueOf(monthCount), 2, java.math.RoundingMode.HALF_UP);
     }
 
     private String generateAssistantReply(String userContent, AgentConversation conversation) {

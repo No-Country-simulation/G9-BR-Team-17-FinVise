@@ -345,7 +345,7 @@ class FinancialAgent:
 
     @staticmethod
     def _rag_source_type(request: AgentRequest) -> str | None:
-        selected_source = request.context.financial_profile.get("source")
+        selected_source = request.context.financial_profile.source
         if not selected_source:
             return None
 

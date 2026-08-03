@@ -2,9 +2,9 @@ from app.schemas.agent import AgentContext
 
 
 def compare_periods(context: AgentContext) -> dict:
-    current = context.indicators
+    current = context.indicators.model_dump(mode="json")
     previous = context.previous_period_indicators
-    if not previous:
+    if previous is None:
         return {
             "tool": "compare_periods",
             "result": {
@@ -14,9 +14,10 @@ def compare_periods(context: AgentContext) -> dict:
             },
         }
 
+    previous_data = previous.model_dump(mode="json")
     changes = {}
     for key, value in current.items():
-        previous_value = previous.get(key)
+        previous_value = previous_data.get(key)
         if isinstance(previous_value, (int, float)) and isinstance(value, (int, float)):
             changes[key] = round(value - previous_value, 2)
 
@@ -25,7 +26,7 @@ def compare_periods(context: AgentContext) -> dict:
         "result": {
             "available": True,
             "current_period": current,
-            "previous_period": previous,
+            "previous_period": previous_data,
             "changes": changes,
         },
     }

@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.agent.orchestration.agent import FinancialAgent
 from app.agent.tools.analytical_facts import (
     get_monthly_rankings,
@@ -15,25 +18,30 @@ from app.schemas.agent import AgentContext, AgentRequest
 
 
 def test_get_financial_profile():
-    ctx = AgentContext(financial_profile={"monthlyIncome": 5000.0})
+    ctx = AgentContext(financial_profile={"monthly_income": 5000.0})
     result = get_financial_profile(ctx)
-    assert result["result"]["monthlyIncome"] == 5000.0
+    assert result["result"]["monthly_income"] == 5000.0
 
 
 def test_get_financial_indicators():
-    ctx = AgentContext(indicators={"savingsRatePercentage": 10.0})
+    ctx = AgentContext(indicators={"savings_rate_pct": 10.0})
     result = get_financial_indicators(ctx)
-    assert result["result"]["savingsRatePercentage"] == 10.0
+    assert result["result"]["savings_rate_pct"] == 10.0
 
 
 def test_get_spending_summary():
-    ctx = AgentContext(spending_summary={"total": 1000.0})
+    ctx = AgentContext(spending_summary={"total_expenses": 1000.0})
     result = get_spending_summary(ctx)
-    assert result["result"]["total"] == 1000.0
+    assert result["result"]["total_expenses"] == 1000.0
 
 
 def test_get_transactions():
-    ctx = AgentContext(transactions=[{"id": 1}, {"id": 2}])
+    ctx = AgentContext(
+        transactions=[
+            {"description": "Mercado", "amount": 100, "type": "EXPENSE"},
+            {"description": "Salario", "amount": 5000, "type": "INCOME"},
+        ]
+    )
     result = get_transactions(ctx, limit=1)
     assert result["result"]["count"] == 1
 
@@ -129,37 +137,52 @@ def test_agent_routes_month_and_transaction_rankings():
 
 
 def test_get_recommendations():
-    ctx = AgentContext(recommendations=[{"category": "POUPANCA"}])
+    ctx = AgentContext(
+        recommendations=[
+            {
+                "title": "Criar reserva",
+                "description": "Poupar mensalmente",
+                "category": "POUPANCA",
+            }
+        ]
+    )
     result = get_recommendations(ctx)
-    assert len(result["result"]) == 1
+    assert len(result["result"]["items"]) == 1
 
 
 def test_compare_periods():
     ctx = AgentContext(
-        indicators={"savingsRatePercentage": 10.0},
-        previous_period_indicators={"savingsRatePercentage": 5.0},
+        indicators={"savings_rate_pct": 10.0},
+        previous_period_indicators={"savings_rate_pct": 5.0},
     )
     result = compare_periods(ctx)
     assert result["result"]["available"] is True
-    assert result["result"]["changes"]["savingsRatePercentage"] == 5.0
+    assert result["result"]["changes"]["savings_rate_pct"] == 5.0
 
 
 def test_get_recurring_expenses():
-    ctx = AgentContext(recurring_expenses=[{"description": "Netflix"}])
+    ctx = AgentContext(
+        recurring_expenses=[{"description": "Netflix", "amount": 39.9}]
+    )
     result = get_recurring_expenses(ctx)
     assert len(result["result"]) == 1
 
 
 def test_simulate_savings_plan_feasible():
     ctx = AgentContext(
-        financial_profile={"monthlyIncome": 5000.0},
-        indicators={"savingsRatePercentage": 20.0},
+        financial_profile={"monthly_income": 5000.0},
+        indicators={"savings_rate_pct": 20.0},
     )
     result = simulate_savings_plan(ctx, target_amount=6000.0, months=12)
     assert result["result"]["feasible"] is True
 
 
 def test_simulate_savings_plan_invalid():
-    ctx = AgentContext(financial_profile={"monthlyIncome": 0.0}, indicators={})
+    ctx = AgentContext(financial_profile={"monthly_income": 0.0}, indicators={})
     result = simulate_savings_plan(ctx, target_amount=1000.0)
     assert "error" in result["result"]
+
+
+def test_agent_context_rejects_legacy_camel_case_fields():
+    with pytest.raises(ValidationError):
+        AgentContext(financial_profile={"monthlyIncome": 5000.0})

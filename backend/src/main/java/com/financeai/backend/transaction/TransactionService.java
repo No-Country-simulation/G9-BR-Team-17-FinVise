@@ -1,6 +1,8 @@
 package com.financeai.backend.transaction;
 
 import com.financeai.backend.common.exception.ResourceNotFoundException;
+import com.financeai.backend.fact.FinancialSourceConsistencyService;
+import com.financeai.backend.importation.ImportedFileRepository;
 import com.financeai.backend.integration.ai.*;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
@@ -31,17 +33,23 @@ public class TransactionService {
     private final UserRepository userRepository;
     private final AiServiceClient aiServiceClient;
     private final TransactionCategorizationService categorizationService;
+    private final ImportedFileRepository importedFileRepository;
+    private final FinancialSourceConsistencyService sourceConsistencyService;
 
     public TransactionService(TransactionRepository transactionRepository,
                               TransactionCategoryRepository categoryRepository,
                               UserRepository userRepository,
                               AiServiceClient aiServiceClient,
-                              TransactionCategorizationService categorizationService) {
+                              TransactionCategorizationService categorizationService,
+                              ImportedFileRepository importedFileRepository,
+                              FinancialSourceConsistencyService sourceConsistencyService) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.aiServiceClient = aiServiceClient;
         this.categorizationService = categorizationService;
+        this.importedFileRepository = importedFileRepository;
+        this.sourceConsistencyService = sourceConsistencyService;
     }
 
     @Transactional
@@ -202,9 +210,20 @@ public class TransactionService {
 
         List<Transaction> transactions = transactionRepository
             .findByUserIdAndSourceAndCategoryId(userId, "CSV_IMPORT", othersCategoryId);
+        Set<UUID> affectedSourceIds = transactions.stream()
+            .map(Transaction::getImportSourceId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         TransactionCategorizationService.CategorizationResult result =
             categorizationService.categorize(transactions);
-        transactionRepository.saveAll(transactions);
+        transactionRepository.saveAllAndFlush(transactions);
+        affectedSourceIds.forEach(sourceId -> sourceConsistencyService.refresh(
+            userId,
+            TransactionSource.CSV_IMPORT,
+            sourceId,
+            importedFileRepository.findByIdAndUserId(sourceId, userId)
+                .map(file -> file.getOriginalName())
+                .orElse(sourceId.toString())));
         return new TransactionReclassificationResponse(
             result.processedCount(), result.categorizedCount(), result.modelVersion());
     }

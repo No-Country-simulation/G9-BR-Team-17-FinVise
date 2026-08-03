@@ -375,6 +375,8 @@ class RAGService:
                            ) AS keyword_rank
                     FROM rag_documents
                     WHERE user_id = %s::uuid{filter_sql}
+                      AND index_status = 'INDEXED'
+                      AND embedding_model = %s
                       AND embedding IS NOT NULL
                     ORDER BY embedding <=> %s::vector ASC
                     LIMIT %s;
@@ -384,6 +386,7 @@ class RAGService:
                         query,
                         user_id,
                         *filter_params,
+                        self._embedding_model_name(),
                         query_vector,
                         candidate_limit,
                     ),

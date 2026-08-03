@@ -2,7 +2,7 @@ package com.financeai.backend;
 
 import com.financeai.backend.importation.*;
 import com.financeai.backend.common.exception.BusinessException;
-import com.financeai.backend.fact.FinancialFactsService;
+import com.financeai.backend.fact.FinancialSourceConsistencyService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
@@ -46,9 +46,7 @@ class CsvImportServiceTest {
     @Mock
     private ObjectStorageService objectStorageService;
     @Mock
-    private com.financeai.backend.rag.RagIngestionService ragIngestionService;
-    @Mock
-    private FinancialFactsService financialFactsService;
+    private FinancialSourceConsistencyService sourceConsistencyService;
     @InjectMocks
     private CsvImportService csvImportService;
 
@@ -84,7 +82,8 @@ class CsvImportServiceTest {
             }
             return file;
         });
-        when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.saveAllAndFlush(anyList()))
+            .thenAnswer(invocation -> invocation.getArgument(0));
 
         MultipartFile file = new MockMultipartFile("file", "transacoes.csv", "text/csv", csvContent().getBytes(StandardCharsets.UTF_8));
 
@@ -98,13 +97,14 @@ class CsvImportServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Transaction>> transactionCaptor = ArgumentCaptor.forClass(List.class);
-        verify(transactionRepository).saveAll(transactionCaptor.capture());
+        verify(transactionRepository).saveAllAndFlush(transactionCaptor.capture());
         assertThat(transactionCaptor.getValue())
             .allMatch(t -> t.getUser().getId().equals(userId));
         assertThat(transactionCaptor.getValue())
             .anyMatch(t -> "Supermercado".equals(t.getDescription()));
-        verify(financialFactsService).rebuild(
-            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
+        verify(sourceConsistencyService).refresh(
+            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class),
+            eq("transacoes.csv"));
         ArgumentCaptor<ImportedFile> importedFileCaptor = ArgumentCaptor.forClass(ImportedFile.class);
         verify(importedFileRepository, atLeast(2)).save(importedFileCaptor.capture());
         assertThat(importedFileCaptor.getAllValues())
@@ -125,7 +125,8 @@ class CsvImportServiceTest {
             }
             return file;
         });
-        when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.saveAllAndFlush(anyList()))
+            .thenAnswer(invocation -> invocation.getArgument(0));
 
         MultipartFile file = new MockMultipartFile("file", "invalido.csv", "text/csv", invalidCsvContent().getBytes(StandardCharsets.UTF_8));
 
@@ -170,7 +171,7 @@ class CsvImportServiceTest {
             }
             return imported;
         });
-        when(transactionRepository.saveAll(anyList()))
+        when(transactionRepository.saveAllAndFlush(anyList()))
             .thenAnswer(invocation -> invocation.getArgument(0));
         MultipartFile file = new MockMultipartFile(
             "file", "despesas.csv", "text/csv", content.getBytes(StandardCharsets.UTF_8));
@@ -179,8 +180,9 @@ class CsvImportServiceTest {
 
         assertThat(result.status()).isEqualTo(ImportStatus.COMPLETED);
         assertThat(result.processedCount()).isEqualTo(1);
-        verify(financialFactsService).rebuild(
-            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
+        verify(sourceConsistencyService).refresh(
+            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class),
+            eq("despesas.csv"));
     }
 
     private String csvContent() {

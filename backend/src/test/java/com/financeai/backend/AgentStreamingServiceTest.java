@@ -10,6 +10,8 @@ import com.financeai.backend.agent.SendMessageRequest;
 import com.financeai.backend.integration.ai.AiServiceClient;
 import com.financeai.backend.integration.ai.AgentRespondRequest;
 import com.financeai.backend.transaction.Transaction;
+import com.financeai.backend.transaction.TransactionCategory;
+import com.financeai.backend.transaction.TransactionCategoryRepository;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.transaction.TransactionType;
@@ -58,7 +60,15 @@ class AgentStreamingServiceTest {
             mock(AgentConversationRepository.class);
         AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
         TransactionRepository transactionRepository = mock(TransactionRepository.class);
+        TransactionCategoryRepository categoryRepository =
+            mock(TransactionCategoryRepository.class);
         AiServiceClient aiServiceClient = mock(AiServiceClient.class);
+        UUID housingCategoryId = UUID.randomUUID();
+        UUID foodCategoryId = UUID.randomUUID();
+        when(categoryRepository.findAllById(any())).thenReturn(List.of(
+            category(housingCategoryId, "MORADIA"),
+            category(foodCategoryId, "ALIMENTACAO")
+        ));
         when(conversationRepository.findByIdAndUserId(conversationId, userId))
             .thenReturn(Optional.of(conversation));
         when(conversationRepository.findById(conversationId))
@@ -67,15 +77,15 @@ class AgentStreamingServiceTest {
             userId, TransactionSource.CSV_IMPORT.name(), List.of(sourceId)))
             .thenReturn(List.of(
                 transaction(user, sourceId, "Salário", "5000.00", "2024-11-01",
-                    TransactionType.INCOME),
+                    TransactionType.INCOME, null),
                 transaction(user, sourceId, "Aluguel", "1000.00", "2024-11-05",
-                    TransactionType.EXPENSE),
+                    TransactionType.EXPENSE, housingCategoryId),
                 transaction(user, sourceId, "Salário", "6000.00", "2024-12-01",
-                    TransactionType.INCOME),
+                    TransactionType.INCOME, null),
                 transaction(user, sourceId, "Café", "20.00", "2024-12-10",
-                    TransactionType.EXPENSE),
+                    TransactionType.EXPENSE, null),
                 transaction(user, sourceId, "Mercado", "500.00", "2024-12-15",
-                    TransactionType.EXPENSE)
+                    TransactionType.EXPENSE, foodCategoryId)
             ));
         AgentMessage historyMessage = new AgentMessage();
         historyMessage.setRole("USER");
@@ -101,6 +111,7 @@ class AgentStreamingServiceTest {
             messageRepository,
             mock(UserRepository.class),
             transactionRepository,
+            categoryRepository,
             aiServiceClient,
             new ObjectMapper()
         );
@@ -131,6 +142,14 @@ class AgentStreamingServiceTest {
             .isEqualByComparingTo("1520.00");
         assertThat(context.indicators().balance())
             .isEqualByComparingTo("9480.00");
+        assertThat(context.spendingSummary().byCategory().keySet())
+            .containsExactlyInAnyOrder("ALIMENTACAO", "MORADIA", "OUTROS");
+        assertThat(context.spendingSummary().byCategory().get("ALIMENTACAO"))
+            .isEqualByComparingTo("500.00");
+        assertThat(context.spendingSummary().byCategory().get("MORADIA"))
+            .isEqualByComparingTo("1000.00");
+        assertThat(context.spendingSummary().byCategory().get("OUTROS"))
+            .isEqualByComparingTo("20.00");
         Map<String, Object> analyticalFacts = context.analyticalFacts();
         Map<String, Object> monthRankings =
             (Map<String, Object>) analyticalFacts.get("month_rankings");
@@ -225,6 +244,7 @@ class AgentStreamingServiceTest {
             messageRepository,
             mock(UserRepository.class),
             transactionRepository,
+            mock(TransactionCategoryRepository.class),
             aiServiceClient,
             new ObjectMapper()
         );
@@ -311,6 +331,7 @@ class AgentStreamingServiceTest {
             messageRepository,
             mock(UserRepository.class),
             transactionRepository,
+            mock(TransactionCategoryRepository.class),
             aiServiceClient,
             new ObjectMapper()
         );
@@ -371,6 +392,7 @@ class AgentStreamingServiceTest {
             messageRepository,
             mock(UserRepository.class),
             transactionRepository,
+            mock(TransactionCategoryRepository.class),
             aiServiceClient,
             new ObjectMapper()
         );
@@ -395,7 +417,8 @@ class AgentStreamingServiceTest {
                                            String description,
                                            String amount,
                                            String date,
-                                           TransactionType type) {
+                                           TransactionType type,
+                                           UUID categoryId) {
         Transaction transaction = new Transaction();
         transaction.setId(UUID.randomUUID());
         transaction.setUser(user);
@@ -405,7 +428,16 @@ class AgentStreamingServiceTest {
         transaction.setAmount(new BigDecimal(amount));
         transaction.setTransactionDate(LocalDate.parse(date));
         transaction.setType(type);
+        transaction.setCategoryId(categoryId);
         transaction.setRecurrent(false);
         return transaction;
+    }
+
+    private static TransactionCategory category(UUID id, String code) {
+        TransactionCategory category = new TransactionCategory();
+        category.setId(id);
+        category.setCode(code);
+        category.setName(code);
+        return category;
     }
 }

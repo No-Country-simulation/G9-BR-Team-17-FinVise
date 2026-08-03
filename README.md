@@ -27,7 +27,7 @@ O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastr
 - Indicadores, resumos mensais e por categoria, recomendações determinísticas e simulação de poupança.
 - Agente com ferramentas analíticas, recuperação híbrida vetorial/full-text e respostas síncronas ou por SSE.
 - Seleção de origem e de fontes específicas (`sourceIds`) para isolar o contexto do agente.
-- Indexação RAG assíncrona após importação, com status consultável e reprocessamento manual.
+- Indexação RAG assíncrona por fila durável no PostgreSQL, com retry, status consultável e reprocessamento manual.
 - Interface React responsiva, PWA, rotas privadas e consumo do backend por `/api/v1`.
 
 ## 🏗️ Arquitetura
@@ -214,7 +214,7 @@ O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-serv
 | Banco/segurança | `POSTGRES_*`, `SPRING_DATASOURCE_*`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS` |
 | AI Service | `AI_SERVICE_URL`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
 | LLM | `ENABLE_LLM`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT` |
-| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE` |
+| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE`, `RAG_INDEX_QUEUE_*` |
 | Open Finance | `OPEN_FINANCE_*`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` |
 | Arquivos/OCI | `STORAGE_TYPE`, `STORAGE_LOCAL_BASE_PATH`, `OCI_NAMESPACE`, `OCI_BUCKET_NAME`, `OCI_REGION` |
 | E-mail | `RESEND_API_KEY`, `RESEND_FROM_ADDRESS` |

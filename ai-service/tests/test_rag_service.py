@@ -87,11 +87,14 @@ def test_retrieve_context_filters_vector_query_by_source(monkeypatch):
 
     query, params = connection.cursor_instance.executions[0]
     assert "source_type = %s" in query
+    assert "index_status = 'INDEXED'" in query
+    assert "embedding_model = %s" in query
     assert params == (
         "[0.5]",
         "gastos",
         "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
         "OPEN_FINANCE",
+        rag_service._embedding_model_name(),
         "[0.5]",
         12,
     )

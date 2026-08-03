@@ -56,14 +56,17 @@ A fila mantém no máximo um job por usuário e agrupa novas solicitações. Um 
 ### Idempotência
 
 - Transações são deduplicadas no RAG pelo índice parcial único `(user_id, source_type, source_id, transaction_id)`.
-- Chunks derivados têm `content_hash` e índice único por usuário/origem/tipo/hash.
-- Antes de reconstruir resumos de uma fonte, o backend remove os chunks derivados anteriores e preserva chunks de transação já conhecidos.
+- Todo chunk possui `chunk_key` estável e `schema_version`; a unicidade é garantida por `(user_id, source_type, source_id, chunk_key)`.
+- O backend reconcilia o conjunto desejado com o persistido: mantém chunks idênticos, atualiza os alterados e remove somente os que deixaram de existir.
+- Uma alteração de conteúdo invalida `embedding_model`, muda o status para `PENDING` e reenfileira o usuário. Alterações somente de metadados preservam o embedding.
+- Importação CSV, sincronização Open Finance e reclassificação passam por `FinancialSourceConsistencyService`, que reconstrói o snapshot antes de reconciliar os chunks na mesma transação.
+- A exclusão de uma fonte remove transações, snapshot e documentos RAG. As análises históricas são preservadas como registros do resultado produzido no momento da análise.
 - A indexação recalcula documentos quando `embedding` é nulo ou `embedding_model` difere do modelo efetivo.
 - `SKIP LOCKED` distribui jobs entre réplicas e um advisory lock por `user_id` protege a etapa no AI Service.
 
 ## Schema RAG
 
-As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21` e `V22`.
+As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21`, `V22` e `V23`.
 
 ### `rag_index_jobs`
 
@@ -89,6 +92,8 @@ Padrões operacionais: polling a cada `1000 ms`, lock de `120000 ms`, cinco tent
 | `source_id VARCHAR(255)` | UUID da importação/conexão representado como texto |
 | `transaction_id UUID` | vínculo opcional de chunk transacional |
 | `chunk_type VARCHAR(40)` | tipo de evidência |
+| `chunk_key VARCHAR(200)` | identidade estável usada na reconciliação incremental |
+| `schema_version VARCHAR(20)` | versão do contrato de construção do chunk |
 | `document_chunk TEXT` | conteúdo textual pesquisável |
 | `metadata JSONB` | origem, datas, valores, categoria e metadados de fatos |
 | `content_hash VARCHAR(64)` | idempotência dos chunks derivados |
@@ -210,6 +215,8 @@ FROM rag_documents
 WHERE user_id = :user_id
   AND source_type = :source_type
   AND source_id = ANY(:source_ids)
+  AND index_status = 'INDEXED'
+  AND embedding_model = :embedding_model
   AND embedding IS NOT NULL
 ORDER BY embedding <=> :query_vector
 LIMIT :candidate_limit;

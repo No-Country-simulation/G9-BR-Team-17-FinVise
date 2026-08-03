@@ -3,13 +3,12 @@ package com.financeai.backend;
 import com.financeai.backend.analysis.AnalysisService;
 import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.config.OpenFinanceProperties;
-import com.financeai.backend.fact.FinancialFactsService;
+import com.financeai.backend.fact.FinancialSourceConsistencyService;
 import com.financeai.backend.openfinance.OpenFinanceConnection;
 import com.financeai.backend.openfinance.OpenFinanceConnectionRepository;
 import com.financeai.backend.openfinance.OpenFinanceService;
 import com.financeai.backend.openfinance.OpenFinanceSyncResponse;
 import com.financeai.backend.openfinance.PluggyClient;
-import com.financeai.backend.rag.RagIngestionService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
@@ -53,9 +52,7 @@ class OpenFinanceServiceTest {
     @Mock
     private AnalysisService analysisService;
     @Mock
-    private RagIngestionService ragIngestionService;
-    @Mock
-    private FinancialFactsService financialFactsService;
+    private FinancialSourceConsistencyService sourceConsistencyService;
     @InjectMocks
     private OpenFinanceService service;
 
@@ -107,12 +104,12 @@ class OpenFinanceServiceTest {
                 assertThat(transaction.getAmount()).isEqualByComparingTo("75");
                 assertThat(transaction.getImportSourceId()).isEqualTo(connectionId);
             });
-        verify(transactionRepository).saveAll(transactions.getValue());
-        verify(financialFactsService).rebuild(
-            userId, com.financeai.backend.transaction.TransactionSource.OPEN_FINANCE_PLUGGY,
-            connectionId);
-        verify(ragIngestionService).ingestTransactions(
-            userId, "OPEN_FINANCE", connectionId.toString(), null, transactions.getValue());
+        verify(transactionRepository).saveAllAndFlush(transactions.getValue());
+        verify(sourceConsistencyService).refresh(
+            userId,
+            com.financeai.backend.transaction.TransactionSource.OPEN_FINANCE_PLUGGY,
+            connectionId,
+            null);
         verify(connection).setLastSyncAt(any(Instant.class));
         verify(analysisService).analyzeStoredTransactions(
             eq(userId), eq(ProfileAnalysisModel.FINANCIAL_RULES),

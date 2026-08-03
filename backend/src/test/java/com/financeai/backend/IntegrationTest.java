@@ -43,9 +43,17 @@ class IntegrationTest extends PostgresTestSupport {
             "select to_regclass('public.users')", String.class);
         String ragQueueTable = jdbcTemplate.queryForObject(
             "select to_regclass('public.rag_index_jobs')", String.class);
+        Integer ragConsistencyColumns = jdbcTemplate.queryForObject("""
+            select count(*)
+            from information_schema.columns
+            where table_schema = 'public'
+              and table_name = 'rag_documents'
+              and column_name in ('chunk_key', 'schema_version')
+            """, Integer.class);
 
-        assertThat(appliedMigrations).isEqualTo(22);
+        assertThat(appliedMigrations).isEqualTo(23);
         assertThat(usersTable).isEqualTo("users");
         assertThat(ragQueueTable).isEqualTo("rag_index_jobs");
+        assertThat(ragConsistencyColumns).isEqualTo(2);
     }
 }

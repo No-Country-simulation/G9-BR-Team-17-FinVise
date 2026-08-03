@@ -139,6 +139,50 @@ def test_agent_respond(client):
     assert len(data["tool_calls"]) > 0
 
 
+def test_agent_respond_compares_two_latest_months(client):
+    payload = {
+        "conversation_id": "conv-comparison",
+        "user_id": "user-1",
+        "messages": [
+            {"role": "user", "content": "Compare novembro com dezembro"}
+        ],
+        "context": {
+            "schema_version": "1.0",
+            "analytical_facts": {
+                "months": [
+                    {
+                        "period": "2024-11",
+                        "transaction_count": 2,
+                        "total_income": 5000.0,
+                        "total_expenses": 1000.0,
+                        "balance": 4000.0,
+                    },
+                    {
+                        "period": "2024-12",
+                        "transaction_count": 3,
+                        "total_income": 6000.0,
+                        "total_expenses": 1500.0,
+                        "balance": 4500.0,
+                    },
+                ]
+            },
+        },
+    }
+
+    response = client.post("/internal/v1/agent/respond", json=payload)
+
+    assert response.status_code == 200
+    tool_call = next(
+        item
+        for item in response.json()["tool_calls"]
+        if item["tool"] == "compare_periods"
+    )
+    assert tool_call["result"]["comparison_basis"] == "MONTHLY"
+    assert tool_call["result"]["current_period"]["period"] == "2024-12"
+    assert tool_call["result"]["previous_period"]["period"] == "2024-11"
+    assert tool_call["result"]["changes"]["balance"] == 500.0
+
+
 def test_agent_respond_stream_uses_named_sse_events(client):
     payload = {
         "conversation_id": "conv-1",

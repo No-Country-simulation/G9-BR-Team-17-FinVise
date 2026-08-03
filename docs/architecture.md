@@ -150,10 +150,13 @@ sequenceDiagram
     F->>B: POST /api/v1/imports/transactions/csv
     B->>B: Valida tipo, tamanho e SHA-256
     B->>S: Armazena o arquivo
-    B->>B: Parseia linhas e categoriza
-    B->>DB: Persiste arquivo e transações
-    B->>DB: Reconstrói fatos/chunks e enfileira job RAG na mesma transação
-    B->>B: Tenta gerar análise automática
+    B->>B: Parseia o conteúdo fora de transação de banco
+    B->>AI: Classifica transações em lotes fora de transação de banco
+    B->>DB: Em transação curta, persiste arquivo e transações
+    B->>DB: Reconstrói fatos/chunks e enfileira job RAG no mesmo commit
+    alt Persistência falha
+        B->>S: Remove o arquivo armazenado
+    end
     B-->>F: ImportResultResponse
     B->>DB: Worker reivindica job com SKIP LOCKED
     B->>AI: POST /internal/v1/rag/index síncrono
@@ -161,18 +164,19 @@ sequenceDiagram
     B->>DB: Conclui ou reagenda job com backoff
 ```
 
-O job é persistido na mesma transação dos chunks. A indexação ocorre depois do commit por um worker do backend; falhas são reagendadas com backoff exponencial e jobs interrompidos podem ser retomados após o timeout do lock.
+O armazenamento, o parsing e a classificação não mantêm uma transação PostgreSQL aberta. O job RAG é persistido na mesma transação dos chunks. A indexação ocorre depois do commit por um worker do backend; falhas são reagendadas com backoff exponencial e jobs interrompidos podem ser retomados após o timeout do lock.
 
 ### Sincronização Open Finance
 
 1. Frontend consulta o status e solicita um Connect Token ao backend.
 2. Backend autentica na Pluggy e vincula `clientUserId` ao UUID do usuário.
 3. Após o widget devolver `itemId`, o frontend chama `/items/{itemId}/sync`.
-4. Backend verifica o proprietário, busca contas e até 100 páginas de transações por conta.
-5. Apenas registros `POSTED` válidos são mapeados; duplicatas são ignoradas.
-6. Backend persiste, recalcula fatos, cria chunks, gera análise e solicita embeddings.
+4. Backend verifica o proprietário e busca contas e até 100 páginas de transações por conta sem manter transação de banco aberta.
+5. Apenas registros `POSTED` válidos são mapeados; IDs externos existentes são carregados em uma única consulta e somente os candidatos novos são classificados.
+6. Uma transação curta, serializada por conexão com advisory lock, grava os registros em lotes com `ON CONFLICT DO NOTHING`, recalcula fatos, cria chunks e registra o job RAG.
+7. Depois do commit, o backend calcula o perfil no AI Service e abre outra transação curta apenas para persistir a análise.
 
-Não existe consumidor de webhook no código atual; a sincronização é acionada pelo endpoint.
+Não existe consumidor de webhook no código atual; a sincronização é acionada pelo endpoint. Chamadas à Pluggy e ao AI Service nunca são executadas dentro da transação que persiste a sincronização.
 
 ### Análise financeira
 

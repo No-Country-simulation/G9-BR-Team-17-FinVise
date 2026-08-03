@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -36,6 +37,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     List<Transaction> findByUserIdAndSourceAndCategoryId(UUID userId, String source, UUID categoryId);
 
     boolean existsByUserIdAndSourceAndExternalId(UUID userId, String source, String externalId);
+
+    @Query("SELECT t.externalId FROM Transaction t WHERE t.user.id = :userId " +
+        "AND t.source = :source AND t.externalId IN :externalIds")
+    Set<String> findExistingExternalIds(@Param("userId") UUID userId,
+                                        @Param("source") String source,
+                                        @Param("externalIds") List<String> externalIds);
 
     long deleteByUserIdAndImportSourceId(UUID userId, UUID importSourceId);
 

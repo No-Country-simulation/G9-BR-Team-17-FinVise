@@ -43,7 +43,8 @@ class ResourceOwnershipTest {
             mock(TransactionCategoryRepository.class),
             mock(UserRepository.class),
             mock(AiServiceClient.class),
-            mock(RecommendationEngine.class)
+            mock(RecommendationEngine.class),
+            mock(org.springframework.transaction.support.TransactionOperations.class)
         );
 
         assertThatThrownBy(() -> service.getAnalysis(userId, analysisId))

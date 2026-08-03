@@ -348,7 +348,7 @@ Tarifa,-25.00,2026-07-06,,DEBIT_CARD,0
 
 Cabeçalhos não diferenciam maiúsculas de minúsculas. `categoria`, `subcategoria`, `forma_pagamento`, `canal` e outros campos do dataset sintético não são lidos pelo importador atual.
 
-Depois de persistir as linhas válidas, o backend categoriza as transações, reconstrói fatos financeiros, cria chunks RAG, grava um job durável de indexação na mesma transação e tenta gerar uma análise `MACHINE_LEARNING`. A ausência de receitas ou de transações impede apenas essa análise automática. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham.
+O backend categoriza as linhas válidas antes de abrir a transação de persistência. Em uma transação curta, grava o arquivo e as transações, reconstrói fatos financeiros, cria chunks RAG e registra o job durável de indexação no mesmo commit. A importação não gera análise financeira automaticamente; ela pode ser solicitada depois por `/financial-analyses/from-transactions`. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham. Se a persistência falhar, o objeto armazenado é removido como compensação.
 
 Resposta em `data`:
 

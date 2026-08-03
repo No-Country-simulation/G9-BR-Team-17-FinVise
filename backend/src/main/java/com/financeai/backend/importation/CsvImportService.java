@@ -2,14 +2,10 @@ package com.financeai.backend.importation;
 
 import com.financeai.backend.common.exception.BusinessException;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
-import com.financeai.backend.fact.FinancialSourceConsistencyService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
-import com.financeai.backend.transaction.TransactionRepository;
-import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.transaction.TransactionType;
-import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -17,7 +13,6 @@ import org.apache.commons.csv.CSVRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -38,30 +33,26 @@ public class CsvImportService {
 
     private static final Logger log = LoggerFactory.getLogger(CsvImportService.class);
 
-    private final TransactionRepository transactionRepository;
     private final TransactionCategorizationService categorizationService;
     private final ImportedFileRepository importedFileRepository;
     private final UserRepository userRepository;
     private final ObjectStorageService objectStorageService;
-    private final FinancialSourceConsistencyService sourceConsistencyService;
+    private final CsvImportPersistenceService persistenceService;
 
-    public CsvImportService(TransactionRepository transactionRepository,
-                            TransactionCategorizationService categorizationService,
+    public CsvImportService(TransactionCategorizationService categorizationService,
                             ImportedFileRepository importedFileRepository,
                             UserRepository userRepository,
                             ObjectStorageService objectStorageService,
-                            FinancialSourceConsistencyService sourceConsistencyService) {
-        this.transactionRepository = transactionRepository;
+                            CsvImportPersistenceService persistenceService) {
         this.categorizationService = categorizationService;
         this.importedFileRepository = importedFileRepository;
         this.userRepository = userRepository;
         this.objectStorageService = objectStorageService;
-        this.sourceConsistencyService = sourceConsistencyService;
+        this.persistenceService = persistenceService;
     }
 
-    @Transactional
     public ImportResultResponse importTransactionsCsv(UUID userId, MultipartFile file) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
 
         String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.csv";
@@ -74,32 +65,16 @@ public class CsvImportService {
 
         String contentHash = calculateSha256(fileContent);
         if (importedFileRepository.existsByUserIdAndContentHash(userId, contentHash)) {
-            throw new BusinessException(
-                "DUPLICATE_FILE",
-                "Este mesmo arquivo CSV já foi importado. Nenhuma transação foi duplicada."
-            );
+            throw CsvImportPersistenceService.duplicateFile();
         }
 
         String storedName = objectStorageService.store(
             new ByteArrayInputStream(fileContent), originalName, fileContent.length);
-
-        ImportedFile importedFile = new ImportedFile();
-        importedFile.setUser(user);
-        importedFile.setOriginalName(originalName);
-        importedFile.setStoredName(storedName);
-        importedFile.setSizeBytes(file.getSize());
-        importedFile.setContentHash(contentHash);
-        importedFile.setStatus(ImportStatus.PROCESSING);
-        importedFile = importedFileRepository.save(importedFile);
-
         List<String> errors = new ArrayList<>();
-        int processedCount = 0;
-        int categorizedCount = 0;
-        String classificationModel = "NOT_APPLICABLE";
         List<Transaction> transactions = new ArrayList<>();
 
-        try (InputStream storedData = objectStorageService.retrieve(storedName);
-             CSVParser parser = CSVParser.parse(storedData, java.nio.charset.StandardCharsets.UTF_8,
+        try (InputStream csvData = new ByteArrayInputStream(fileContent);
+             CSVParser parser = CSVParser.parse(csvData, java.nio.charset.StandardCharsets.UTF_8,
                  CSVFormat.DEFAULT.builder()
                      .setHeader()
                      .setSkipHeaderRecord(true)
@@ -111,7 +86,7 @@ public class CsvImportService {
             for (CSVRecord record : parser) {
                 try {
                     CsvTransactionRecord csvRecord = parseRecord(record);
-                    transactions.add(buildTransaction(user, importedFile.getId(), csvRecord));
+                    transactions.add(buildTransaction(csvRecord));
                 } catch (Exception e) {
                     errors.add("Linha " + lineNumber + ": " + e.getMessage());
                     log.warn("Falha ao importar linha {} do arquivo {}", lineNumber, originalName, e);
@@ -121,43 +96,22 @@ public class CsvImportService {
 
             TransactionCategorizationService.CategorizationResult categorization =
                 categorizationService.categorize(transactions);
-            transactionRepository.saveAllAndFlush(transactions);
-            sourceConsistencyService.refresh(
+            return persistenceService.persist(
                 userId,
-                TransactionSource.CSV_IMPORT,
-                importedFile.getId(),
-                importedFile.getOriginalName());
-            processedCount = transactions.size();
-            categorizedCount = categorization.categorizedCount();
-            classificationModel = categorization.modelVersion();
-
+                originalName,
+                storedName,
+                file.getSize(),
+                contentHash,
+                transactions,
+                categorization,
+                List.copyOf(errors));
         } catch (IOException e) {
-            importedFile.setStatus(ImportStatus.FAILED);
-            importedFile.setErrorMessage(e.getMessage());
-            importedFileRepository.save(importedFile);
+            cleanupStoredFile(storedName, e);
             throw new BusinessException("CSV_PARSE_ERROR", "Falha ao processar arquivo CSV", e);
+        } catch (RuntimeException e) {
+            cleanupStoredFile(storedName, e);
+            throw e;
         }
-
-        if (errors.isEmpty()) {
-            importedFile.setStatus(ImportStatus.COMPLETED);
-        } else {
-            importedFile.setStatus(ImportStatus.COMPLETED);
-            importedFile.setErrorMessage(String.join("; ", errors));
-        }
-        importedFile.setProcessedCount(processedCount);
-        importedFile.setCategorizedCount(categorizedCount);
-        importedFileRepository.save(importedFile);
-
-        return new ImportResultResponse(
-            importedFile.getId(),
-            importedFile.getOriginalName(),
-            importedFile.getStoredName(),
-            importedFile.getStatus(),
-            processedCount,
-            categorizedCount,
-            classificationModel,
-            errors
-        );
     }
 
     private CsvTransactionRecord parseRecord(CSVRecord record) {
@@ -200,9 +154,8 @@ public class CsvImportService {
         return new CsvTransactionRecord(description, amount, date, type, paymentMethod, recurrent);
     }
 
-    private Transaction buildTransaction(User user, UUID importSourceId, CsvTransactionRecord record) {
+    private Transaction buildTransaction(CsvTransactionRecord record) {
         Transaction transaction = new Transaction();
-        transaction.setUser(user);
         transaction.setDescription(record.description());
         transaction.setAmount(record.amount());
         transaction.setTransactionDate(record.date());
@@ -210,8 +163,16 @@ public class CsvImportService {
         transaction.setPaymentMethod(record.paymentMethod());
         transaction.setRecurrent(record.recurrent() != null ? record.recurrent() : false);
         transaction.setSource("CSV_IMPORT");
-        transaction.setImportSourceId(importSourceId);
         return transaction;
+    }
+
+    private void cleanupStoredFile(String storedName, Exception originalFailure) {
+        try {
+            objectStorageService.delete(storedName);
+        } catch (RuntimeException cleanupFailure) {
+            originalFailure.addSuppressed(cleanupFailure);
+            log.error("Falha ao remover arquivo {} após erro na importação", storedName, cleanupFailure);
+        }
     }
 
     private String getValue(CSVRecord record, String header) {

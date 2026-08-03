@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     rag_embedding_batch_size: int = Field(default=200, alias="RAG_EMBEDDING_BATCH_SIZE")
     rag_index_max_batches: int = Field(default=100, alias="RAG_INDEX_MAX_BATCHES")
     rag_min_relevance: float = Field(default=0.18, alias="RAG_MIN_RELEVANCE")
+    rag_db_pool_min_size: int = Field(
+        default=0, ge=0, alias="RAG_DB_POOL_MIN_SIZE"
+    )
+    rag_db_pool_max_size: int = Field(
+        default=10, ge=1, alias="RAG_DB_POOL_MAX_SIZE"
+    )
+    rag_db_pool_timeout_seconds: float = Field(
+        default=10.0, gt=0, alias="RAG_DB_POOL_TIMEOUT_SECONDS"
+    )
 
     agent_system_prompt_path: Path = Field(
         default=Path("app/agent/prompts/system_prompt.txt"), alias="AGENT_SYSTEM_PROMPT_PATH"

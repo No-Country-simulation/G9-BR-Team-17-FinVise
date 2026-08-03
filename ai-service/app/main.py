@@ -12,17 +12,15 @@ configure_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from app.agent.orchestration.agent import get_agent, reset_agent
-    from app.core.http_client import close_http_client
+    from app.agent.rag_service import rag_service
     from app.model_registry.registry import get_registry
 
     get_registry()
-    get_agent()
+    rag_service.open()
     try:
         yield
     finally:
-        reset_agent()
-        close_http_client()
+        rag_service.close()
 
 
 app = FastAPI(

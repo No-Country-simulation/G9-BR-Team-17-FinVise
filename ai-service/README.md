@@ -101,6 +101,16 @@ SPRING_DATASOURCE_PASSWORD=<senha>
 
 Fallbacks: `POSTGRES_USER`, `POSTGRES_PASSWORD` e banco `finvise`. O serviço não lê uma variável separada de host/porta; eles são extraídos da URL.
 
+As conexões são reutilizadas por um pool iniciado e encerrado com a aplicação:
+
+| Variável | Padrão | Uso |
+| --- | --- | --- |
+| `RAG_DB_POOL_MIN_SIZE` | `0` | conexões mantidas mesmo sem demanda |
+| `RAG_DB_POOL_MAX_SIZE` | `10` | limite de conexões simultâneas do AI Service |
+| `RAG_DB_POOL_TIMEOUT_SECONDS` | `10` | espera máxima por uma conexão disponível |
+
+`RAG_DB_POOL_MIN_SIZE` não pode superar `RAG_DB_POOL_MAX_SIZE`. O padrão mínimo zero evita conexão antecipada; após o primeiro uso, conexões ociosas permanecem disponíveis para reutilização conforme a política do pool.
+
 ### LLM
 
 | Variável | Padrão |

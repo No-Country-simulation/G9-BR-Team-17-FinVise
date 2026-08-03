@@ -2,9 +2,12 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Callable
+from threading import Lock
 from typing import Any
 
 import psycopg
+from psycopg_pool import ConnectionPool
 
 from app.core.config import settings
 from app.core.http_client import get_http_client
@@ -14,7 +17,10 @@ logger = get_logger(__name__)
 
 
 class RAGService:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        pool_factory: Callable[..., ConnectionPool] = ConnectionPool,
+    ) -> None:
         raw_url = os.getenv(
             "SPRING_DATASOURCE_URL",
             os.getenv("DATABASE_URL", "jdbc:postgresql://postgres:5432/finvise"),
@@ -37,15 +43,50 @@ class RAGService:
             "SPRING_DATASOURCE_PASSWORD", os.getenv("POSTGRES_PASSWORD", "")
         )
         self.dimension = 1536
+        self._pool_factory = pool_factory
+        self._pool: ConnectionPool | None = None
+        self._pool_lock = Lock()
+
+    def open(self) -> None:
+        """Creates the pool without forcing a database connection at startup."""
+        with self._pool_lock:
+            if self._pool is not None:
+                return
+            if settings.rag_db_pool_min_size > settings.rag_db_pool_max_size:
+                raise ValueError(
+                    "RAG_DB_POOL_MIN_SIZE must not exceed RAG_DB_POOL_MAX_SIZE"
+                )
+            pool = self._pool_factory(
+                "",
+                kwargs={
+                    "host": self.db_host,
+                    "port": self.db_port,
+                    "dbname": self.db_name,
+                    "user": self.db_user,
+                    "password": self.db_pass,
+                },
+                min_size=settings.rag_db_pool_min_size,
+                max_size=settings.rag_db_pool_max_size,
+                timeout=settings.rag_db_pool_timeout_seconds,
+                open=False,
+                name="rag-postgresql",
+            )
+            pool.open(wait=False)
+            self._pool = pool
+
+    def close(self) -> None:
+        with self._pool_lock:
+            if self._pool is None:
+                return
+            self._pool.close()
+            self._pool = None
 
     def _get_connection(self):
-        return psycopg.connect(
-            host=self.db_host,
-            port=self.db_port,
-            dbname=self.db_name,
-            user=self.db_user,
-            password=self.db_pass,
-        )
+        self.open()
+        pool = self._pool
+        if pool is None:  # pragma: no cover - protected by open()
+            raise RuntimeError("RAG PostgreSQL pool is not available")
+        return pool.connection(timeout=settings.rag_db_pool_timeout_seconds)
 
     def _ensure_embedding_column(self, conn: psycopg.Connection) -> bool:
         """Read-only capability check. Schema changes belong exclusively to Flyway."""

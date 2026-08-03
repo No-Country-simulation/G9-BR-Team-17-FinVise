@@ -1,267 +1,261 @@
-<h1 align="center">FinVise — Plataforma de Inteligência Financeira IA</h1>
+<h1 align="center">FinVise - Plataforma de Inteligência Financeira</h1>
 
 <p align="center">
-  <b>Transforme planilhas de transações e extratos em decisões estratégicas — diagnóstico executivo automático, ciência de dados e agente inteligente conversacional.</b>
+  <b>Importação de transações, análises financeiras explicáveis, modelos de classificação e agente conversacional com recuperação de contexto.</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+" />
-  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/Java_21-Spring_Boot_3-6DB33F?style=for-the-badge&logo=spring&logoColor=white" alt="Java 21 Spring Boot 3" />
-  <img src="https://img.shields.io/badge/React_19-Vite_7-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
-  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 16" />
-  <img src="https://img.shields.io/badge/OpenAI_/_LLM-412991?style=for-the-badge&logo=openai&logoColor=white" alt="OpenAI" />
+  <img src="https://img.shields.io/badge/FastAPI-0.115.6-005571?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI 0.115.6" />
+  <img src="https://img.shields.io/badge/Java_21-Spring_Boot_3.2.5-6DB33F?style=for-the-badge&logo=spring&logoColor=white" alt="Java 21 e Spring Boot 3.2.5" />
+  <img src="https://img.shields.io/badge/React_19.2-Vite_7.3-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19.2 e Vite 7.3" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16_+_pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 16 com pgvector" />
   <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Compose" />
 </p>
 
-<p align="center">
-  <a href="#-visão-geral">Visão Geral</a> •
-  <a href="#%EF%B8%8F-arquitetura">Arquitetura</a> •
-  <a href="#-tecnologias">Tecnologias</a> •
-  <a href="#-instalação-rápida">Instalação Rápida</a> •
-  <a href="#-ciência-de-dados--machine-learning">Machine Learning</a> •
-  <a href="#-endpoints-da-api">Endpoints</a> •
-  <a href="#-documentação">Documentação</a>
-</p>
+## 📌 Visão geral
 
----
+O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastrar uma conta, importar transações por CSV ou sincronizá-las pela Pluggy, gerar análises com modelos de Machine Learning ou regras determinísticas e consultar os dados pelo agente financeiro.
 
-> *"O FinVise não mostra apenas para onde o dinheiro foi. Ele explica o que está acontecendo e indica o próximo passo."*
+### Funcionalidades implementadas
 
----
-
-## 📌 Visão Geral
-
-O **FinVise** é uma solução Fintech end-to-end desenvolvida para transformar transações financeiras brutas em diagnósticos executivos explicáveis e acionáveis. Através de algoritmos de Machine Learning, regras financeiras determinísticas e um Agente Conversacional (LLM), a plataforma capacita o usuário a entender seu comportamento financeiro e evoluir sua saúde financeira.
-
-### 🌟 Funcionalidades Principais
-
-- 🏷️ **Classificação Automática de Transações**: Categorização inteligente baseada em modelos de ML treinados e processamento de texto.
-- 🔍 **RAG & Banco Vetorial (`pgvector`)**: Busca por similaridade de cosseno em vetor de 1536 dimensões (`text-embedding-3-small`) para recuperação contextual exata de transações.
-- ⚡ **Processamento de Embeddings em Lote (Batching)**: Geração otimizada de embeddings em lote de 1 única chamada HTTP, reduzindo consumo de tokens, custo e latência de rede.
-- ⚡ **Chat ao Vivo via SSE (Server-Sent Events)**: Respostas em tempo real com efeito de digitação suave no Agente Conversacional.
-- 🎨 **Interface Limpa com Ícones Elegantes**: Subtituição de emojis por ícones minimalistas Lucide SVG (`Tag`, `BarChart3`, `Lightbulb`, `CreditCard`, `Search`, etc.) nos badges de ferramentas.
-- 📊 **Resumo de Gastos e Séries Temporais**: Visão consolidada por categoria, origem de dados (`CsvImport` ou `OpenFinance`) e evolução mensal.
-- 📈 **Indicadores de Saúde Financeira**: Cálculo de pontuação e métricas de sustentabilidade orçamentária.
-- 👤 **Classificação de Perfil Financeiro**: Identificação automática do perfil do usuário por ML ou Regras Financeiras.
-- 💡 **Recomendações Explicáveis e Personalizadas**: Dicas acionáveis orientadas ao perfil e hábitos de consumo identificados.
-- 💬 **Agente Financeiro Inteligente (LLM)**: Chat em tempo real com controle de grounding estrito (*Strict RAG*) para evitar alucinações.
-- 🔗 **Open Finance (Pluggy Integration)**: Conexão direta com instituições bancárias mantendo credenciais protegidas server-side.
-- 🛑 **Anti-Duplicação por Hash SHA-256**: Bloqueio de importações repetidas de planilhas CSV para garantia da integridade dos dados.
+- Cadastro, login JWT e redefinição de senha com código enviado pela Resend.
+- Importação de CSV com limite de 5 MiB, armazenamento local ou OCI Object Storage e bloqueio de arquivo repetido por SHA-256.
+- Integração Open Finance com Pluggy para Connect Token e sincronização explícita de um `itemId`.
+- Classificação de transações por modelo Scikit-learn ou fallback por palavras-chave.
+- Classificação de perfil por modelo Scikit-learn, regras financeiras selecionáveis ou fallback.
+- Indicadores, resumos mensais e por categoria, recomendações determinísticas e simulação de poupança.
+- Agente com ferramentas analíticas, recuperação híbrida vetorial/full-text e respostas síncronas ou por SSE.
+- Seleção de origem e de fontes específicas (`sourceIds`) para isolar o contexto do agente.
+- Indexação RAG assíncrona após importação, com status consultável e reprocessamento manual.
+- Interface React responsiva, PWA, rotas privadas e consumo do backend por `/api/v1`.
 
 ## 🏗️ Arquitetura
 
-O projeto é estruturado como um **Monorepo** desacoplado, resiliente e escalável:
-
 ```text
-                           ┌───────────────────────────┐
-                           │          Usuário          │
-                           └─────────────┬─────────────┘
-                                         │ HTTPS
-                                         ▼
-                           ┌───────────────────────────┐
-                           │     Nginx Reverse Proxy   │
-                           └──────┬─────────────┬──────┘
-                                  │             │
-                    ┌─────────────┘             └─────────────┐
-                    ▼                                         ▼
-   ┌─────────────────────────────────┐       ┌─────────────────────────────────┐
-   │        frontend (React 19)      │       │     backend (Spring Boot 3)     │
-   │      TypeScript + Vite + PWA    │       │     Java 21 + PostgreSQL 16    │
-   └─────────────────────────────────┘       └────────────────┬────────────────┘
-                                                              │
-                                                              ▼
-                                             ┌─────────────────────────────────┐
-                                             │     ai-service (FastAPI)        │
-                                             │  Python + Scikit-Learn + LLM    │
-                                             └─────────────────────────────────┘
+Navegador
+   │ HTTP local ou HTTPS com terminação TLS externa
+   ▼
+Nginx :8080 (desenvolvimento) / :80 (produção)
+   ├── /, assets e rotas SPA ───────────────► frontend (React)
+   ├── /api/* e /actuator/health ───────────► backend (Spring Boot)
+   └── /internal/* ─────────────────────────► 403
+                                                │
+                           ┌────────────────────┴────────────────────┐
+                           ▼                                         ▼
+                  ai-service (FastAPI)                     PostgreSQL 16 + pgvector
+                           │                                         ▲
+                           ├── modelos Joblib                        │
+                           ├── API compatível com OpenAI             │
+                           └── SQL direto restrito a RAG ────────────┘
 ```
 
 ### Componentes
 
-- **`frontend`**: Interface reativa e moderna construída com React 19, Vite 7, TypeScript e suporte a Progressive Web App (PWA).
-- **`backend`**: API RESTful robusta desenvolvida em Java 21 com Spring Boot 3, JPA/Hibernate, segurança JWT e banco PostgreSQL 16.
-- **`ai-service`**: Microserviço em Python (FastAPI) responsável pela inferência de ML, engenharia de atributos, explicabilidade (SHAP) e agente LLM.
+- **`frontend/`**: React 19.2.7, TypeScript, Vite 7.3.6, React Router, TanStack Query, React Hook Form, Zod, Recharts e Tailwind CSS.
+- **`backend/`**: Java 21, Spring Boot 3.2.5, Spring Security, JWT, JPA, Flyway, PostgreSQL, Pluggy, Resend e armazenamento local/OCI.
+- **`ai-service/`**: Python 3.11+, FastAPI, Scikit-learn, Pandas, Psycopg e cliente HTTP para Chat Completions/Embeddings. Não há dependência de LangChain nem de SHAP.
+- **`infrastructure/`**: Nginx, scripts Bash de ciclo de vida, health check, backup e restore.
 
----
+O backend é o proprietário das regras de negócio, do schema Flyway e dos dados financeiros. O AI Service acessa diretamente `rag_documents` para gerar/persistir embeddings e recuperar evidências; as demais informações do agente são calculadas no backend e enviadas no contexto da chamada.
 
-## 🛠️ Tecnologias
+Mais detalhes em [`docs/architecture.md`](docs/architecture.md) e [`docs/rag-architecture.md`](docs/rag-architecture.md).
 
-| Camada | Tecnologia | Versão | Descrição |
-| :--- | :--- | :--- | :--- |
-| **Frontend** | React, Vite, TypeScript | React 19 / Vite 7 | Interface SPA e PWA responsiva e dinâmica |
-| **Backend** | Java, Spring Boot | Java 21 / Spring 3.x | Regras de negócio, autenticação JWT e integrações |
-| **Database** | PostgreSQL | 16 | Banco de dados relacional e persistência financeira |
-| **AI / ML** | Python, FastAPI, Scikit-Learn | Python 3.11+ / FastAPI | Classificação de transações, perfis e inteligência |
-| **LLM / Agente** | OpenAI API / LangChain | GPT-4o / GPT-3.5 | Agente conversacional que analisa dados em tempo real |
-| **Infraestrutura** | Docker, Docker Compose, Nginx | Latest | Conteinerização completa e roteamento seguro |
+## 🛠️ Tecnologias e versões
 
----
+| Camada | Versão comprovada nos manifests | Uso |
+| --- | --- | --- |
+| Frontend | React 19.2.7, Vite 7.3.6, TypeScript 5.5.x | SPA/PWA e interface |
+| Backend | Java 21, Spring Boot 3.2.5 | API, segurança, persistência e integrações |
+| Banco | imagem `pgvector/pgvector:pg16` | Dados relacionais, JSONB, full-text e vetores de 1536 dimensões |
+| AI/ML | Python >= 3.11, FastAPI 0.115.6, Scikit-learn 1.9.0 | Inferência, treinamento e agente |
+| LLM | API HTTP configurável; padrão `gpt-4o-mini` | Chat opcional e embeddings remotos |
+| Infraestrutura | Docker Compose e Nginx 1.27 Alpine | Orquestração e proxy reverso |
 
-## ⚡ Instalação Rápida
+Consulte os manifests para a lista completa: [`backend/pom.xml`](backend/pom.xml), [`frontend/package.json`](frontend/package.json) e [`ai-service/pyproject.toml`](ai-service/pyproject.toml).
+
+## ⚡ Instalação rápida com Docker
 
 ### Pré-requisitos
 
-- **Docker** e **Docker Compose** instalados
-- *(Opcional para desenvolvimento local sem Docker)*: Java 21+, Python 3.11+, Node.js 22.12+
+- Docker Engine com o plugin Docker Compose.
+- GNU Make, caso sejam usados os atalhos do `Makefile`.
 
-### Passos para Execução
+### Execução
 
 ```bash
-# 1. Clone o repositório
 git clone https://github.com/No-Country-simulation/G9-BR-Team-17-FinVise.git
 cd G9-BR-Team-17-FinVise
 
-# 2. Configure as variáveis de ambiente
 cp .env.example .env
-# Preencha POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD e JWT_SECRET.
-# As duas senhas do banco devem ter o mesmo valor; JWT_SECRET exige 32+ caracteres.
+# Defina ao menos POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD e JWT_SECRET.
+# As duas senhas do banco devem ser iguais.
 
-# 3. Gere as amostras do dataset de treino
-python data/scripts/create_samples.py
-
-# 4. Inicie todos os serviços via Docker Compose
-make up
+docker compose up -d --build
 ```
 
-Acesse a aplicação no navegador em: **`http://localhost:8080`**
+A aplicação fica disponível em `http://localhost:8080`. No Compose versionado, PostgreSQL, backend e AI Service não publicam portas no host; o acesso externo ocorre somente pelo Nginx.
 
----
+Requisitos dos segredos:
 
-## 🛠️ Comandos Úteis (`Makefile`)
+- `JWT_SECRET`: pelo menos 32 bytes para a chave HMAC.
+- `POSTGRES_PASSWORD` e `SPRING_DATASOURCE_PASSWORD`: mesmo valor; no perfil `production`, o backend exige pelo menos 16 caracteres e rejeita placeholders conhecidos.
+- `RESEND_API_KEY`: necessária para a entrega efetiva de e-mails de redefinição de senha. A ausência da chave não impede o backend de iniciar, mas o envio falhará de forma assíncrona.
 
-A plataforma inclui um `Makefile` configurado para automatizar todo o ciclo de vida do desenvolvimento:
+Open Finance, LLM, embeddings remotos e OCI Object Storage são opcionais. Consulte [Variáveis de ambiente](#variáveis-de-ambiente).
 
-| Comando | Descrição |
-| :--- | :--- |
-| `make setup` | Cria o arquivo `.env` e gera os dados de amostra iniciais |
-| `make build` | Constrói todas as imagens Docker dos microserviços |
-| `make up` | Inicia os containers em segundo plano |
-| `make down` | Interrompe e remove os containers ativos |
-| `make logs` | Exibe os logs unificados em tempo real |
-| `make test` | Executa a suíte completa de testes (Backend, Frontend e AI) |
-| `make health` | Verifica a saúde operacional de todas as APIs |
-| `make backup` | Executa backup do banco PostgreSQL |
-| `make restore` | Restaura o banco PostgreSQL a partir de um backup |
+## 🛠️ Comandos do Makefile
 
----
+| Comando | Comportamento atual |
+| --- | --- |
+| `make setup` | Copia `.env.example` quando necessário e tenta gerar amostras a partir de `data/raw/finance_ai_dataset/` |
+| `make build` | Reconstrói as imagens sem cache |
+| `make up` | Inicia o Compose em segundo plano |
+| `make down` | Encerra os containers sem remover volumes |
+| `make logs` | Acompanha os logs de todos os serviços |
+| `make test` | Executa testes de backend, AI Service e frontend |
+| `make health` | Faz verificações HTTP de melhor esforço; o AI Service não é publicado pelo Compose padrão |
+| `make backup` | Gera um dump comprimido em `backups/` |
+| `make restore` | Invoca o script sem o argumento obrigatório e, no estado atual, termina exibindo o uso; execute o script diretamente com o backup |
+| `make clean` | **Remove containers e volumes**, inclusive os dados de PostgreSQL e uploads locais |
 
-## 🤖 Ciência de Dados & Machine Learning
+Para usar o override de produção nos alvos do Makefile, execute, por exemplo, `make up PROD=1`.
 
-O pipeline de inteligência do **FinVise** inclui EDA reproduzível, tratamento de linguagem natural para extratos bancários e explicabilidade de modelos.
+## 🤖 Ciência de dados e modelos
 
-### Treinamento dos Modelos via Makefile
+O dataset canônico está em `finance_ai_dataset/`. Os scripts usam esse caminho por padrão quando são executados a partir de `ai-service/`.
 
 ```bash
-make train-transaction-model   # Treina o classificador de transações
-make train-profile-model       # Treina o classificador de perfil financeiro
-make evaluate-models           # Executa a avaliação completa de métricas
+make train-transaction-model
+make train-profile-model
+make evaluate-models
 ```
 
-### Notebook de Ciência de Dados
+O classificador de transações usa TF-IDF de uni/bigramas com Regressão Logística. O classificador de perfil compara Regressão Logística e Random Forest durante o treinamento. Artefatos `.joblib` e metadados de modelos são ignorados pelo Git; sem artefatos válidos, o serviço usa classificadores fallback, salvo quando modelos ativos forem exigidos pela configuração.
 
-O notebook oficial da entrega está localizado em [`notebooks/finance_ai_data_science.ipynb`](notebooks/finance_ai_data_science.ipynb).
+O relatório reproduzível do conjunto `TEST` está em [`ai-service/reports/final-test/`](ai-service/reports/final-test/), e a metodologia completa está em [`docs/data-science.md`](docs/data-science.md).
 
-**O notebook cobre:**
-- **Análise Exploratória de Dados (EDA)** detalhada de transações e padrões de gastos
-- **Limpeza e Normalização Textual** das descrições de lançamentos bancários
-- **Engenharia de Atributos (Feature Engineering)** para extração de sinais financeiros
-- **Benchmark de Algoritmos**: Regressão Logística, Random Forest e SVM
-- **Avaliação em Split de Teste** com matrizes de confusão e métricas F1-Score
-- **Explicabilidade de Decisão** utilizando SHAP (*SHapley Additive exPlanations*) e Feature Importance
-- **Serialização de Modelos** e empacotamento de artefatos para a API de produção
+## 🔌 Importação de dados
 
----
+### CSV
 
-## 🔌 Open Finance & Importação CSV
+O importador da aplicação aceita cabeçalhos em inglês:
 
-A aplicação oferece duas formas independentes de ingestão de dados financeiros:
+```csv
+description,amount,date,type,payment_method,recurrent
+Supermercado ABC,150.50,2026-07-01,EXPENSE,CREDIT_CARD,false
+Salário,3500.00,2026-07-05,INCOME,PIX,true
+```
 
-1. **Importação via Planilhas CSV**:
-   - Suporte a extratos bancários padrão.
-   - Bloqueio de arquivos duplicados por verificação de **Hash SHA-256**.
-2. **Conexão Direta Open Finance (Pluggy)**:
-   - O backend gera o token seguro (`Connect Token`) sem expor credenciais no cliente.
-   - Sincronização automática de contas e transações via webhook ou polling.
-   - Evita dados duplicados por mapeamento de identificadores externos únicos.
+Campos obrigatórios: `description`, `amount` e `date`. `type` é opcional e aceita `INCOME`, `RECEITA`, `EXPENSE` ou `DESPESA`; quando omitido, o sinal de `amount` define o tipo. `payment_method` e `recurrent` são opcionais. A categoria é calculada pelo sistema — colunas `categoria`/`category` não são lidas pelo importador.
 
----
+Os CSVs do dataset de treinamento possuem outro schema e não podem ser enviados diretamente ao endpoint de importação sem transformação.
 
-## 🌐 Endpoints da API
+### Open Finance
 
-A documentação detalhada de endpoints está em [`docs/api.md`](docs/api.md). Principais rotas:
+O backend cria um Connect Token da Pluggy sem expor `PLUGGY_CLIENT_SECRET` ao navegador. Após a conexão, o frontend solicita explicitamente a sincronização de um `itemId`; o backend valida `clientUserId`, percorre contas/transações publicadas, evita duplicatas por identificador externo, categoriza, persiste, atualiza os fatos/RAG e gera uma análise.
 
-| Método | Endpoint | Descrição |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/auth/login` | Autenticação de usuário e emissão de JWT |
-| `POST` | `/api/v1/financial-analyses` | Solicita nova análise financeira |
-| `GET` | `/api/v1/financial-analyses/models` | Lista os modelos de perfil disponíveis (`MACHINE_LEARNING` / `FINANCIAL_RULES`) |
-| `POST` | `/api/v1/financial-analyses/from-transactions` | Analisa a base de transações persistidas |
-| `GET` | `/api/v1/transactions/monthly-summary` | Resumo mensal segregado por origem (CSV / Open Finance) |
-| `POST` | `/api/v1/open-finance/connect-token` | Gera token para o widget Pluggy Connect |
-| `POST` | `/api/v1/agent/conversations` | Inicia conversa com o Agente Financeiro IA |
-| `POST` | `/api/v1/agent/conversations/{id}/messages` | Envia mensagem para o Agente |
-| `GET` | `/api/v1/model-status` | Status de prontidão dos modelos de ML |
-| `GET` | `/actuator/health` | Health Check da aplicação |
+Não há endpoint receptor de webhook implementado no repositório. `OPEN_FINANCE_WEBHOOK_URL`, quando definido, é apenas encaminhado na criação do Connect Token.
 
----
+## 🌐 Endpoints principais
 
-## 🧪 Suíte de Testes
+Todas as rotas abaixo, exceto autenticação e health check, exigem JWT.
 
-Para garantir a qualidade e estabilidade do código, execute os testes por componente:
+| Método | Endpoint | Finalidade |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/register` | Cadastro |
+| `POST` | `/api/v1/auth/login` | Emissão de JWT |
+| `POST` | `/api/v1/auth/forgot-password` | Solicitação de código de redefinição |
+| `POST` | `/api/v1/imports/transactions/csv` | Importação CSV |
+| `GET` | `/api/v1/imports/sources` | Fontes CSV/Open Finance do usuário |
+| `GET` | `/api/v1/transactions` | Transações filtradas e paginadas |
+| `POST` | `/api/v1/financial-analyses/from-transactions` | Análise das transações persistidas |
+| `POST` | `/api/v1/open-finance/connect-token` | Connect Token da Pluggy |
+| `POST` | `/api/v1/open-finance/items/{itemId}/sync` | Sincronização explícita |
+| `POST` | `/api/v1/agent/conversations` | Nova conversa com origem e opções RAG |
+| `POST` | `/api/v1/agent/conversations/{id}/messages/stream` | Resposta do agente por SSE |
+| `GET` | `/api/v1/rag/status` | Contadores da indexação RAG |
+| `POST` | `/api/v1/rag/index-step` | Etapa manual de indexação |
+| `GET` | `/api/v1/model-status` | Estado dos modelos e do provedor LLM |
+| `GET` | `/actuator/health` | Health check público do backend |
+
+O contrato completo, inclusive envelopes, filtros, payloads, SSE e endpoints internos, está em [`docs/api.md`](docs/api.md). Swagger UI: `http://localhost:8080/api/v1/swagger-ui.html`.
+
+## 🧪 Testes e verificações
 
 ```bash
-# Testes do Backend (Spring Boot / Maven)
-cd backend && ./mvnw test
+# Backend
+cd backend
+./mvnw test -Dspring.profiles.active=test
 
-# Testes do AI Service (pytest)
-cd ai-service && python -m pytest tests/ -v
+# AI Service
+cd ../ai-service
+python -m pip install -r requirements.lock
+python -m pip install --no-deps -e .
+ruff check .
+pytest
 
-# Testes do Frontend (Vitest / React Testing Library)
-cd frontend && npm run test -- --run
+# Frontend
+cd ../frontend
+npm ci
+npm run lint
+npm run test:coverage -- --run
+npm run build
 ```
 
----
+Esses comandos refletem as verificações do workflow `.github/workflows/ci.yml`.
 
-## 📚 Documentação Técnica
+## Variáveis de ambiente
 
-- 📐 **[Arquitetura do Sistema](docs/architecture.md)** — Relações entre serviços e diagramas
-- 📑 **[Documentação da API](docs/api.md)** — Especificação OpenAPI e contratos DTO
-- 🔬 **[Ciência de Dados](docs/data-science.md)** — Detalhes dos hiperparâmetros e métricas dos modelos
-- 📓 **[Jupyter Notebook](notebooks/finance_ai_data_science.ipynb)** — Experimentos de ML reproduzíveis
-- ☁️ **[Guia de Deploy OCI](docs/deployment-oci.md)** — Implantação em instância Ubuntu na Oracle Cloud
-- 🔒 **[Práticas de Segurança](docs/security.md)** — Criptografia, autenticação e proteção de dados
+O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-service/.env.example` e `frontend/.env.example` servem para execução isolada de cada componente.
 
----
+| Grupo | Variáveis relevantes |
+| --- | --- |
+| Banco/segurança | `POSTGRES_*`, `SPRING_DATASOURCE_*`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS` |
+| AI Service | `AI_SERVICE_URL`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
+| LLM | `ENABLE_LLM`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT` |
+| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE` |
+| Open Finance | `OPEN_FINANCE_*`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` |
+| Arquivos/OCI | `STORAGE_TYPE`, `STORAGE_LOCAL_BASE_PATH`, `OCI_NAMESPACE`, `OCI_BUCKET_NAME`, `OCI_REGION` |
+| E-mail | `RESEND_API_KEY`, `RESEND_FROM_ADDRESS` |
+| Proxy/frontend | `NGINX_HTTP_PORT`, `VITE_API_BASE_URL` |
 
-## 🛡️ Segurança
+Embeddings remotos exigem `RAG_ENABLE_REMOTE_EMBEDDINGS=true` e `LLM_API_KEY`; sem ambos, o RAG usa `local-hash-v2`. Respostas do agente por LLM também exigem `ENABLE_LLM=true`, `LLM_PROVIDER=openai` e a chave. O cliente usa URLs compatíveis com `/chat/completions` e `/embeddings`.
 
-- 🔑 **Senhas Protegidas**: Criptografia forte com algoritmos BCrypt.
-- 🛂 **Autenticação JWT**: Controle de sessão via tokens assinados e expiráveis.
-- 🛡️ **Proteção Nginx**: Rate limiting e adição de headers HTTP de segurança.
-- 🔒 **Isolamento de Credenciais**: Váriaveis sensíveis gerenciadas estritamente via `.env` (ignorado no versionamento).
+## 📚 Documentação técnica
 
----
+- [Arquitetura](docs/architecture.md)
+- [API pública e interna](docs/api.md)
+- [Arquitetura RAG](docs/rag-architecture.md)
+- [Ciência de dados](docs/data-science.md)
+- [Segurança](docs/security.md)
+- [Deploy na OCI](docs/deployment-oci.md)
+- [Estratégia de branches](docs/BRANCHING.md)
+- [Decisões arquiteturais](docs/adr/)
+- [Notebook de ciência de dados](notebooks/finance_ai_data_science.ipynb)
 
-## 👥 Equipe & Contribuidores
+## 🔒 Segurança
 
-Agradecemos a todos os membros do **Team 17 (FinVise)** pela dedicação e contribuição no desenvolvimento desta plataforma:
+- Senhas de login são armazenadas com BCrypt.
+- Recursos são isolados pelo UUID extraído do JWT; endpoints com `{userId}` rejeitam IDs diferentes do usuário autenticado.
+- Códigos de redefinição são armazenados como SHA-256, expiram em 5 minutos e bloqueiam novas tentativas por 30 minutos após cinco erros.
+- Nginx aplica headers de segurança e limite geral de API de 20 requisições/s por IP, com burst de 40.
+- O override de produção não publica PostgreSQL, backend ou AI Service; somente Nginx na porta 80.
+- A configuração atual não termina TLS no container. Produção deve usar terminação TLS externa ou receber uma configuração Nginx adicional validada.
+
+Veja [`docs/security.md`](docs/security.md) para os limites e pendências conhecidos.
+
+## 👥 Equipe
 
 | Contribuidor | GitHub |
-| :--- | :--- |
-| **Lucas Abreu** | [@lucasabreuzip](https://github.com/lucasabreuzip) |
-| **Gabriel Silva** | [@Gabrielsvdata](https://github.com/Gabrielsvdata) |
-| **Kauã Cantanhede** | [@kant-sdev](https://github.com/kant-sdev) |
-| **Patricia Queiroz** | [@PatQuei](https://github.com/PatQuei) |
-
----
+| --- | --- |
+| Lucas Abreu | [@lucasabreuzip](https://github.com/lucasabreuzip) |
+| Gabriel Silva | [@Gabrielsvdata](https://github.com/Gabrielsvdata) |
+| Kauã Cantanhede | [@kant-sdev](https://github.com/kant-sdev) |
+| Patricia Queiroz | [@PatQuei](https://github.com/PatQuei) |
 
 ## 📜 Licença
 
-Distribuído sob a licença **MIT**. Veja o arquivo [`LICENSE`](LICENSE) para mais detalhes.
+Distribuído sob a licença MIT. Consulte [`LICENSE`](LICENSE).
 
----
-
-<p align="center">
-  <sub><i>Disclaimer: As orientações e respostas geradas pelo Agente Financeiro possuem caráter puramente educacional e informativo, não substituindo o aconselhamento de um profissional financeiro certificado.</i></sub>
-</p>
+> As respostas do agente têm caráter educacional e informativo e não substituem aconselhamento financeiro profissional.

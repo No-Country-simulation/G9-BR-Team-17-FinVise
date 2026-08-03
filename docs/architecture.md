@@ -1,119 +1,262 @@
 # Arquitetura do FinVise
 
-> Documentação oficial de arquitetura, fluxo de dados e comunicação entre componentes do **FinVise**.
+> Estado atual da arquitetura, dos limites de responsabilidade e dos fluxos entre os componentes do FinVise.
 
 ## Visão geral
 
-O FinVise é um assistente inteligente de saúde financeira. A proposta central é ir além de mostrar para onde o dinheiro foi: ele explica o que está acontecendo e indica o próximo passo.
+O FinVise é um monorepo composto por três aplicações e uma camada de infraestrutura:
 
-A solução é composta por três aplicações principais:
+1. **Frontend** — React 19.2.7, TypeScript, Vite 7.3.6 e PWA.
+2. **Backend** — Java 21, Spring Boot 3.2.5, Spring Security, JPA e Flyway.
+3. **AI Service** — Python 3.11+, FastAPI 0.115.6, Scikit-learn e agente com ferramentas.
+4. **Infraestrutura** — PostgreSQL 16 com `pgvector`, Nginx e Docker Compose.
 
-1. **Frontend** — React + TypeScript + Vite + PWA.
-2. **Backend** — Java 21 + Spring Boot 3 + PostgreSQL 16 com extensão `pgvector`.
-3. **AI Service** — Python + FastAPI + Scikit-learn + OpenAI Embeddings & RAG.
-
-A comunicação entre os componentes segue o fluxo:
-
-```
-Usuário
-   ↓ HTTPS
+```text
+Navegador
+   │
+   ▼
 Nginx
-   ├── /                 → frontend (React 19)
-   └── /api              → backend (Spring Boot 3)
-                                ├── PostgreSQL 16 + pgvector (Embeddings & Ingestão RAG)
-                                └── ai-service (FastAPI + LLM + SSE Streaming)
+   ├── / e assets ─────────────────────────────► Frontend
+   ├── /api/* e /actuator/health ──────────────► Backend
+   └── /internal/* ────────────────────────────► 403
+                                                   │
+                         ┌─────────────────────────┴─────────────────────────┐
+                         ▼                                                   ▼
+                  AI Service                                           PostgreSQL
+             classificação e agente                          dados relacionais, JSONB,
+                         │                                    full-text e pgvector
+                         └──────── SQL de RAG ────────────────────────────────▲
 ```
+
+No Compose local, somente o Nginx é publicado no host, por padrão em `8080`. No override de produção, apenas o Nginx é publicado em `80`; PostgreSQL, backend e AI Service permanecem restritos à rede interna.
 
 ## Princípios arquiteturais
 
-- **MVP funcional**: arquitetura simples, sem Kubernetes ou componentes desnecessários.
-- **Deploy em uma única instância**: toda a solução roda em uma OCI Compute Instance com Docker Compose.
-- **Segurança por padrão**: apenas as portas 80 e 443 são públicas em produção.
-- **Backend como porta de entrada**: o frontend nunca chama o ai-service diretamente.
-- **AI Service sem acesso ao banco**: ele apenas expõe endpoints internos consumidos pelo backend.
-- **Fallbacks determinísticos**: o sistema funciona mesmo sem modelos treinados ou chaves de LLM.
+- **Monorepo**: aplicações, migrações, infraestrutura, dados de referência e documentação evoluem em conjunto.
+- **Backend como API pública**: o navegador não chama o AI Service diretamente.
+- **JWT stateless**: identidade e isolamento do usuário são resolvidos no backend.
+- **Schema controlado por Flyway**: somente o backend cria ou altera tabelas; o AI Service verifica capacidades e executa SQL de dados em `rag_documents`.
+- **Cálculos determinísticos no backend**: indicadores, fatos financeiros, recomendações principais e simulações não dependem da LLM.
+- **Fallbacks operacionais**: classificadores por regras/palavras-chave, embeddings locais e respostas seguras permitem funcionamento degradado.
+- **Origem explícita**: CSV e Open Finance não são misturados em análises ou conversas que informam uma origem.
+- **Deploy simples**: uma única instância com Docker Compose; não há Kubernetes ou fila externa.
 
 ## Componentes
 
 ### Frontend
 
-- Responsivo e preparado para PWA.
-- Comunica-se com o backend via `/api/v1`.
-- Stack: React, TypeScript, Vite, React Router, TanStack Query, React Hook Form, Zod, Recharts.
+Responsabilidades:
+
+- cadastro, login, recuperação de senha e armazenamento local do JWT;
+- rotas públicas (`/login`, `/register`, `/forgot-password`) e rotas privadas da aplicação;
+- importação CSV, seleção/remoção de fontes e integração do widget Pluggy;
+- transações, análises, dashboard, histórico, recomendações e simulação;
+- criação de conversa com `source`, `sourceIds` e `topK`;
+- leitura incremental dos eventos SSE do agente.
+
+Stack comprovada em `frontend/package.json`: React, React Router, TanStack Query, Axios, React Hook Form, Zod, Recharts, Tailwind CSS, Framer Motion, Vitest, Testing Library e MSW.
+
+O cliente usa `VITE_API_BASE_URL` (padrão `/api/v1`). No servidor Vite, `/api` é encaminhado para `VITE_API_PROXY_TARGET` ou `http://localhost:8080`.
 
 ### Backend
 
-- Responsável por autenticação, validação, persistência, regras de negócio, orquestração e resposta final.
-- Stack: Spring Boot 3, Spring Security, JWT, Spring Data JPA, Flyway, PostgreSQL.
-- Valores monetários usam `BigDecimal`; banco usa `NUMERIC`.
+Responsabilidades:
+
+- autenticação, autorização por proprietário e redefinição de senha;
+- contrato REST público e envelopes de resposta;
+- persistência JPA e evolução do schema por Flyway;
+- parsing/armazenamento de CSV e deduplicação SHA-256;
+- integração Pluggy e deduplicação por ID externo;
+- classificação orquestrada, cálculos financeiros, análises e recomendações;
+- construção de fatos analíticos e chunks RAG;
+- proxy/orquestração do agente, persistência das mensagens e SSE público;
+- armazenamento de arquivos local ou OCI Object Storage.
+
+Valores monetários usam `BigDecimal` e `NUMERIC`; datas de transação usam `LocalDate`/`DATE`; eventos e auditoria usam `Instant`/`TIMESTAMPTZ`.
 
 ### AI Service
 
-- Responsável por pré-processamento, classificação de transações, classificação de perfil, probabilidades, explicabilidade e ferramentas do agente.
-- Stack: FastAPI, Pandas, Scikit-learn, Joblib.
-- Possui classificadores fallback baseados em regras/keywords.
-- Agente baseado em ferramentas com LLM opcional.
+Responsabilidades:
+
+- carregar/validar artefatos Joblib ou ativar classificadores fallback;
+- classificar transações e perfil financeiro;
+- disponibilizar um motor de recomendações Python interno;
+- selecionar e executar ferramentas analíticas sobre o contexto enviado pelo backend;
+- gerar respostas por template ou por API compatível com OpenAI Chat Completions;
+- gerar embeddings remotos ou locais;
+- indexar e recuperar chunks RAG diretamente no PostgreSQL.
+
+O acesso SQL direto é deliberadamente limitado ao pipeline RAG. O AI Service lê a conexão de `SPRING_DATASOURCE_*`/`POSTGRES_*`; as demais tabelas financeiras não são consultadas pelas ferramentas. O backend envia indicadores, transações recentes, recorrências e fatos analíticos no `AgentContext`.
+
+Não há LangChain, SDK oficial da OpenAI nem SHAP nas dependências atuais. Chamadas de LLM e embeddings são feitas com `httpx`.
+
+### PostgreSQL e persistência
+
+O schema efetivo é a composição das migrações `V1`–`V21`:
+
+| Grupo | Tabelas | Finalidade |
+| --- | --- | --- |
+| Identidade | `users`, `password_reset_codes` | conta e recuperação de senha |
+| Transações | `transactions`, `transaction_categories`, `imported_files`, `open_finance_connections` | movimentações e suas fontes |
+| Análises | `financial_analyses`, `financial_indicators`, `spending_summaries`, `recommendations` | diagnósticos persistidos |
+| Agente | `agent_conversations`, `agent_messages` | origem, opções RAG, histórico, tools e fontes citadas |
+| RAG/fatos | `rag_documents`, `financial_fact_snapshots` | chunks, vetores, full-text, status de índice e snapshots JSONB |
+| Modelos | `model_versions` | tabela criada no schema inicial; o status HTTP atual vem do registry em memória do AI Service |
+
+Relações e isolamento principais:
+
+- recursos financeiros referenciam `users.id`;
+- análises têm indicador 1:1 e resumos/recomendações 1:N;
+- mensagens pertencem a conversas;
+- transações mantêm `source`, `import_source_id` e, para Pluggy, `external_id`;
+- chunks RAG mantêm `user_id`, `source_type`, `source_id`, `chunk_type` e `transaction_id` quando aplicável;
+- `financial_fact_snapshots` é único por `(user_id, source_type, source_id)`.
+
+O `pgvector` é habilitado de forma tolerante: em ambientes sem a extensão, Flyway mantém o restante do schema e o RAG pode usar busca full-text por palavras-chave. Quando disponível, `embedding vector(1536)` possui índice HNSW com distância de cosseno.
 
 ### Infraestrutura
 
-- Docker Compose orquestra nginx, frontend, backend, ai-service e PostgreSQL.
-- Nginx atua como reverse proxy e rate limiter.
-- PostgreSQL roda apenas na rede interna do Docker.
-- Scripts de backup/restore e health check em `infrastructure/scripts/`.
+Serviços do `docker-compose.yml`:
 
-## Diagramas
+| Serviço | Imagem/build | Exposição local |
+| --- | --- | --- |
+| `postgres` | `pgvector/pgvector:pg16` | nenhuma porta publicada no Compose base ou no override de produção |
+| `backend` | build de `backend/Dockerfile` | somente rede Docker |
+| `ai-service` | build de `ai-service/Dockerfile` | somente rede Docker |
+| `frontend` | build e Nginx próprio | somente rede Docker |
+| `nginx` | `nginx:1.27-alpine` | `8080:80` local; `80:80` em produção |
 
-### Diagrama de implantação
+Volumes nomeados:
 
-```mermaid
-graph LR
-    U[Usuário] -->|HTTPS| N[Nginx]
-    N -->|/| F[Frontend]
-    N -->|/api| B[Backend Spring Boot]
-    B -->|HTTP interno| A[AI Service FastAPI]
-    B -->|JDBC| P[(PostgreSQL)]
-    A -->|Joblib| M[Modelos ML]
-```
+- `postgres_data` — dados do banco;
+- `uploads_data` — objetos do `LocalObjectStorageService` em `/app/uploads`.
 
-### Fluxo da análise financeira
+O frontend e o AI Service não iniciam até que suas dependências configuradas estejam saudáveis. O Nginx depende do frontend e do backend.
+
+## Fluxos principais
+
+### Importação CSV
 
 ```mermaid
 sequenceDiagram
     participant U as Usuário
     participant F as Frontend
     participant B as Backend
+    participant S as Storage
     participant AI as AI Service
     participant DB as PostgreSQL
 
-    U->>F: Envia dados para análise
-    F->>B: POST /api/v1/financial-analyses
-    B->>B: Valida DTO
-    B->>AI: POST /internal/v1/transactions/classify
-    AI-->>B: Categorias das transações
-    B->>B: Calcula indicadores financeiros
-    B->>AI: POST /internal/v1/profiles/analyze
-    AI-->>B: Perfil financeiro
-    B->>B: Gera recomendações por regras
-    B->>DB: Persiste análise, indicadores e recomendações
-    B-->>F: Resposta JSON
-    F-->>U: Exibe resultado
+    U->>F: Seleciona CSV
+    F->>B: POST /api/v1/imports/transactions/csv
+    B->>B: Valida tipo, tamanho e SHA-256
+    B->>S: Armazena o arquivo
+    B->>B: Parseia linhas e categoriza
+    B->>DB: Persiste arquivo e transações
+    B->>DB: Reconstrói fatos e chunks RAG
+    B->>B: Tenta gerar análise automática
+    B-->>F: ImportResultResponse
+    B-)AI: Enfileira /internal/v1/rag/index após commit
+    AI->>DB: Gera e persiste embeddings
 ```
+
+O processamento do upload é transacional no backend, mas a indexação de embeddings ocorre depois do commit em uma tarefa de background do FastAPI.
+
+### Sincronização Open Finance
+
+1. Frontend consulta o status e solicita um Connect Token ao backend.
+2. Backend autentica na Pluggy e vincula `clientUserId` ao UUID do usuário.
+3. Após o widget devolver `itemId`, o frontend chama `/items/{itemId}/sync`.
+4. Backend verifica o proprietário, busca contas e até 100 páginas de transações por conta.
+5. Apenas registros `POSTED` válidos são mapeados; duplicatas são ignoradas.
+6. Backend persiste, recalcula fatos, cria chunks, gera análise e solicita embeddings.
+
+Não existe consumidor de webhook no código atual; a sincronização é acionada pelo endpoint.
+
+### Análise financeira
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant AI as AI Service
+    participant DB as PostgreSQL
+
+    F->>B: POST /api/v1/financial-analyses ou /from-transactions
+    B->>B: Valida entrada/escopo
+    opt transações sem categoria persistida ou enviadas no corpo
+        B->>AI: POST /internal/v1/transactions/classify
+        AI-->>B: categoria, confiança e versão
+    end
+    B->>B: Calcula indicadores e resumos
+    B->>AI: POST /internal/v1/profiles/analyze
+    AI-->>B: perfil, score, confiança e versão
+    B->>B: Gera recomendações por regras
+    B->>DB: Persiste análise e dependências
+    B-->>F: ApiResponse<AnalysisResponse>
+```
+
+Se a classificação remota falhar, o backend preserva fallbacks próprios onde implementados. A análise de transações persistidas exige ao menos uma receita no escopo.
+
+### Agente e RAG
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant AI as AI Service
+    participant DB as PostgreSQL
+    participant L as API LLM opcional
+
+    F->>B: POST .../messages/stream + JWT
+    B->>DB: Persiste mensagem USER
+    B->>B: Calcula contexto e fatos analíticos
+    B->>AI: POST /internal/v1/agent/respond/stream
+    par Ferramentas
+        AI->>AI: Executa ferramentas sobre AgentContext
+    and Recuperação
+        AI->>DB: Busca vetorial e/ou full-text por user/source/sourceIds
+    end
+    opt ENABLE_LLM e chave configurados
+        AI->>L: Chat Completions em streaming
+        L-->>AI: deltas de texto
+    end
+    AI-->>B: SSE tools, sources e token
+    B-->>F: SSE conversation, tools, sources e token
+    B->>DB: Persiste mensagem ASSISTANT concluída
+    B-->>F: SSE done
+```
+
+Ferramentas e recuperação rodam em paralelo no AI Service. O LLM recebe apenas o prompt, o histórico, os resultados das ferramentas e as evidências recuperadas. Sem LLM, um provider de template determinístico gera a resposta; se o stream interno falhar antes de produzir texto, o backend usa uma resposta segura baseada nos totais da origem.
+
+## Segurança e limites de confiança
+
+- Nginx é o único serviço publicado no override de produção.
+- `/internal/` recebe `403` no Nginx, mas o FastAPI não autentica chamadas internas; a rede Docker é o limite de confiança atual.
+- O backend aplica JWT e extrai o usuário do principal autenticado.
+- Consultas RAG sempre filtram `user_id` e opcionalmente origem/fontes.
+- Credenciais Pluggy e chaves de LLM ficam no servidor.
+- O Compose atual termina somente HTTP. TLS deve terminar antes da instância ou ser adicionado por configuração específica.
+
+Consulte `docs/security.md` para controles e pendências.
 
 ## Decisões arquiteturais
 
-As decisões principais estão documentadas em `docs/adr/`.
+As decisões e seus ajustes estão em `docs/adr/`. Em especial:
 
-## Escopo do MVP
+- ADR 003 documenta o acesso SQL restrito do AI Service para RAG;
+- ADR 006 descreve ferramentas, RAG e fallbacks do agente;
+- ADR 007 limita o Object Storage implementado aos arquivos CSV importados.
 
-A primeira entrega implementa um fluxo vertical mínimo:
+## Escopo implementado
 
-1. Frontend envia uma análise.
-2. Backend valida os dados.
-3. Backend chama o ai-service.
-4. AI Service classifica as transações.
-5. Backend calcula os indicadores.
-6. AI Service retorna o perfil.
-7. Backend gera recomendações por regras.
-8. Backend persiste a análise.
-9. Backend retorna JSON.
-10. Frontend exibe o resultado.
+O código atual cobre um fluxo vertical mais amplo que o MVP inicial: autenticação e reset de senha, duas origens de ingestão, gestão de fontes, análises selecionáveis, fatos financeiros, RAG híbrido, agente síncrono/SSE, armazenamento opcional e deploy Compose.
+
+Fora do escopo comprovado no repositório:
+
+- webhook receptor de Open Finance;
+- exportação real de relatório em PDF/Excel;
+- terminação TLS pronta no Nginx versionado;
+- fila externa para jobs;
+- revogação de JWTs de login após redefinição de senha;
+- montagem de credenciais OCI no Compose;
+- escalabilidade horizontal ou Kubernetes.

@@ -118,6 +118,56 @@ def test_analyze_profile_with_financial_rules(client):
     assert data["classification"] in {"SAUDAVEL", "EM_OBSERVACAO", "EM_RISCO"}
 
 
+def test_rag_index_limits_work_and_reports_remaining_documents(client, monkeypatch):
+    from app.agent.rag_service import rag_service
+
+    received = {}
+
+    def index_batch(user_id, source_ids, max_batches):
+        received.update(
+            user_id=user_id,
+            source_ids=source_ids,
+            max_batches=max_batches,
+        )
+        return 200
+
+    monkeypatch.setattr(rag_service, "index_unembedded_chunks", index_batch)
+    monkeypatch.setattr(rag_service, "has_unembedded_chunks", lambda *_args: True)
+
+    response = client.post(
+        "/internal/v1/rag/index",
+        json={
+            "user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+            "source_ids": [],
+            "max_batches": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["indexed_count"] == 200
+    assert response.json()["has_more"] is True
+    assert response.json()["status"] == "processing"
+    assert received["max_batches"] == 1
+
+
+def test_rag_index_returns_conflict_when_user_is_already_being_processed(
+    client, monkeypatch
+):
+    from app.agent.rag_service import RAGIndexBusyError, rag_service
+
+    def busy(*_args):
+        raise RAGIndexBusyError("RAG indexing already running")
+
+    monkeypatch.setattr(rag_service, "index_unembedded_chunks", busy)
+
+    response = client.post(
+        "/internal/v1/rag/index",
+        json={"user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"},
+    )
+
+    assert response.status_code == 409
+
+
 def test_agent_respond(client):
     payload = {
         "conversation_id": "conv-1",

@@ -118,6 +118,19 @@ class RagIngestionServiceTest {
     }
 
     @Test
+    void shouldLimitManualIndexStepToOneBatch() {
+        UUID userId = UUID.randomUUID();
+        when(aiServiceClient.indexRagBatchOrThrow(userId.toString(), List.of("fonte-123")))
+            .thenReturn(new AiServiceClient.RagIndexResponse(200, userId.toString(), true));
+
+        int indexed = ragIngestionService.indexStep(userId, List.of("fonte-123"));
+
+        assertThat(indexed).isEqualTo(200);
+        verify(aiServiceClient).indexRagBatchOrThrow(
+            userId.toString(), List.of("fonte-123"));
+    }
+
+    @Test
     void shouldUpdateChangedTransactionAndInvalidateItsEmbedding() {
         UUID userId = UUID.randomUUID();
         UUID transactionId = UUID.randomUUID();

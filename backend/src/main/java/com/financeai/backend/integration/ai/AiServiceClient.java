@@ -161,7 +161,7 @@ public class AiServiceClient {
                                  List<String> sourceIds,
                                  boolean background) {
         try {
-            return requestRagIndex(userId, sourceIds, background);
+            return requestRagIndex(userId, sourceIds, background, null).indexedCount();
         } catch (RuntimeException e) {
             log.warn("Falha ao solicitar indexação RAG ao ai-service: {}", e.getMessage());
             return 0;
@@ -169,18 +169,27 @@ public class AiServiceClient {
     }
 
     public int indexRagDocumentsOrThrow(String userId, List<String> sourceIds) {
-        return requestRagIndex(userId, sourceIds, false);
+        return requestRagIndex(userId, sourceIds, false, null).indexedCount();
     }
 
-    private int requestRagIndex(String userId,
-                                List<String> sourceIds,
-                                boolean background) {
+    public RagIndexResponse indexRagBatchOrThrow(String userId, List<String> sourceIds) {
+        return requestRagIndex(userId, sourceIds, false, 1);
+    }
+
+    private RagIndexResponse requestRagIndex(String userId,
+                                             List<String> sourceIds,
+                                             boolean background,
+                                             Integer maxBatches) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("user_id", userId);
+        body.put("source_ids", sourceIds != null ? sourceIds : List.of());
+        body.put("background", background);
+        if (maxBatches != null) {
+            body.put("max_batches", maxBatches);
+        }
         RagIndexResponse response = restClient.post()
             .uri("/internal/v1/rag/index")
-            .body(java.util.Map.of(
-                "user_id", userId,
-                "source_ids", sourceIds != null ? sourceIds : List.of(),
-                "background", background))
+            .body(body)
             .retrieve()
             .body(RagIndexResponse.class);
         if (response == null) {
@@ -188,12 +197,13 @@ public class AiServiceClient {
         }
         log.info("Indexação RAG concluída no ai-service com {} vetores para user_id={}",
             response.indexedCount(), userId);
-        return response.indexedCount();
+        return response;
     }
 
     public record RagIndexResponse(
         @JsonProperty("indexed_count") int indexedCount,
-        @JsonProperty("user_id") String userId
+        @JsonProperty("user_id") String userId,
+        @JsonProperty("has_more") boolean hasMore
     ) {}
 
     public record AgentStreamEvent(

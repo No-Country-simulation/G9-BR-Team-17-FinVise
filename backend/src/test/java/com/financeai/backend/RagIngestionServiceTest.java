@@ -7,6 +7,7 @@ import com.financeai.backend.rag.RagDocument;
 import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
 import com.financeai.backend.rag.RagIndexStatus;
+import com.financeai.backend.rag.RagIndexStatusCount;
 import com.financeai.backend.rag.RagIndexStatusResponse;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionType;
@@ -243,16 +244,12 @@ class RagIngestionServiceTest {
     void shouldReportProcessingWhileDocumentsArePending() {
         UUID userId = UUID.randomUUID();
         List<String> sourceIds = List.of("arquivo-1");
-        when(ragDocumentRepository.countByUserIdAndSourceIdIn(userId, sourceIds))
-            .thenReturn(5L);
-        when(ragDocumentRepository.countByUserIdAndSourceIdInAndIndexStatus(
-            eq(userId), eq(sourceIds), any(RagIndexStatus.class)))
-            .thenAnswer(invocation -> switch (
-                invocation.getArgument(2, RagIndexStatus.class)) {
-                case PENDING, PROCESSING -> 1L;
-                case INDEXED -> 3L;
-                case FAILED -> 0L;
-            });
+        when(ragDocumentRepository.summarizeIndexStatusByUserIdAndSourceIdIn(
+            userId, sourceIds)).thenReturn(List.of(
+                new RagIndexStatusCount(RagIndexStatus.PENDING, 1L),
+                new RagIndexStatusCount(RagIndexStatus.PROCESSING, 1L),
+                new RagIndexStatusCount(RagIndexStatus.INDEXED, 3L)
+            ));
 
         RagIndexStatusResponse response =
             ragIngestionService.indexStatus(userId, sourceIds);
@@ -263,26 +260,25 @@ class RagIngestionServiceTest {
         assertThat(response.processingDocuments()).isEqualTo(1);
         assertThat(response.indexedDocuments()).isEqualTo(3);
         assertThat(response.failedDocuments()).isZero();
+        verify(ragDocumentRepository, times(1))
+            .summarizeIndexStatusByUserIdAndSourceIdIn(userId, sourceIds);
     }
 
     @Test
     void shouldNotReportCompleteWhenIndexingFailed() {
         UUID userId = UUID.randomUUID();
-        when(ragDocumentRepository.countByUserId(userId)).thenReturn(4L);
-        when(ragDocumentRepository.countByUserIdAndIndexStatus(
-            eq(userId), any(RagIndexStatus.class)))
-            .thenAnswer(invocation -> switch (
-                invocation.getArgument(1, RagIndexStatus.class)) {
-                case INDEXED -> 3L;
-                case FAILED -> 1L;
-                case PENDING, PROCESSING -> 0L;
-            });
+        when(ragDocumentRepository.summarizeIndexStatusByUserId(userId))
+            .thenReturn(List.of(
+                new RagIndexStatusCount(RagIndexStatus.INDEXED, 3L),
+                new RagIndexStatusCount(RagIndexStatus.FAILED, 1L)
+            ));
 
         RagIndexStatusResponse response =
             ragIngestionService.indexStatus(userId, List.of());
 
         assertThat(response.status()).isEqualTo("FAILED");
         assertThat(response.failedDocuments()).isEqualTo(1);
+        verify(ragDocumentRepository, times(1)).summarizeIndexStatusByUserId(userId);
     }
 
     @Test

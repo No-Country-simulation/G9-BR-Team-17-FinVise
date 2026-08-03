@@ -136,6 +136,36 @@ def test_agent_routes_month_and_transaction_rankings():
     }
 
 
+@pytest.mark.parametrize(
+    ("message", "expected_target", "expected_months"),
+    [
+        ("Quero economizar R$ 6.000 em 6 meses.", 6000.0, 6),
+        ("Quero juntar 1500 reais em 3 meses.", 1500.0, 3),
+        ("Simule uma meta de R$ 1.500,50 em 12 meses.", 1500.5, 12),
+        ("Simule 20000 em 18 meses.", 20000.0, 18),
+        ("Quero poupar R$ 500 em 1 mês.", 500.0, 1),
+        ("Quero simular uma meta em 6 meses.", 10000.0, 6),
+        ("Quanto preciso guardar?", 10000.0, 12),
+    ],
+)
+def test_extract_savings_arguments(
+    message: str,
+    expected_target: float,
+    expected_months: int,
+):
+    agent = FinancialAgent(llm_provider=object())
+    request = AgentRequest(
+        conversation_id="conversation-1",
+        user_id="user-1",
+        messages=[{"role": "user", "content": message}],
+    )
+
+    assert agent._extract_savings_arguments(request) == {
+        "target_amount": expected_target,
+        "months": expected_months,
+    }
+
+
 def test_get_recommendations():
     ctx = AgentContext(
         recommendations=[

@@ -64,6 +64,7 @@ class ResourceOwnershipTest {
             mock(AgentMessageRepository.class),
             mock(UserRepository.class),
             mock(TransactionRepository.class),
+            mock(TransactionCategoryRepository.class),
             mock(com.financeai.backend.integration.ai.AiServiceClient.class),
             new com.fasterxml.jackson.databind.ObjectMapper()
         );

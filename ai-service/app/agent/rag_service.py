@@ -4,10 +4,10 @@ import math
 import os
 from typing import Any
 
-import httpx
 import psycopg
 
 from app.core.config import settings
+from app.core.http_client import get_http_client
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -108,7 +108,7 @@ class RAGService:
         if not self._uses_remote_embeddings():
             return [self._generate_local_embedding(text) for text in texts]
 
-        response = httpx.post(
+        response = get_http_client().post(
             f"{settings.llm_base_url.rstrip('/')}/embeddings",
             headers={
                 "Authorization": f"Bearer {settings.llm_api_key}",

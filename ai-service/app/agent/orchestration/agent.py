@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from app.agent import tools as tool_module
@@ -500,5 +501,20 @@ class FinancialAgent:
         }
 
 
+_agent: FinancialAgent | None = None
+_agent_lock = Lock()
+
+
 def get_agent() -> FinancialAgent:
-    return FinancialAgent()
+    global _agent
+    if _agent is None:
+        with _agent_lock:
+            if _agent is None:
+                _agent = FinancialAgent()
+    return _agent
+
+
+def reset_agent() -> None:
+    global _agent
+    with _agent_lock:
+        _agent = None

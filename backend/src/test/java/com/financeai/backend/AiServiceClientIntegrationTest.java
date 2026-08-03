@@ -15,6 +15,7 @@ import java.util.Map;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AiServiceClientIntegrationTest {
 
@@ -163,6 +164,16 @@ class AiServiceClientIntegrationTest {
             .willReturn(WireMock.serverError()));
 
         assertThat(aiServiceClient.getModelStatus()).isNull();
+    }
+
+    @Test
+    void shouldPropagateRagIndexFailureForDurableQueueRetry() {
+        wireMock.stubFor(post(urlEqualTo("/internal/v1/rag/index"))
+            .willReturn(WireMock.serverError()));
+
+        assertThatThrownBy(() -> aiServiceClient.indexRagDocumentsOrThrow(
+            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", List.of()))
+            .isInstanceOf(org.springframework.web.client.RestClientException.class);
     }
 
     @Test

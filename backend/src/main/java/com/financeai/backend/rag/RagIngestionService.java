@@ -13,7 +13,6 @@ import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +56,7 @@ public class RagIngestionService {
     private final TransactionCategoryRepository categoryRepository;
     private final FinancialFactSnapshotRepository financialFactSnapshotRepository;
     private final ObjectMapper objectMapper;
-    private final ApplicationEventPublisher eventPublisher;
+    private final RagIndexQueueRepository ragIndexQueueRepository;
 
     public RagIngestionService(RagDocumentRepository ragDocumentRepository,
                                AiServiceClient aiServiceClient,
@@ -65,14 +64,14 @@ public class RagIngestionService {
                                TransactionCategoryRepository categoryRepository,
                                FinancialFactSnapshotRepository financialFactSnapshotRepository,
                                ObjectMapper objectMapper,
-                               ApplicationEventPublisher eventPublisher) {
+                               RagIndexQueueRepository ragIndexQueueRepository) {
         this.ragDocumentRepository = ragDocumentRepository;
         this.aiServiceClient = aiServiceClient;
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.financialFactSnapshotRepository = financialFactSnapshotRepository;
         this.objectMapper = objectMapper;
-        this.eventPublisher = eventPublisher;
+        this.ragIndexQueueRepository = ragIndexQueueRepository;
     }
 
     @Transactional
@@ -128,10 +127,7 @@ public class RagIngestionService {
         }
 
         if (!documents.isEmpty()) {
-            List<String> sourceIds = sourceId == null || sourceId.isBlank()
-                ? List.of()
-                : List.of(sourceId);
-            eventPublisher.publishEvent(new RagIndexRequestedEvent(userId, sourceIds));
+            ragIndexQueueRepository.enqueue(userId);
         }
         log.info("ETL RAG concluído com {} chunks para o usuário {}", documents.size(), userId);
     }

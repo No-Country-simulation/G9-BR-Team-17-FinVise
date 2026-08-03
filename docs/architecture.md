@@ -100,7 +100,7 @@ O schema efetivo é a composição das migrações `V1`–`V21`:
 | Transações | `transactions`, `transaction_categories`, `imported_files`, `open_finance_connections` | movimentações e suas fontes |
 | Análises | `financial_analyses`, `financial_indicators`, `spending_summaries`, `recommendations` | diagnósticos persistidos |
 | Agente | `agent_conversations`, `agent_messages` | origem, opções RAG, histórico, tools e fontes citadas |
-| RAG/fatos | `rag_documents`, `financial_fact_snapshots` | chunks, vetores, full-text, status de índice e snapshots JSONB |
+| RAG/fatos | `rag_documents`, `rag_index_jobs`, `financial_fact_snapshots` | chunks, vetores, fila durável, status de índice e snapshots JSONB |
 | Modelos | `model_versions` | tabela criada no schema inicial; o status HTTP atual vem do registry em memória do AI Service |
 
 Relações e isolamento principais:
@@ -152,14 +152,16 @@ sequenceDiagram
     B->>S: Armazena o arquivo
     B->>B: Parseia linhas e categoriza
     B->>DB: Persiste arquivo e transações
-    B->>DB: Reconstrói fatos e chunks RAG
+    B->>DB: Reconstrói fatos/chunks e enfileira job RAG na mesma transação
     B->>B: Tenta gerar análise automática
     B-->>F: ImportResultResponse
-    B-)AI: Enfileira /internal/v1/rag/index após commit
+    B->>DB: Worker reivindica job com SKIP LOCKED
+    B->>AI: POST /internal/v1/rag/index síncrono
     AI->>DB: Gera e persiste embeddings
+    B->>DB: Conclui ou reagenda job com backoff
 ```
 
-O processamento do upload é transacional no backend, mas a indexação de embeddings ocorre depois do commit em uma tarefa de background do FastAPI.
+O job é persistido na mesma transação dos chunks. A indexação ocorre depois do commit por um worker do backend; falhas são reagendadas com backoff exponencial e jobs interrompidos podem ser retomados após o timeout do lock.
 
 ### Sincronização Open Finance
 
@@ -245,7 +247,8 @@ As decisões e seus ajustes estão em `docs/adr/`. Em especial:
 
 - ADR 003 documenta o acesso SQL restrito do AI Service para RAG;
 - ADR 006 descreve ferramentas, RAG e fallbacks do agente;
-- ADR 007 limita o Object Storage implementado aos arquivos CSV importados.
+- ADR 007 limita o Object Storage implementado aos arquivos CSV importados;
+- ADR 008 define a fila PostgreSQL durável para indexação RAG.
 
 ## Escopo implementado
 
@@ -256,7 +259,7 @@ Fora do escopo comprovado no repositório:
 - webhook receptor de Open Finance;
 - exportação real de relatório em PDF/Excel;
 - terminação TLS pronta no Nginx versionado;
-- fila externa para jobs;
+- fila externa dedicada; a fila RAG implementada usa o próprio PostgreSQL;
 - revogação de JWTs de login após redefinição de senha;
 - montagem de credenciais OCI no Compose;
 - escalabilidade horizontal ou Kubernetes.

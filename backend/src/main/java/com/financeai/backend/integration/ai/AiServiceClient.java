@@ -161,21 +161,34 @@ public class AiServiceClient {
                                  List<String> sourceIds,
                                  boolean background) {
         try {
-            RagIndexResponse response = restClient.post()
-                .uri("/internal/v1/rag/index")
-                .body(java.util.Map.of(
-                    "user_id", userId,
-                    "source_ids", sourceIds != null ? sourceIds : List.of(),
-                    "background", background))
-                .retrieve()
-                .body(RagIndexResponse.class);
-            int count = response != null ? response.indexedCount() : 0;
-            log.info("Indexação RAG concluída no ai-service com {} vetores para user_id={}", count, userId);
-            return count;
-        } catch (RestClientException e) {
+            return requestRagIndex(userId, sourceIds, background);
+        } catch (RuntimeException e) {
             log.warn("Falha ao solicitar indexação RAG ao ai-service: {}", e.getMessage());
             return 0;
         }
+    }
+
+    public int indexRagDocumentsOrThrow(String userId, List<String> sourceIds) {
+        return requestRagIndex(userId, sourceIds, false);
+    }
+
+    private int requestRagIndex(String userId,
+                                List<String> sourceIds,
+                                boolean background) {
+        RagIndexResponse response = restClient.post()
+            .uri("/internal/v1/rag/index")
+            .body(java.util.Map.of(
+                "user_id", userId,
+                "source_ids", sourceIds != null ? sourceIds : List.of(),
+                "background", background))
+            .retrieve()
+            .body(RagIndexResponse.class);
+        if (response == null) {
+            throw new IllegalStateException("Resposta vazia do AI Service na indexação RAG");
+        }
+        log.info("Indexação RAG concluída no ai-service com {} vetores para user_id={}",
+            response.indexedCount(), userId);
+        return response.indexedCount();
     }
 
     public record RagIndexResponse(

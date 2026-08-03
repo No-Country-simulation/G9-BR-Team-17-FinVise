@@ -41,8 +41,11 @@ class IntegrationTest extends PostgresTestSupport {
             Integer.class);
         String usersTable = jdbcTemplate.queryForObject(
             "select to_regclass('public.users')", String.class);
+        String ragQueueTable = jdbcTemplate.queryForObject(
+            "select to_regclass('public.rag_index_jobs')", String.class);
 
-        assertThat(appliedMigrations).isEqualTo(21);
+        assertThat(appliedMigrations).isEqualTo(22);
         assertThat(usersTable).isEqualTo("users");
+        assertThat(ragQueueTable).isEqualTo("rag_index_jobs");
     }
 }

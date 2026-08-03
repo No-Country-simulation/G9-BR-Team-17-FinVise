@@ -6,6 +6,7 @@ import com.financeai.backend.fact.FinancialFactsPayload;
 import com.financeai.backend.rag.RagDocument;
 import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
+import com.financeai.backend.rag.RagIndexQueueRepository;
 import com.financeai.backend.rag.RagIndexStatus;
 import com.financeai.backend.rag.RagIndexStatusResponse;
 import com.financeai.backend.transaction.Transaction;
@@ -13,7 +14,6 @@ import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionCategoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class RagIngestionServiceTest {
     private FinancialFactSnapshotRepository financialFactSnapshotRepository;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private RagIndexQueueRepository ragIndexQueueRepository;
 
     private RagIngestionService ragIngestionService;
 
@@ -67,7 +67,7 @@ class RagIngestionServiceTest {
             categoryRepository,
             financialFactSnapshotRepository,
             new ObjectMapper().findAndRegisterModules(),
-            eventPublisher);
+            ragIndexQueueRepository);
     }
 
     @Test
@@ -115,7 +115,7 @@ class RagIngestionServiceTest {
                 .contains("PIX");
 
         assertThat(savedDoc.getDocumentChunk().contains("150.75") || savedDoc.getDocumentChunk().contains("150,75")).isTrue();
-        verify(eventPublisher).publishEvent(any(com.financeai.backend.rag.RagIndexRequestedEvent.class));
+        verify(ragIndexQueueRepository).enqueue(userId);
     }
 
     @Test
@@ -340,8 +340,7 @@ class RagIngestionServiceTest {
             });
         verify(ragDocumentRepository, times(2)).deleteDerivedChunks(
             userId, "OPEN_FINANCE", sourceId.toString(), "TRANSACTION");
-        verify(eventPublisher, times(2)).publishEvent(
-            any(com.financeai.backend.rag.RagIndexRequestedEvent.class));
+        verify(ragIndexQueueRepository, times(2)).enqueue(userId);
     }
 
     private Transaction transaction(String description,

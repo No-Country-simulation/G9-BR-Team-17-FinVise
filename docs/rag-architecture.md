@@ -17,9 +17,9 @@ O RAG é isolado por `user_id`, `source_type` e, quando selecionados na conversa
 
 | Componente | Responsabilidade |
 | --- | --- |
-| Backend Spring Boot | Constrói fatos/chunks, mantém o schema Flyway, solicita indexação e expõe status |
+| Backend Spring Boot | Constrói fatos/chunks, mantém a fila durável, executa o worker e expõe status |
 | AI Service FastAPI | Gera embeddings, atualiza estado de índice e executa recuperação vetorial/full-text |
-| PostgreSQL | Persiste chunks, metadados, vetores, status e snapshots financeiros |
+| PostgreSQL | Persiste chunks, jobs, metadados, vetores, status e snapshots financeiros |
 | Frontend | Define origem, `sourceIds` e profundidade (`topK`); exibe tools, fontes e tokens SSE |
 
 O AI Service possui acesso SQL direto a `rag_documents`. Ele não cria schema: `_ensure_embedding_column` é somente uma verificação de capacidade, e alterações pertencem às migrações Flyway.
@@ -31,11 +31,12 @@ O AI Service possui acesso SQL direto a `rag_documents`. Ele não cria schema: `
    └── backend persiste transações
        ├── reconstrói financial_fact_snapshots
        ├── cria/atualiza rag_documents
-       └── publica RagIndexRequestedEvent
+       └── cria/atualiza rag_index_jobs na mesma transação
 
-2. Após o commit
-   └── RagIndexEventListener chama POST /internal/v1/rag/index
-       └── background=true
+2. Worker do backend
+   ├── reivindica um job elegível com FOR UPDATE SKIP LOCKED
+   ├── atribui lock_token e chama POST /internal/v1/rag/index
+   └── usa background=false para observar sucesso ou falha
 
 3. AI Service
    ├── obtém advisory lock por user_id
@@ -43,9 +44,14 @@ O AI Service possui acesso SQL direto a `rag_documents`. Ele não cria schema: `
    ├── marca PROCESSING
    ├── gera embeddings em lote
    └── grava vetor, modelo, timestamp e INDEXED ou FAILED
+
+4. Finalização do job
+   ├── sucesso: COMPLETED, ou PENDING se chegou nova ingestão durante o processamento
+   ├── falha: PENDING com backoff exponencial
+   └── limite de tentativas: FAILED até uma nova ingestão reenfileirar o usuário
 ```
 
-O endpoint em background retorna imediatamente `status: queued` e `indexed_count: 0`. A contagem real deve ser acompanhada por `GET /api/v1/rag/status`. A rota pública `POST /api/v1/rag/index-step` executa uma chamada síncrona e retorna quantos documentos foram indexados naquela etapa.
+A fila mantém no máximo um job por usuário e agrupa novas solicitações. Um job `PROCESSING` recebe `rerun_requested=true` quando chegam novos chunks. Locks expirados podem ser reivindicados por outra réplica; o `lock_token` impede que o resultado atrasado do worker anterior sobrescreva o novo processamento. A contagem dos chunks deve ser acompanhada por `GET /api/v1/rag/status`. A rota pública `POST /api/v1/rag/index-step` continua executando uma chamada síncrona manual.
 
 ### Idempotência
 
@@ -53,11 +59,25 @@ O endpoint em background retorna imediatamente `status: queued` e `indexed_count
 - Chunks derivados têm `content_hash` e índice único por usuário/origem/tipo/hash.
 - Antes de reconstruir resumos de uma fonte, o backend remove os chunks derivados anteriores e preserva chunks de transação já conhecidos.
 - A indexação recalcula documentos quando `embedding` é nulo ou `embedding_model` difere do modelo efetivo.
-- Um advisory lock por `user_id` evita dois indexadores simultâneos para o mesmo usuário.
+- `SKIP LOCKED` distribui jobs entre réplicas e um advisory lock por `user_id` protege a etapa no AI Service.
 
 ## Schema RAG
 
-As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20` e `V21`.
+As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21` e `V22`.
+
+### `rag_index_jobs`
+
+| Coluna | Uso |
+| --- | --- |
+| `user_id UUID` | chave única que agrupa indexações do usuário |
+| `status VARCHAR(20)` | `PENDING`, `PROCESSING`, `COMPLETED` ou `FAILED` |
+| `rerun_requested BOOLEAN` | preserva ingestão recebida durante processamento |
+| `attempts INTEGER` | falhas consecutivas do job |
+| `next_attempt_at` | instante elegível após o backoff |
+| `locked_at`, `lock_token` | lease recuperável e proteção contra resultado atrasado |
+| `last_error TEXT` | última falha observada pelo worker |
+
+Padrões operacionais: polling a cada `1000 ms`, lock de `120000 ms`, cinco tentativas e backoff de `2000 ms` até `60000 ms`. Todos são configuráveis pelas variáveis `RAG_INDEX_QUEUE_*` documentadas no `.env.example`.
 
 ### `rag_documents`
 
@@ -286,7 +306,7 @@ Uma nova tentativa manual reprocessa documentos sem embedding ou cujo `embedding
 
 - O índice HNSW e a coluna vetorial são opcionais em ambientes sem `pgvector`.
 - O fallback local é lexical por hashing, não um embedding semântico treinado.
-- A indexação em background usa `BackgroundTasks` no processo FastAPI; não há fila durável externa.
+- Chamadas internas diretas com `background=true` ainda usam `BackgroundTasks`; o fluxo automático do backend usa exclusivamente a fila PostgreSQL com `background=false`.
 - O limite de 1536 dimensões é fixo no schema e no serviço.
 - As rotas internas confiam no isolamento de rede.
 - O frontend possui rótulos específicos apenas para alguns `chunk_type`; novos tipos continuam sendo exibidos, mas podem receber um rótulo genérico.

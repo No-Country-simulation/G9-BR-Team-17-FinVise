@@ -1,3 +1,5 @@
+import pytest
+
 from app.agent.orchestration.agent import FinancialAgent
 from app.agent.rag_service import rag_service
 from app.schemas.agent import AgentContext, AgentRequest
@@ -133,10 +135,11 @@ def test_agent_maps_selected_source_to_rag_source_type():
 
 
 class _IndexCursor:
-    def __init__(self):
+    def __init__(self, lock_acquired=True):
         self.last_query = ""
         self.batch_returned = False
         self.executemany_calls = []
+        self.lock_acquired = lock_acquired
 
     def __enter__(self):
         return self
@@ -151,7 +154,7 @@ class _IndexCursor:
         self.executemany_calls.append((query, params))
 
     def fetchone(self):
-        return (True,)
+        return (self.lock_acquired,)
 
     def fetchall(self):
         if self.batch_returned:
@@ -166,8 +169,8 @@ class _IndexCursor:
 
 
 class _IndexConnection:
-    def __init__(self):
-        self.cursor_instance = _IndexCursor()
+    def __init__(self, lock_acquired=True):
+        self.cursor_instance = _IndexCursor(lock_acquired)
         self.commits = 0
         self.rollbacks = 0
 
@@ -222,12 +225,23 @@ def test_indexing_marks_failed_batch(monkeypatch):
 
     monkeypatch.setattr(rag_service, "generate_embeddings_batch", fail_embedding)
 
-    indexed = rag_service.index_unembedded_chunks(
-        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
-    )
+    with pytest.raises(RuntimeError, match="provedor indisponível"):
+        rag_service.index_unembedded_chunks(
+            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        )
 
-    assert indexed == 0
     assert connection.rollbacks == 1
     _failed_query, failed_params = connection.cursor_instance.executemany_calls[1]
     assert failed_params[0][0] == "FAILED"
     assert failed_params[0][1] == "provedor indisponível"
+
+
+def test_indexing_reports_busy_user_for_queue_retry(monkeypatch):
+    connection = _IndexConnection(lock_acquired=False)
+    monkeypatch.setattr(rag_service, "_get_connection", lambda: connection)
+    monkeypatch.setattr(rag_service, "_ensure_embedding_column", lambda _conn: True)
+
+    with pytest.raises(RuntimeError, match="already running"):
+        rag_service.index_unembedded_chunks(
+            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        )

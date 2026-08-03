@@ -65,6 +65,14 @@ finance-ai:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${AI_SERVICE_READ_TIMEOUT_MS:30000}
+  rag:
+    index-queue:
+      enabled: ${RAG_INDEX_QUEUE_ENABLED:true}
+      poll-delay-ms: ${RAG_INDEX_QUEUE_POLL_DELAY_MS:1000}
+      lock-timeout-ms: ${RAG_INDEX_QUEUE_LOCK_TIMEOUT_MS:120000}
+      max-attempts: ${RAG_INDEX_QUEUE_MAX_ATTEMPTS:5}
+      retry-base-delay-ms: ${RAG_INDEX_QUEUE_RETRY_BASE_DELAY_MS:2000}
+      retry-max-delay-ms: ${RAG_INDEX_QUEUE_RETRY_MAX_DELAY_MS:60000}
   open-finance:
     provider: ${OPEN_FINANCE_PROVIDER:pluggy}
     base-url: ${OPEN_FINANCE_BASE_URL:https://api.pluggy.ai}

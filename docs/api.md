@@ -348,7 +348,7 @@ Tarifa,-25.00,2026-07-06,,DEBIT_CARD,0
 
 Cabeçalhos não diferenciam maiúsculas de minúsculas. `categoria`, `subcategoria`, `forma_pagamento`, `canal` e outros campos do dataset sintético não são lidos pelo importador atual.
 
-Depois de persistir as linhas válidas, o backend categoriza as transações, reconstrói fatos financeiros, cria chunks RAG, solicita indexação assíncrona e tenta gerar uma análise `MACHINE_LEARNING`. A ausência de receitas ou de transações impede apenas essa análise automática. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham.
+Depois de persistir as linhas válidas, o backend categoriza as transações, reconstrói fatos financeiros, cria chunks RAG, grava um job durável de indexação na mesma transação e tenta gerar uma análise `MACHINE_LEARNING`. A ausência de receitas ou de transações impede apenas essa análise automática. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham.
 
 Resposta em `data`:
 
@@ -554,6 +554,8 @@ Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas
 | `POST` | `/internal/v1/agent/respond` | Resposta completa do agente |
 | `POST` | `/internal/v1/agent/respond/stream` | SSE `tools`, `sources`, `token`, `done` ou `error` |
 | `POST` | `/internal/v1/rag/index` | `{user_id,source_ids,background}`; indexação síncrona ou em background |
+
+O worker da fila durável sempre usa `background=false`, pois precisa confirmar sucesso ou falha antes de concluir/reagendar o job. `background=true` permanece disponível apenas para chamadas internas diretas e não oferece a mesma garantia de persistência.
 
 Não existe `/internal/v1/rag/search`; a recuperação é chamada internamente pelo orquestrador do agente.
 

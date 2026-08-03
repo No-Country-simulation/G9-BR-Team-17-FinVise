@@ -152,8 +152,9 @@ class RAGService:
                     )
                     lock = cur.fetchone()
                     if not lock or not lock[0]:
-                        logger.info("RAG indexing already running for user_id=%s", user_id)
-                        return 0
+                        raise RuntimeError(
+                            f"RAG indexing already running for user_id={user_id}"
+                        )
 
                 for _ in range(max_batches):
                     with conn.cursor() as cur:
@@ -199,7 +200,7 @@ class RAGService:
                             user_id,
                             exc,
                         )
-                        break
+                        raise
 
                     with conn.cursor() as cur:
                         cur.executemany(
@@ -226,7 +227,7 @@ class RAGService:
                         break
         except Exception as exc:  # noqa: BLE001
             logger.error("RAG indexing failed for user_id=%s: %s", user_id, exc)
-            return total_updated
+            raise
 
         if total_updated:
             logger.info(

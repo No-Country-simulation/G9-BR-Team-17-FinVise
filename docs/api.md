@@ -348,7 +348,7 @@ Tarifa,-25.00,2026-07-06,,DEBIT_CARD,0
 
 Cabeçalhos não diferenciam maiúsculas de minúsculas. `categoria`, `subcategoria`, `forma_pagamento`, `canal` e outros campos do dataset sintético não são lidos pelo importador atual.
 
-Depois de persistir as linhas válidas, o backend categoriza as transações, reconstrói fatos financeiros, cria chunks RAG, solicita indexação assíncrona e tenta gerar uma análise `MACHINE_LEARNING`. A ausência de receitas ou de transações impede apenas essa análise automática. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham.
+Depois de persistir as linhas válidas, o backend categoriza as transações, reconstrói fatos financeiros, cria chunks RAG e solicita a indexação assíncrona. O upload não cria uma análise financeira implicitamente: para gerar uma análise com o modelo escolhido, o cliente chama `POST /api/v1/financial-analyses/from-transactions` usando o `id` da importação como `importSourceId`. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando as demais etapas não falham.
 
 Resposta em `data`:
 

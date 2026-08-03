@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from app.agent import tools as tool_module
@@ -358,19 +359,54 @@ class FinancialAgent:
     def _extract_savings_arguments(self, request: AgentRequest) -> dict[str, Any]:
         import re as _re
 
-        text = request.messages[-1].content if request.messages else ""
-        matches = _re.findall(r"[R$]?\s*(\d+(?:[.,]\d+)?)", text)
-        target = 10000.0
-        for m in matches:
-            value = float(m.replace(".", "").replace(",", "."))
-            if value > target:
-                target = value
+        text = self._normalize_intent(
+            request.messages[-1].content if request.messages else ""
+        )
+        number_pattern = r"(?:\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)"
+
         months = 12
-        if "mes" in text.lower():
-            month_matches = _re.findall(r"(\d+)\s*mes(?:es)?", text.lower())
-            if month_matches:
-                months = int(month_matches[0])
+        month_match = _re.search(r"\b(\d+)\s*mes(?:es)?\b", text)
+        if month_match:
+            months = int(month_match.group(1))
+
+        explicit_amounts: list[float] = []
+        amount_patterns = [
+            rf"r\$\s*({number_pattern})",
+            rf"\b({number_pattern})\s*reais?\b",
+            (
+                rf"\b(?:meta(?:\s+de)?|economizar|juntar|guardar|poupar)"
+                rf"\s*(?:r\$\s*)?({number_pattern})"
+            ),
+        ]
+        for pattern in amount_patterns:
+            explicit_amounts.extend(
+                self._parse_brazilian_amount(match)
+                for match in _re.findall(pattern, text)
+            )
+
+        if explicit_amounts:
+            target = max(explicit_amounts)
+        else:
+            amount_text = _re.sub(r"\b\d+\s*mes(?:es)?\b", "", text)
+            amount_text = _re.sub(rf"\b{number_pattern}\s*%", "", amount_text)
+            fallback_amounts = [
+                self._parse_brazilian_amount(match)
+                for match in _re.findall(number_pattern, amount_text)
+            ]
+            target = max(fallback_amounts, default=10000.0)
+
         return {"target_amount": target, "months": months}
+
+    @staticmethod
+    def _parse_brazilian_amount(raw_value: str) -> float:
+        import re as _re
+
+        normalized = raw_value.strip().replace(" ", "")
+        if "," in normalized:
+            normalized = normalized.replace(".", "").replace(",", ".")
+        elif _re.fullmatch(r"\d{1,3}(?:\.\d{3})+", normalized):
+            normalized = normalized.replace(".", "")
+        return float(normalized)
 
     def _extract_ranking_arguments(self, request: AgentRequest) -> dict[str, Any]:
         import re as _re
@@ -455,7 +491,9 @@ class FinancialAgent:
             selected.extend(["get_spending_summary", "get_transactions", "get_recurring_expenses"])
         if any(w in last_message for w in ["recomendacao", "dica", "sugestao", "melhorar"]):
             selected.append("get_recommendations")
-        if any(w in last_message for w in ["comparar", "mes passado", "periodo", "evolucao"]):
+        if "compar" in last_message or any(
+            w in last_message for w in ["mes passado", "periodo", "evolucao"]
+        ):
             selected.append("compare_periods")
         if any(w in last_message for w in ["recorrente", "assinatura", "fixa"]):
             selected.append("get_recurring_expenses")
@@ -500,5 +538,20 @@ class FinancialAgent:
         }
 
 
+_agent: FinancialAgent | None = None
+_agent_lock = Lock()
+
+
 def get_agent() -> FinancialAgent:
-    return FinancialAgent()
+    global _agent
+    if _agent is None:
+        with _agent_lock:
+            if _agent is None:
+                _agent = FinancialAgent()
+    return _agent
+
+
+def reset_agent() -> None:
+    global _agent
+    with _agent_lock:
+        _agent = None

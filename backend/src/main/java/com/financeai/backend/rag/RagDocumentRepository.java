@@ -40,14 +40,25 @@ public interface RagDocumentRepository extends JpaRepository<RagDocument, UUID> 
                                          @Param("sourceType") String sourceType,
                                          @Param("sourceId") String sourceId);
 
-    long countByUserId(UUID userId);
+    @Query("""
+        select new com.financeai.backend.rag.RagIndexStatusCount(r.indexStatus, count(r))
+        from RagDocument r
+        where r.userId = :userId
+        group by r.indexStatus
+        """)
+    List<RagIndexStatusCount> summarizeIndexStatusByUserId(
+        @Param("userId") UUID userId);
 
-    long countByUserIdAndIndexStatus(UUID userId, RagIndexStatus indexStatus);
-
-    long countByUserIdAndSourceIdIn(UUID userId, List<String> sourceIds);
-
-    long countByUserIdAndSourceIdInAndIndexStatus(
-        UUID userId, List<String> sourceIds, RagIndexStatus indexStatus);
+    @Query("""
+        select new com.financeai.backend.rag.RagIndexStatusCount(r.indexStatus, count(r))
+        from RagDocument r
+        where r.userId = :userId
+          and r.sourceId in :sourceIds
+        group by r.indexStatus
+        """)
+    List<RagIndexStatusCount> summarizeIndexStatusByUserIdAndSourceIdIn(
+        @Param("userId") UUID userId,
+        @Param("sourceIds") List<String> sourceIds);
 
     void deleteByUserId(UUID userId);
 }

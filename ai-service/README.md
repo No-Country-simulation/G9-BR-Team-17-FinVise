@@ -124,7 +124,7 @@ As conexões são reutilizadas por um pool iniciado e encerrado com a aplicaçã
 | `LLM_MAX_TOKENS` | `1024` |
 | `LLM_TEMPERATURE` | `0.2` |
 
-Somente `LLM_PROVIDER=openai` ativa `OpenAIProvider`; outro valor usa o provider de template. O cliente chama `{LLM_BASE_URL}/chat/completions` com `httpx`. Não há LangChain nem SDK oficial da OpenAI.
+Somente `LLM_PROVIDER=openai` ativa `OpenAIProvider`; outro valor usa o provider de template. O cliente chama `{LLM_BASE_URL}/chat/completions` com `httpx`. O agente e o cliente HTTP são compartilhados pelo processo; chat e embeddings reutilizam o pool de conexões, fechado no encerramento do FastAPI. Não há LangChain nem SDK oficial da OpenAI.
 
 ### RAG
 

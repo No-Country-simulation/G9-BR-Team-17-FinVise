@@ -386,15 +386,21 @@ public class RagIngestionService {
 
     public RagIndexStatusResponse indexStatus(UUID userId, List<String> sourceIds) {
         List<String> normalizedSources = normalizedSourceIds(sourceIds);
-        long total = countDocuments(userId, normalizedSources, null);
-        long pending = countDocuments(
-            userId, normalizedSources, RagIndexStatus.PENDING);
-        long processing = countDocuments(
-            userId, normalizedSources, RagIndexStatus.PROCESSING);
-        long indexed = countDocuments(
-            userId, normalizedSources, RagIndexStatus.INDEXED);
-        long failed = countDocuments(
-            userId, normalizedSources, RagIndexStatus.FAILED);
+        List<RagIndexStatusCount> counts = normalizedSources.isEmpty()
+            ? ragDocumentRepository.summarizeIndexStatusByUserId(userId)
+            : ragDocumentRepository.summarizeIndexStatusByUserIdAndSourceIdIn(
+                userId, normalizedSources);
+        java.util.EnumMap<RagIndexStatus, Long> totals = new java.util.EnumMap<>(
+            RagIndexStatus.class);
+        for (RagIndexStatusCount count : counts) {
+            totals.put(count.status(), count.total());
+        }
+
+        long pending = totals.getOrDefault(RagIndexStatus.PENDING, 0L);
+        long processing = totals.getOrDefault(RagIndexStatus.PROCESSING, 0L);
+        long indexed = totals.getOrDefault(RagIndexStatus.INDEXED, 0L);
+        long failed = totals.getOrDefault(RagIndexStatus.FAILED, 0L);
+        long total = pending + processing + indexed + failed;
 
         String status;
         if (total == 0) {
@@ -412,20 +418,6 @@ public class RagIngestionService {
         }
         return new RagIndexStatusResponse(
             status, total, pending, processing, indexed, failed);
-    }
-
-    private long countDocuments(UUID userId,
-                                List<String> sourceIds,
-                                RagIndexStatus status) {
-        if (sourceIds.isEmpty()) {
-            return status == null
-                ? ragDocumentRepository.countByUserId(userId)
-                : ragDocumentRepository.countByUserIdAndIndexStatus(userId, status);
-        }
-        return status == null
-            ? ragDocumentRepository.countByUserIdAndSourceIdIn(userId, sourceIds)
-            : ragDocumentRepository.countByUserIdAndSourceIdInAndIndexStatus(
-                userId, sourceIds, status);
     }
 
     private List<String> normalizedSourceIds(List<String> sourceIds) {

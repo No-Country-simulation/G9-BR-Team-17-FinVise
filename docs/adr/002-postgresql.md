@@ -6,15 +6,16 @@ Aceito
 
 ## Contexto
 
-O backend precisa persistir usuários, transações, análises, indicadores, recomendações e histórico do agente.
+O sistema precisa persistir usuários, transações, fontes, análises, indicadores, recomendações, histórico do agente, fatos financeiros e evidências RAG.
 
 ## Decisão
 
-Usar PostgreSQL como banco de dados relacional principal.
+Usar PostgreSQL como banco principal e habilitar `pgvector` quando disponível. O schema é versionado exclusivamente pelas migrações Flyway do backend.
 
 ## Consequências
 
-- Suporte robusto a dados estruturados, transações e JSONB para metadados.
-- Type `NUMERIC` ideal para valores monetários.
-- Flyway gerencia migrations de forma versionada.
-- Banco relacional atende ao MVP sem adicionar complexidade.
+- Dados relacionais, `NUMERIC`, `JSONB`, full-text e vetores permanecem no mesmo banco.
+- Flyway gerencia as migrações e tolera ambientes de teste sem a extensão vetorial.
+- O backend é proprietário do schema e das tabelas de domínio.
+- O AI Service recebe acesso SQL restrito a `rag_documents` para indexação e recuperação.
+- `pgvector` adiciona requisitos de imagem/extensão e fixa o vetor atual em 1536 dimensões.

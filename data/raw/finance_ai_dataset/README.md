@@ -1,71 +1,71 @@
-# Dataset sintético — FinVise
+# Espelho local do dataset sintético — FinVise
 
-Dataset criado para iniciar o desenvolvimento e os testes do projeto **FinVise — Assistente Inteligente de Saúde Financeira**.
+Este diretório é o local esperado por `data/scripts/create_samples.py`. Ele não é o dataset canônico usado por padrão no treinamento.
 
-## Volume
+## Conteúdo versionado
 
-- Usuários: **1,500**
-- Transações: **169,546**
-- Perfis mensais: **18,000**
-- Período: **2025-07 a 2026-06**
-- Seed: **20260715**
+O `.gitignore` exclui CSV, XLSX e ZIP sob `data/raw/`. Nesta cópia do repositório permanecem versionados:
 
-## Arquivos
+- `README.md`;
+- `manifesto.json`;
+- `exemplos_api.json`.
 
-- `usuarios.csv`: dados sintéticos e anônimos de usuários.
-- `transacoes.csv`: transações com descrições ruidosas, categorias e subcategorias.
-- `perfis_mensais.csv`: indicadores mensais e rótulo de perfil financeiro.
-- `categorias.csv`: catálogo de categorias, subcategorias e exemplos.
-- `dicionario_dados.csv`: descrição dos campos.
-- `exemplos_api.json`: exemplos de payloads para a API.
-- `finance_ai_dataset_resumo.xlsx`: resumo visual e amostras dos dados.
+Os arquivos grandes, quando provisionados localmente, podem incluir:
 
-## Primeiros modelos sugeridos
+- `usuarios.csv`;
+- `transacoes.csv`;
+- `perfis_mensais.csv`;
+- `categorias.csv`;
+- `dicionario_dados.csv`;
+- `finance_ai_dataset_resumo.xlsx`.
 
-### 1. Classificador de transações
+## Fonte canônica
 
-- Entrada inicial: `descricao_normalizada`
-- Features adicionais opcionais: `valor`, `forma_pagamento`, `recorrente`
-- Target: `categoria`
-- Baseline: TF-IDF + Regressão Logística ou Linear SVM
-- Avaliação: macro F1, weighted F1 e matriz de confusão
+O pacote completo versionado nesta cópia está em:
 
-Filtre `tipo == DESPESA` caso o MVP classifique somente despesas.
+```text
+finance_ai_dataset/
+```
 
-### 2. Classificador de perfil financeiro
+O pipeline do AI Service usa por padrão `../finance_ai_dataset` quando executado em `ai-service/`. Para alterar isso, defina `DATASET_RAW_DIR` no ambiente do processo Python.
 
-Features sugeridas:
+## Gerar amostras
 
-- `percentual_renda_comprometida`
-- `nivel_endividamento_pct`
-- `taxa_poupanca_pct`
-- `percentual_despesas_fixas`
-- `percentual_gastos_nao_essenciais`
-- `quantidade_despesas_recorrentes`
-- `variacao_despesas_pct`
-- `reserva_em_meses`
+O script da raiz lê **somente este espelho**:
 
-Target: `perfil_financeiro`
+```bash
+python data/scripts/create_samples.py
+```
 
-**Não use** `score_financeiro`, `confianca_perfil`, `fatores_risco`,
-`fatores_positivos` ou `regra_rotulacao` como features, pois esses campos
-foram gerados junto com o rótulo e causariam vazamento de dados.
+Arquivos exigidos para gerar ambas as amostras:
 
-## Divisão de treino
+```text
+data/raw/finance_ai_dataset/transacoes.csv
+data/raw/finance_ai_dataset/perfis_mensais.csv
+```
 
-A coluna `split` foi definida por usuário:
+Se estiverem ausentes, o script registra `[skip] Source not found` e não copia automaticamente os arquivos do diretório canônico.
 
-- TRAIN: aproximadamente 70%
-- VALIDATION: aproximadamente 15%
-- TEST: aproximadamente 15%
+Para usar diretamente o dataset canônico e gerar amostras do AI Service:
 
-Isso impede que transações do mesmo usuário apareçam simultaneamente no treino e no teste.
+```bash
+cd ai-service
+python -m training.prepare_dataset
+```
+
+## Metadados
+
+Segundo `manifesto.json`:
+
+- 1.500 usuários;
+- 169.546 transações;
+- 18.000 perfis mensais;
+- 47 categorias/subcategorias;
+- período de 2025-07 a 2026-06;
+- seed `20260715`.
+
+`exemplos_api.json` deve permanecer semanticamente igual a `finance_ai_dataset/exemplos_api.json`; o backend verifica essa igualdade em teste.
 
 ## Aviso
 
-Todos os dados são sintéticos e não representam pessoas ou movimentações reais.
-O conjunto é adequado para prototipação, testes de API, pipelines de ML,
-integração Java/Python, processamento em lote e demonstrações.
-
-Antes de uso em produção, substitua ou complemente por dados reais autorizados,
-anonimizados e tratados de acordo com a LGPD.
+Os dados são sintéticos e educacionais. Não coloque dados reais neste diretório, mesmo que os padrões do Git os ignorem localmente.

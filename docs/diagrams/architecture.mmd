@@ -1,8 +1,11 @@
 graph LR
-    U[Usuário] -->|HTTPS| N[Nginx]
+    U[Usuário] -->|HTTP local ou HTTPS via TLS externo| N[Nginx]
     N -->|/| F[Frontend React]
-    N -->|/api| B[Backend Spring Boot]
+    N -->|/api e /actuator/health| B[Backend Spring Boot]
+    N -->|/internal| X[403]
     B -->|HTTP interno| A[AI Service FastAPI]
-    B -->|JDBC| P[(PostgreSQL)]
-    A -->|Joblib| M[Modelos ML]
+    B -->|JDBC e Flyway| P[(PostgreSQL 16 + pgvector)]
+    A -->|SQL restrito a RAG| P
+    A -->|Joblib| M[Modelos ML opcionais]
+    A -.->|Chat e embeddings opcionais| L[API compatível com OpenAI]
     F -.->|PWA| C[Service Worker]

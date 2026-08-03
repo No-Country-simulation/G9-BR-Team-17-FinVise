@@ -1,11 +1,12 @@
 graph TB
-    U[Usuário] -->|HTTPS 443| IG[Internet Gateway]
-    IG -->|80/443| NSG[Security List / NSG]
+    U[Usuário] -->|HTTPS 443| TLS[Load Balancer / TLS externo]
+    TLS -->|HTTP 80 restrito| NSG[Security List / NSG]
     NSG --> VM[OCI Compute Instance Ubuntu]
-    VM -->|Docker Compose| N[Nginx]
+    VM -->|Docker Compose| N[Nginx :80]
     N --> F[Frontend]
     N --> B[Backend]
-    B --> P[(PostgreSQL)]
+    B --> P[(PostgreSQL + volumes)]
     B --> A[AI Service]
-    A --> M[Modelos]
-    B -.->|opcional| OBS[OCI Object Storage]
+    A -->|SQL RAG| P
+    A --> M[Modelos montados read-only]
+    B -.->|CSV opcional; credenciais ainda requerem estratégia| OBS[OCI Object Storage]

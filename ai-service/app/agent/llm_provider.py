@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.core.http_client import get_http_client
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,13 +31,14 @@ class LLMProvider(ABC):
 
 
 class OpenAIProvider(LLMProvider):
-    def __init__(self) -> None:
+    def __init__(self, client: httpx.Client | None = None) -> None:
         self.api_key = settings.llm_api_key
         self.base_url = settings.llm_base_url.rstrip("/")
         self.model = settings.llm_model
         self.timeout = settings.llm_timeout_seconds
         self.max_tokens = settings.llm_max_tokens
         self.temperature = settings.llm_temperature
+        self.client = client or get_http_client()
 
     def complete(
         self,
@@ -63,7 +65,7 @@ class OpenAIProvider(LLMProvider):
         }
 
         try:
-            response = httpx.post(
+            response = self.client.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=payload,
@@ -100,7 +102,7 @@ class OpenAIProvider(LLMProvider):
             "Content-Type": "application/json",
         }
 
-        with httpx.stream(
+        with self.client.stream(
             "POST",
             f"{self.base_url}/chat/completions",
             headers=headers,

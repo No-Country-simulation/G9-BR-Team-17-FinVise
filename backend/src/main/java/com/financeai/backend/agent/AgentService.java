@@ -6,6 +6,8 @@ import com.financeai.backend.integration.ai.AiServiceClient;
 import com.financeai.backend.integration.ai.AgentRespondRequest;
 import com.financeai.backend.integration.ai.AgentRespondResponse;
 import com.financeai.backend.transaction.Transaction;
+import com.financeai.backend.transaction.TransactionCategory;
+import com.financeai.backend.transaction.TransactionCategoryRepository;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.transaction.TransactionType;
@@ -30,6 +32,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -45,6 +49,7 @@ public class AgentService {
     private final AgentMessageRepository messageRepository;
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
+    private final TransactionCategoryRepository categoryRepository;
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
 
@@ -52,12 +57,14 @@ public class AgentService {
                         AgentMessageRepository messageRepository,
                         UserRepository userRepository,
                         TransactionRepository transactionRepository,
+                        TransactionCategoryRepository categoryRepository,
                         AiServiceClient aiServiceClient,
                         ObjectMapper objectMapper) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
+        this.categoryRepository = categoryRepository;
         this.aiServiceClient = aiServiceClient;
         this.objectMapper = objectMapper;
     }
@@ -243,13 +250,7 @@ public class AgentService {
                     incomeCommitment);
 
             // Category-based spending summary
-            Map<String, BigDecimal> categoryTotals = new HashMap<>();
-            for (Transaction txn : transactions) {
-                if (txn.getType() == TransactionType.EXPENSE) {
-                    String cat = txn.getCategoryId() != null ? txn.getCategoryId().toString() : "sem_categoria";
-                    categoryTotals.merge(cat, txn.getAmount(), BigDecimal::add);
-                }
-            }
+            Map<String, BigDecimal> categoryTotals = expenseTotalsByCategory(transactions);
             AgentRespondRequest.SpendingSummaryDto spendingSummary =
                 new AgentRespondRequest.SpendingSummaryDto(categoryTotals, totalExpenses);
 
@@ -310,6 +311,29 @@ public class AgentService {
         }
         return total.divide(
             BigDecimal.valueOf(monthCount), 2, java.math.RoundingMode.HALF_UP);
+    }
+
+    private Map<String, BigDecimal> expenseTotalsByCategory(List<Transaction> transactions) {
+        Set<UUID> categoryIds = transactions.stream()
+            .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
+            .map(Transaction::getCategoryId)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<UUID, String> categoryCodes = categoryIds.isEmpty()
+            ? Map.of()
+            : categoryRepository.findAllById(categoryIds).stream()
+                .collect(Collectors.toMap(
+                    TransactionCategory::getId,
+                    category -> category.getCode().toUpperCase(Locale.ROOT)));
+
+        Map<String, BigDecimal> totals = new TreeMap<>();
+        transactions.stream()
+            .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
+            .forEach(transaction -> totals.merge(
+                categoryCodes.getOrDefault(transaction.getCategoryId(), "OUTROS"),
+                transaction.getAmount(),
+                BigDecimal::add));
+        return totals;
     }
 
     private String generateAssistantReply(String userContent, AgentConversation conversation) {

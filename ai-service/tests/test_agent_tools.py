@@ -136,6 +136,36 @@ def test_agent_routes_month_and_transaction_rankings():
     }
 
 
+@pytest.mark.parametrize(
+    ("message", "expected_target", "expected_months"),
+    [
+        ("Quero economizar R$ 6.000 em 6 meses.", 6000.0, 6),
+        ("Quero juntar 1500 reais em 3 meses.", 1500.0, 3),
+        ("Simule uma meta de R$ 1.500,50 em 12 meses.", 1500.5, 12),
+        ("Simule 20000 em 18 meses.", 20000.0, 18),
+        ("Quero poupar R$ 500 em 1 mês.", 500.0, 1),
+        ("Quero simular uma meta em 6 meses.", 10000.0, 6),
+        ("Quanto preciso guardar?", 10000.0, 12),
+    ],
+)
+def test_extract_savings_arguments(
+    message: str,
+    expected_target: float,
+    expected_months: int,
+):
+    agent = FinancialAgent(llm_provider=object())
+    request = AgentRequest(
+        conversation_id="conversation-1",
+        user_id="user-1",
+        messages=[{"role": "user", "content": message}],
+    )
+
+    assert agent._extract_savings_arguments(request) == {
+        "target_amount": expected_target,
+        "months": expected_months,
+    }
+
+
 def test_get_recommendations():
     ctx = AgentContext(
         recommendations=[
@@ -157,7 +187,92 @@ def test_compare_periods():
     )
     result = compare_periods(ctx)
     assert result["result"]["available"] is True
+    assert result["result"]["comparison_basis"] == "PROVIDED_INDICATORS"
     assert result["result"]["changes"]["savings_rate_pct"] == 5.0
+
+
+def test_compare_periods_uses_two_latest_monthly_facts():
+    ctx = AgentContext(
+        indicators={"total_income": 16000.0, "total_expenses": 2500.0},
+        analytical_facts={
+            "months": [
+                {
+                    "period": "2024-12",
+                    "transaction_count": 3,
+                    "total_income": 6000.0,
+                    "total_expenses": 1500.0,
+                    "balance": 4500.0,
+                },
+                {
+                    "period": "2024-10",
+                    "transaction_count": 1,
+                    "total_income": 5000.0,
+                    "total_expenses": 0.0,
+                    "balance": 5000.0,
+                },
+                {
+                    "period": "2024-11",
+                    "transaction_count": 2,
+                    "total_income": 5000.0,
+                    "total_expenses": 1000.0,
+                    "balance": 4000.0,
+                },
+            ]
+        },
+    )
+
+    result = compare_periods(ctx)["result"]
+
+    assert result["available"] is True
+    assert result["comparison_basis"] == "MONTHLY"
+    assert result["current_period"]["period"] == "2024-12"
+    assert result["previous_period"]["period"] == "2024-11"
+    assert result["current_period"]["savings_rate_pct"] == 75.0
+    assert result["previous_period"]["income_commitment_pct"] == 20.0
+    assert result["changes"] == {
+        "total_income": 1000.0,
+        "total_expenses": 500.0,
+        "balance": 500.0,
+        "transaction_count": 1,
+        "savings_rate_pct": -5.0,
+        "income_commitment_pct": 5.0,
+    }
+
+
+def test_compare_periods_requires_two_months():
+    ctx = AgentContext(
+        analytical_facts={
+            "months": [
+                {
+                    "period": "2024-12",
+                    "total_income": 6000.0,
+                    "total_expenses": 1500.0,
+                }
+            ]
+        }
+    )
+
+    result = compare_periods(ctx)["result"]
+
+    assert result["available"] is False
+    assert result["message"] == "São necessários dados de pelo menos dois meses."
+
+
+def test_agent_routes_comparison_variants():
+    agent = FinancialAgent(llm_provider=object())
+    messages = [
+        "Compare novembro com dezembro",
+        "Quero uma comparacao dos dois meses",
+        "Como foi minha evolucao?",
+    ]
+
+    for message in messages:
+        request = AgentRequest(
+            conversation_id="conversation-1",
+            user_id="user-1",
+            messages=[{"role": "user", "content": message}],
+        )
+        assert "compare_periods" in agent._select_tools(request)
 
 
 def test_get_recurring_expenses():

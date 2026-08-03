@@ -12,10 +12,15 @@ configure_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.agent.rag_service import rag_service
     from app.model_registry.registry import get_registry
 
     get_registry()
-    yield
+    rag_service.open()
+    try:
+        yield
+    finally:
+        rag_service.close()
 
 
 app = FastAPI(

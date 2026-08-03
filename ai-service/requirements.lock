@@ -58,6 +58,8 @@ psycopg==3.2.3
     # via finvise-ai-service (pyproject.toml)
 psycopg-binary==3.2.3
     # via psycopg
+psycopg-pool==3.3.1
+    # via finvise-ai-service (pyproject.toml)
 pyarrow==21.0.0
     # via finvise-ai-service (pyproject.toml)
 pydantic==2.10.4

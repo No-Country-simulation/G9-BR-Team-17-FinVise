@@ -1,7 +1,5 @@
 package com.financeai.backend;
 
-import com.financeai.backend.analysis.AnalysisService;
-import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.importation.*;
 import com.financeai.backend.common.exception.BusinessException;
 import com.financeai.backend.fact.FinancialFactsService;
@@ -51,9 +49,6 @@ class CsvImportServiceTest {
     private com.financeai.backend.rag.RagIngestionService ragIngestionService;
     @Mock
     private FinancialFactsService financialFactsService;
-    @Mock
-    private AnalysisService analysisService;
-
     @InjectMocks
     private CsvImportService csvImportService;
 
@@ -110,15 +105,6 @@ class CsvImportServiceTest {
             .anyMatch(t -> "Supermercado".equals(t.getDescription()));
         verify(financialFactsService).rebuild(
             eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
-        verify(analysisService).analyzeStoredTransactions(
-            eq(userId),
-            eq(ProfileAnalysisModel.MACHINE_LEARNING),
-            eq(TransactionSource.CSV_IMPORT),
-            any(UUID.class),
-            eq(null),
-            eq(null)
-        );
-
         ArgumentCaptor<ImportedFile> importedFileCaptor = ArgumentCaptor.forClass(ImportedFile.class);
         verify(importedFileRepository, atLeast(2)).save(importedFileCaptor.capture());
         assertThat(importedFileCaptor.getAllValues())
@@ -170,7 +156,7 @@ class CsvImportServiceTest {
     }
 
     @Test
-    void shouldKeepImportWhenFinancialProfileHasNoIncome() {
+    void shouldImportFileWithOnlyExpensesWithoutCreatingAnImplicitAnalysis() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(objectStorageService.store(any(InputStream.class), anyString(), anyLong()))
             .thenReturn("stored.csv");
@@ -186,17 +172,6 @@ class CsvImportServiceTest {
         });
         when(transactionRepository.saveAll(anyList()))
             .thenAnswer(invocation -> invocation.getArgument(0));
-        when(analysisService.analyzeStoredTransactions(
-            eq(userId),
-            eq(ProfileAnalysisModel.MACHINE_LEARNING),
-            eq(TransactionSource.CSV_IMPORT),
-            any(UUID.class),
-            eq(null),
-            eq(null)
-        )).thenThrow(new BusinessException(
-            "NO_INCOME_TRANSACTIONS",
-            "Não há transações de receita suficientes"
-        ));
         MultipartFile file = new MockMultipartFile(
             "file", "despesas.csv", "text/csv", content.getBytes(StandardCharsets.UTF_8));
 

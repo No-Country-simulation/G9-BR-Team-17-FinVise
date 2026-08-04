@@ -121,12 +121,14 @@ def agent_respond_stream(
     agent = get_agent()
 
     def event_generator():
+        response_stream = None
         try:
             authenticated_request = AgentRequest(
                 user_id=user_id,
                 **request.model_dump(),
             )
-            for event in agent.respond_stream(authenticated_request):
+            response_stream = agent.respond_stream(authenticated_request)
+            for event in response_stream:
                 event_type = event.get("type", "message")
                 payload = json.dumps(event, ensure_ascii=False)
                 yield f"event: {event_type}\ndata: {payload}\n\n"
@@ -138,6 +140,10 @@ def agent_respond_stream(
                 ensure_ascii=False,
             )
             yield f"event: error\ndata: {payload}\n\n"
+        finally:
+            close = getattr(response_stream, "close", None)
+            if callable(close):
+                close()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

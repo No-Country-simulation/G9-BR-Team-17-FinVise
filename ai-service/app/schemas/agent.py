@@ -91,6 +91,7 @@ class AgentApiRequest(BaseModel):
 
     conversation_id: str
     messages: list[Message] = Field(..., min_length=1)
+    history_summary: str = Field(default="", max_length=16000)
     context: AgentContext = Field(default_factory=AgentContext)
 
 

@@ -2,15 +2,10 @@ package com.financeai.backend.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
-import com.financeai.backend.integration.ai.AiServiceClient;
 import com.financeai.backend.integration.ai.AgentRespondRequest;
 import com.financeai.backend.integration.ai.AgentRespondResponse;
-import com.financeai.backend.transaction.Transaction;
-import com.financeai.backend.transaction.TransactionCategory;
-import com.financeai.backend.transaction.TransactionCategoryRepository;
-import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.integration.ai.AiServiceClient;
 import com.financeai.backend.transaction.TransactionSource;
-import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.slf4j.Logger;
@@ -25,9 +20,12 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -35,39 +33,46 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class AgentService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentService.class);
     private static final int ANALYTICAL_RANKING_LIMIT = 10;
+    private static final int MESSAGE_PAGE_MAX_SIZE = 100;
+    private static final Pattern YEAR_PATTERN = Pattern.compile("\\b(20\\d{2})\\b");
+    private static final Map<String, Integer> MONTHS = Map.ofEntries(
+        Map.entry("janeiro", 1), Map.entry("fevereiro", 2), Map.entry("marco", 3),
+        Map.entry("abril", 4), Map.entry("maio", 5), Map.entry("junho", 6),
+        Map.entry("julho", 7), Map.entry("agosto", 8), Map.entry("setembro", 9),
+        Map.entry("outubro", 10), Map.entry("novembro", 11), Map.entry("dezembro", 12));
 
     private final AgentConversationRepository conversationRepository;
     private final AgentMessageRepository messageRepository;
     private final UserRepository userRepository;
-    private final TransactionRepository transactionRepository;
-    private final TransactionCategoryRepository categoryRepository;
+    private final AgentFinancialContextRepository financialContextRepository;
+    private final AgentRequestCoordinator requestCoordinator;
+    private final AgentContextProperties properties;
     private final AiServiceClient aiServiceClient;
     private final ObjectMapper objectMapper;
 
     public AgentService(AgentConversationRepository conversationRepository,
                         AgentMessageRepository messageRepository,
                         UserRepository userRepository,
-                        TransactionRepository transactionRepository,
-                        TransactionCategoryRepository categoryRepository,
+                        AgentFinancialContextRepository financialContextRepository,
+                        AgentRequestCoordinator requestCoordinator,
+                        AgentContextProperties properties,
                         AiServiceClient aiServiceClient,
                         ObjectMapper objectMapper) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
-        this.transactionRepository = transactionRepository;
-        this.categoryRepository = categoryRepository;
+        this.financialContextRepository = financialContextRepository;
+        this.requestCoordinator = requestCoordinator;
+        this.properties = properties;
         this.aiServiceClient = aiServiceClient;
         this.objectMapper = objectMapper;
     }
@@ -76,653 +81,524 @@ public class AgentService {
     public ConversationResponse createConversation(UUID userId, CreateConversationRequest request) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
-
         AgentConversation conversation = new AgentConversation();
         conversation.setUser(user);
         conversation.setTitle(request.title() != null ? request.title() : "Nova conversa");
         conversation.setStatus(ConversationStatus.ACTIVE);
         conversation.setTransactionSource(request.source());
-        List<UUID> sourceIds = request.sourceIds() != null
-            ? request.sourceIds().stream().distinct().toList()
-            : List.of();
+        List<UUID> sourceIds = request.sourceIds() == null
+            ? List.of() : request.sourceIds().stream().distinct().toList();
         conversation.setRagSourceIds(writeJson(sourceIds, "fontes RAG"));
         conversation.setRagTopK(clampTopK(request.topK()));
-        conversation = conversationRepository.save(conversation);
-
-        return toResponse(conversation, List.of());
+        return toResponse(conversationRepository.save(conversation), List.of(), 0, 0, 0);
     }
 
-    @Transactional
-    public ConversationResponse sendMessage(UUID userId, UUID conversationId, SendMessageRequest request) {
-        AgentConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
-
-        AgentMessage userMessage = new AgentMessage();
-        userMessage.setConversation(conversation);
-        userMessage.setRole("USER");
-        userMessage.setContent(request.content());
-        messageRepository.save(userMessage);
-
-        List<AgentMessage> history = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        List<AgentRespondRequest.MessageDto> messageDtos = history.stream()
-            .map(m -> new AgentRespondRequest.MessageDto(m.getRole().toLowerCase(), m.getContent()))
-            .toList();
-
-        AgentRespondRequest.AgentContextDto contextDto = buildAgentContext(userId, conversation);
-
-        AgentRespondRequest aiRequest = new AgentRespondRequest(
-            conversation.getId().toString(),
-            userId.toString(),
-            messageDtos,
-            contextDto
-        );
-
-        AgentRespondResponse aiResponse = aiServiceClient.agentRespond(aiRequest);
-
-        AgentMessage assistantMessage = new AgentMessage();
-        assistantMessage.setConversation(conversation);
-        assistantMessage.setRole("ASSISTANT");
-
-        if (aiResponse != null && aiResponse.message() != null && aiResponse.message().content() != null) {
-            assistantMessage.setContent(aiResponse.message().content());
-            List<String> toolsExecuted = new ArrayList<>();
-            if (aiResponse.toolCalls() != null && !aiResponse.toolCalls().isEmpty()) {
-                toolsExecuted = aiResponse.toolCalls().stream().map(AgentRespondResponse.ToolCallDto::tool).toList();
-            }
-            try {
-                assistantMessage.setToolCalls(objectMapper.writeValueAsString(toolsExecuted));
-                assistantMessage.setRagSources(objectMapper.writeValueAsString(
-                    aiResponse.sources() != null ? aiResponse.sources() : List.of()));
-            } catch (Exception e) {
-                log.warn("Erro ao serializar dados da resposta do agente: {}", e.getMessage());
-            }
-        } else {
-            assistantMessage.setContent(generateAssistantReply(request.content(), conversation));
-            try {
-                assistantMessage.setToolCalls(objectMapper.writeValueAsString(List.of("regra_financeira_fallback")));
-            } catch (Exception ignored) {}
+    public ConversationResponse sendMessage(UUID userId, UUID conversationId,
+                                             SendMessageRequest request) {
+        PreparedRequest prepared = prepareRequest(userId, conversationId, request);
+        if (prepared.completedMessage() != null) {
+            return getConversation(userId, conversationId, 0, 50);
         }
 
-        messageRepository.save(assistantMessage);
-
-        List<AgentMessage> allMessages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        return toResponse(conversation, allMessages);
+        try {
+            AgentRespondResponse response = aiServiceClient.agentRespond(prepared.aiRequest());
+            AgentMessage assistant = response != null && response.message() != null
+                && response.message().content() != null && !response.message().content().isBlank()
+                ? assistantMessage(prepared.conversation(), response.message().content(),
+                    response.toolCalls() == null ? List.of() : response.toolCalls().stream()
+                        .map(AgentRespondResponse.ToolCallDto::tool).toList(),
+                    response.sources() == null ? List.of() : response.sources())
+                : assistantMessage(prepared.conversation(), prepared.fallbackReply(),
+                    List.of("regra_financeira_fallback"), List.of());
+            AgentMessage saved = messageRepository.save(assistant);
+            requestCoordinator.complete(conversationId, request.clientMessageId(), saved.getId());
+            return getConversation(userId, conversationId, 0, 50);
+        } catch (RuntimeException exception) {
+            requestCoordinator.fail(conversationId, request.clientMessageId(), "FAILED", "UPSTREAM_ERROR");
+            throw exception;
+        }
     }
 
-    @Transactional
-    public StreamingResponseBody streamMessage(
-        UUID userId,
-        UUID conversationId,
-        SendMessageRequest request
-    ) {
-        AgentConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
-
-        AgentMessage userMessage = new AgentMessage();
-        userMessage.setConversation(conversation);
-        userMessage.setRole("USER");
-        userMessage.setContent(request.content());
-        messageRepository.save(userMessage);
-
-        List<AgentMessage> history =
-            messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        List<AgentRespondRequest.MessageDto> messageDtos = history.stream()
-            .map(message -> new AgentRespondRequest.MessageDto(
-                message.getRole().toLowerCase(), message.getContent()))
-            .toList();
-        AgentRespondRequest aiRequest = new AgentRespondRequest(
-            conversationId.toString(),
-            userId.toString(),
-            messageDtos,
-            buildAgentContext(userId, conversation)
-        );
-        String fallbackReply = generateAssistantReply(request.content(), conversation);
-
-        return outputStream -> executeStream(
-            outputStream, conversationId, aiRequest, fallbackReply);
+    public StreamingResponseBody streamMessage(UUID userId, UUID conversationId,
+                                                SendMessageRequest request) {
+        PreparedRequest prepared = prepareRequest(userId, conversationId, request);
+        if (prepared.completedMessage() != null) {
+            return output -> replayCompleted(output, conversationId, prepared.completedMessage());
+        }
+        return output -> executeStream(output, conversationId, request.clientMessageId(), prepared);
     }
 
     @Transactional(readOnly = true)
-    public ConversationResponse getConversation(UUID userId, UUID conversationId) {
-        AgentConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
-        List<AgentMessage> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        return toResponse(conversation, messages);
+    public ConversationResponse getConversation(UUID userId, UUID conversationId,
+                                                int page, int size) {
+        AgentConversation conversation = findConversation(userId, conversationId);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, MESSAGE_PAGE_MAX_SIZE));
+        Page<AgentMessage> result = messageRepository.findByConversationId(
+            conversationId, PageRequest.of(safePage, safeSize,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+        List<AgentMessage> chronological = new ArrayList<>(result.getContent());
+        java.util.Collections.reverse(chronological);
+        return toResponse(conversation, chronological, result.getTotalElements(),
+            result.getNumber(), result.getSize());
     }
 
     @Transactional(readOnly = true)
     public ConversationPageResponse getConversations(UUID userId, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(size, 50));
-        Page<AgentConversation> result = conversationRepository.findByUserId(
-            userId,
+        Page<AgentConversation> result = conversationRepository.findByUserId(userId,
             PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
-        return new ConversationPageResponse(
-            result.getContent().stream()
-                .map(conversation -> toResponse(conversation, List.of()))
-                .toList(),
-            result.getTotalElements(),
-            result.getTotalPages(),
-            result.getSize(),
-            result.getNumber());
+        return new ConversationPageResponse(result.getContent().stream()
+            .map(item -> toResponse(item, List.of(), 0, 0, 0)).toList(),
+            result.getTotalElements(), result.getTotalPages(), result.getSize(), result.getNumber());
     }
 
-    private AgentRespondRequest.AgentContextDto buildAgentContext(UUID userId, AgentConversation conversation) {
+    private PreparedRequest prepareRequest(UUID userId, UUID conversationId,
+                                           SendMessageRequest request) {
+        AgentConversation conversation = findConversation(userId, conversationId);
+        AgentRequestCoordinator.StartResult start = requestCoordinator.start(
+            conversationId, userId, request.clientMessageId(), request.content(),
+            properties.getConversationLockTimeoutMs());
+        if (start.outcome() == AgentRequestCoordinator.StartOutcome.COMPLETED) {
+            AgentMessage completed = messageRepository.findById(start.state().assistantMessageId())
+                .orElseThrow(() -> new IllegalStateException("Resposta idempotente não encontrada"));
+            return new PreparedRequest(conversation, null, null, completed);
+        }
+        if (start.outcome() != AgentRequestCoordinator.StartOutcome.ACQUIRED) {
+            throw new AgentConversationBusyException();
+        }
+
         try {
-            String source = conversation.getTransactionSource() != null
-                ? conversation.getTransactionSource().name()
+            if (start.state().userMessageId() == null) {
+                AgentMessage userMessage = new AgentMessage();
+                userMessage.setConversation(conversation);
+                userMessage.setRole("USER");
+                userMessage.setContent(request.content());
+                AgentMessage saved = messageRepository.save(userMessage);
+                requestCoordinator.attachUserMessage(request.clientMessageId(), saved.getId());
+            }
+
+            HistoryWindow history = boundedHistory(conversation);
+            AgentRespondRequest.AgentContextDto context = buildAgentContext(
+                userId, conversation, request.content());
+            List<AgentRespondRequest.MessageDto> budgeted = applyTokenBudget(
+                history.messages(), history.summary(), context);
+            AgentRespondRequest aiRequest = new AgentRespondRequest(
+                conversationId.toString(), userId.toString(), budgeted,
+                history.summary(), context);
+            return new PreparedRequest(conversation, aiRequest,
+                generateAssistantReply(request.content(), conversation, context), null);
+        } catch (RuntimeException exception) {
+            requestCoordinator.fail(conversationId, request.clientMessageId(),
+                "FAILED", "PREPARATION_ERROR");
+            throw exception;
+        }
+    }
+
+    private HistoryWindow boundedHistory(AgentConversation conversation) {
+        Page<AgentMessage> recentPage = messageRepository.findByConversationId(
+            conversation.getId(), PageRequest.of(0, properties.getHistoryMaxMessages(),
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+        List<AgentMessage> recent = new ArrayList<>(recentPage.getContent());
+        java.util.Collections.reverse(recent);
+        if (recentPage.hasNext() && !recent.isEmpty()) {
+            summarizeOlderMessages(conversation, recent.getFirst());
+        }
+        return new HistoryWindow(recent, conversation.getHistorySummary() == null
+            ? "" : conversation.getHistorySummary());
+    }
+
+    private void summarizeOlderMessages(AgentConversation conversation, AgentMessage cutoff) {
+        Instant afterAt = conversation.getSummarizedThroughCreatedAt();
+        UUID afterId = conversation.getSummarizedThroughMessageId();
+        String summary = conversation.getHistorySummary() == null
+            ? "" : conversation.getHistorySummary();
+        long count = conversation.getSummarizedMessageCount() == null
+            ? 0 : conversation.getSummarizedMessageCount();
+        while (true) {
+            List<AgentMessage> batch = messageRepository.findSummaryCandidates(
+                conversation.getId(), afterAt, afterId, cutoff.getCreatedAt(), cutoff.getId(),
+                PageRequest.of(0, properties.getSummaryBatchSize()));
+            if (batch.isEmpty()) break;
+            for (AgentMessage message : batch) {
+                summary = appendSummary(summary, message);
+                afterAt = message.getCreatedAt();
+                afterId = message.getId();
+                count++;
+            }
+            if (batch.size() < properties.getSummaryBatchSize()) break;
+        }
+        conversation.setHistorySummary(summary);
+        conversation.setSummarizedThroughCreatedAt(afterAt);
+        conversation.setSummarizedThroughMessageId(afterId);
+        conversation.setSummarizedMessageCount(count);
+        conversationRepository.save(conversation);
+    }
+
+    private String appendSummary(String current, AgentMessage message) {
+        String normalized = message.getContent().replaceAll("\\s+", " ").trim();
+        if (normalized.length() > 280) normalized = normalized.substring(0, 280) + "…";
+        String next = current + (current.isBlank() ? "" : "\n")
+            + message.getRole() + ": " + normalized;
+        int max = properties.getSummaryMaxChars();
+        return next.length() <= max ? next : next.substring(next.length() - max);
+    }
+
+    private List<AgentRespondRequest.MessageDto> applyTokenBudget(
+        List<AgentMessage> history, String summary, AgentRespondRequest.AgentContextDto context
+    ) {
+        int fixedChars;
+        try {
+            fixedChars = objectMapper.writeValueAsString(context).length() + summary.length() + 1200;
+        } catch (Exception ignored) {
+            fixedChars = summary.length() + 1200;
+        }
+        int available = Math.max(256, properties.getInputTokenBudget() * 4 - fixedChars);
+        List<AgentRespondRequest.MessageDto> selected = new ArrayList<>();
+        int used = 0;
+        for (int index = history.size() - 1; index >= 0; index--) {
+            AgentMessage message = history.get(index);
+            int cost = message.getContent().length() + 24;
+            if (!selected.isEmpty() && used + cost > available) break;
+            selected.add(new AgentRespondRequest.MessageDto(
+                message.getRole().toLowerCase(Locale.ROOT), message.getContent()));
+            used += cost;
+        }
+        java.util.Collections.reverse(selected);
+        return selected;
+    }
+
+    private AgentRespondRequest.AgentContextDto buildAgentContext(
+        UUID userId, AgentConversation conversation, String question
+    ) {
+        String source = conversation.getTransactionSource() == null
+            ? null : conversation.getTransactionSource().name();
+        List<UUID> sourceIds = selectedSourceIds(conversation);
+        try {
+            AgentFinancialContextRepository.Overview overview =
+                financialContextRepository.overview(userId, source, sourceIds);
+            BigDecimal income = overview.totalIncome();
+            BigDecimal expenses = overview.totalExpenses();
+            BigDecimal balance = income.subtract(expenses);
+            int months = monthCount(overview.periodStart(), overview.periodEnd());
+            BigDecimal savings = income.signum() > 0
+                ? balance.multiply(BigDecimal.valueOf(100)).divide(income, 2, RoundingMode.HALF_UP)
                 : null;
-
-            List<UUID> sourceIds = selectedSourceIds(conversation);
-            List<Transaction> transactions;
-            if (source != null && !sourceIds.isEmpty()) {
-                transactions = transactionRepository
-                    .findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
-                        userId, source, sourceIds);
-            } else if (source != null) {
-                transactions = transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(userId, source);
-            } else {
-                transactions = transactionRepository.findByUserIdOrderByTransactionDateDesc(userId);
-            }
-
-            BigDecimal totalIncome = totalByType(transactions, TransactionType.INCOME);
-            BigDecimal totalExpenses = totalByType(transactions, TransactionType.EXPENSE);
-            BigDecimal balance = totalIncome.subtract(totalExpenses);
-            String periodStart = transactions.stream()
-                .map(Transaction::getTransactionDate)
-                .filter(java.util.Objects::nonNull)
-                .min(Comparator.naturalOrder())
-                .map(Object::toString)
-                .orElse(null);
-            String periodEnd = transactions.stream()
-                .map(Transaction::getTransactionDate)
-                .filter(java.util.Objects::nonNull)
-                .max(Comparator.naturalOrder())
-                .map(Object::toString)
-                .orElse(null);
-            int monthCount = monthCount(periodStart, periodEnd);
-            BigDecimal monthlyIncome = monthlyAverage(totalIncome, monthCount);
-            BigDecimal monthlyExpenses = monthlyAverage(totalExpenses, monthCount);
-            BigDecimal savingsRate = null;
-            BigDecimal incomeCommitment = null;
-            if (totalIncome.compareTo(BigDecimal.ZERO) > 0) {
-                savingsRate = balance.multiply(BigDecimal.valueOf(100))
-                    .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP);
-                incomeCommitment = totalExpenses.multiply(BigDecimal.valueOf(100))
-                    .divide(totalIncome, 2, java.math.RoundingMode.HALF_UP);
-            }
-            AgentRespondRequest.FinancialProfileDto financialProfile =
-                new AgentRespondRequest.FinancialProfileDto(
-                    source != null ? source : "ALL",
-                    transactions.size(),
-                    periodStart,
-                    periodEnd,
-                    monthCount,
-                    monthlyIncome,
-                    monthlyExpenses);
-            AgentRespondRequest.FinancialIndicatorsDto indicators =
-                new AgentRespondRequest.FinancialIndicatorsDto(
-                    totalIncome,
-                    totalExpenses,
-                    balance,
-                    transactions.size(),
-                    savingsRate,
-                    incomeCommitment);
-
-            // Category-based spending summary
-            Map<String, BigDecimal> categoryTotals = expenseTotalsByCategory(transactions);
-            AgentRespondRequest.SpendingSummaryDto spendingSummary =
-                new AgentRespondRequest.SpendingSummaryDto(categoryTotals, totalExpenses);
-
-            // Recent transactions (max 20 for context)
-            List<AgentRespondRequest.TransactionContextDto> recentTxns = transactions.stream()
-                .limit(20)
-                .map(txn -> new AgentRespondRequest.TransactionContextDto(
-                    txn.getDescription(),
-                    txn.getAmount(),
-                    txn.getType().name(),
-                    txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null,
-                    txn.getPaymentMethod(),
-                    Boolean.TRUE.equals(txn.getRecurrent())))
-                .toList();
-
-            // Recurring expenses
-            List<AgentRespondRequest.RecurringExpenseDto> recurring = transactions.stream()
-                .filter(txn -> txn.getType() == TransactionType.EXPENSE && Boolean.TRUE.equals(txn.getRecurrent()))
-                .map(txn -> new AgentRespondRequest.RecurringExpenseDto(
-                    txn.getDescription(),
-                    txn.getAmount(),
-                    txn.getTransactionDate() != null ? txn.getTransactionDate().toString() : null))
-                .toList();
-
+            BigDecimal commitment = income.signum() > 0
+                ? expenses.multiply(BigDecimal.valueOf(100)).divide(income, 2, RoundingMode.HALF_UP)
+                : null;
+            Map<String, BigDecimal> categories = new LinkedHashMap<>();
+            financialContextRepository.expenseCategories(userId, source, sourceIds)
+                .forEach(item -> categories.put(item.category().toUpperCase(Locale.ROOT), item.total()));
+            List<AgentRespondRequest.TransactionContextDto> recent =
+                financialContextRepository.recentTransactions(userId, source, sourceIds,
+                    properties.getRecentTransactions()).stream().map(item ->
+                    new AgentRespondRequest.TransactionContextDto(item.description(), item.amount(),
+                        item.type(), value(item.date()), item.paymentMethod(), item.recurrent())).toList();
+            List<AgentRespondRequest.RecurringExpenseDto> recurring =
+                financialContextRepository.recurringExpenses(userId, source, sourceIds,
+                    properties.getRecurringExpenses()).stream().map(item ->
+                    new AgentRespondRequest.RecurringExpenseDto(item.description(), item.amount(),
+                        value(item.date()))).toList();
             return new AgentRespondRequest.AgentContextDto(
                 AgentRespondRequest.CONTEXT_SCHEMA_VERSION,
-                financialProfile,
-                indicators,
-                spendingSummary,
-                List.of(),
-                recentTxns,
-                recurring,
-                null,
-                buildAnalyticalFacts(transactions),
-                new AgentRespondRequest.RetrievalDto(
-                    clampTopK(conversation.getRagTopK()),
-                    sourceIds.stream().map(UUID::toString).toList())
-            );
-        } catch (Exception e) {
-            log.warn("Falha ao construir contexto do agente, enviando contexto vazio: {}", e.getMessage());
+                new AgentRespondRequest.FinancialProfileDto(source == null ? "ALL" : source,
+                    overview.transactionCount(), value(overview.periodStart()), value(overview.periodEnd()),
+                    months, average(income, months), average(expenses, months)),
+                new AgentRespondRequest.FinancialIndicatorsDto(income, expenses, balance,
+                    overview.transactionCount(), savings, commitment),
+                new AgentRespondRequest.SpendingSummaryDto(categories, expenses),
+                List.of(), recent, recurring, null,
+                analyticalFacts(userId, source, sourceIds, overview, question),
+                new AgentRespondRequest.RetrievalDto(clampTopK(conversation.getRagTopK()),
+                    sourceIds.stream().map(UUID::toString).toList()));
+        } catch (RuntimeException exception) {
+            log.warn("Falha ao construir contexto SQL do agente: {}", exception.getMessage());
             return new AgentRespondRequest.AgentContextDto();
         }
     }
 
-    private int monthCount(String periodStart, String periodEnd) {
-        if (periodStart == null || periodEnd == null) {
-            return 0;
-        }
-        YearMonth firstMonth = YearMonth.from(java.time.LocalDate.parse(periodStart));
-        YearMonth lastMonth = YearMonth.from(java.time.LocalDate.parse(periodEnd));
-        return Math.toIntExact(
-            java.time.temporal.ChronoUnit.MONTHS.between(firstMonth, lastMonth) + 1);
-    }
-
-    private BigDecimal monthlyAverage(BigDecimal total, int monthCount) {
-        if (monthCount <= 0) {
-            return BigDecimal.ZERO;
-        }
-        return total.divide(
-            BigDecimal.valueOf(monthCount), 2, java.math.RoundingMode.HALF_UP);
-    }
-
-    private Map<String, BigDecimal> expenseTotalsByCategory(List<Transaction> transactions) {
-        Set<UUID> categoryIds = transactions.stream()
-            .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
-            .map(Transaction::getCategoryId)
-            .filter(java.util.Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<UUID, String> categoryCodes = categoryIds.isEmpty()
-            ? Map.of()
-            : categoryRepository.findAllById(categoryIds).stream()
-                .collect(Collectors.toMap(
-                    TransactionCategory::getId,
-                    category -> category.getCode().toUpperCase(Locale.ROOT)));
-
-        Map<String, BigDecimal> totals = new TreeMap<>();
-        transactions.stream()
-            .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
-            .forEach(transaction -> totals.merge(
-                categoryCodes.getOrDefault(transaction.getCategoryId(), "OUTROS"),
-                transaction.getAmount(),
-                BigDecimal::add));
-        return totals;
-    }
-
-    private String generateAssistantReply(String userContent, AgentConversation conversation) {
-        List<UUID> sourceIds = selectedSourceIds(conversation);
-        List<Transaction> transactions = sourceIds.isEmpty()
-            ? transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
-                conversation.getUser().getId(), conversation.getTransactionSource().name())
-            : transactionRepository.findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
-                conversation.getUser().getId(), conversation.getTransactionSource().name(), sourceIds);
-        BigDecimal income = totalByType(transactions, TransactionType.INCOME);
-        BigDecimal expenses = totalByType(transactions, TransactionType.EXPENSE);
-        String sourceLabel = conversation.getTransactionSource() == TransactionSource.CSV_IMPORT
-            ? "arquivo CSV" : "Open Finance";
-        NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"));
-        String context = "Considerando somente os dados de " + sourceLabel + " ("
-            + transactions.size() + " transações, receitas " + currency.format(income)
-            + " e despesas " + currency.format(expenses) + "): ";
-
-        String lower = userContent.toLowerCase(Locale.ROOT);
-        if (lower.contains("poupan") || lower.contains("economia")) {
-            return context + "revise as maiores despesas desta origem e defina uma meta de poupança compatível com o saldo observado.";
-        }
-        if (lower.contains("divida") || lower.contains("dívida") || lower.contains("endividamento")) {
-            return context + "priorize dívidas com juros altos e mantenha esta avaliação separada da outra origem de importação.";
-        }
-        if (lower.contains("investimento") || lower.contains("investir")) {
-            return context + "antes de investir, construa uma reserva equivalente a 3-6 meses das despesas desta origem.";
-        }
-        return context + "posso ajudar a analisar gastos e metas sem misturar as transações da outra origem.";
-    }
-
-    private Map<String, Object> buildAnalyticalFacts(List<Transaction> transactions) {
-        if (transactions.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<YearMonth, List<Transaction>> transactionsByMonth = transactions.stream()
-            .collect(Collectors.groupingBy(transaction ->
-                YearMonth.from(transaction.getTransactionDate())));
-        List<Map<String, Object>> months = transactionsByMonth.entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> monthlyFact(entry.getKey(), entry.getValue()))
-            .toList();
-
+    private Map<String, Object> analyticalFacts(UUID userId, String source, List<UUID> sourceIds,
+                                                AgentFinancialContextRepository.Overview overview,
+                                                String question) {
+        List<Map<String, Object>> months = financialContextRepository
+            .monthlyFacts(userId, source, sourceIds, properties.getAnalyticalMaxMonths())
+            .stream().map(this::monthlyMap).toList();
         Map<String, Object> monthRankings = new LinkedHashMap<>();
-        monthRankings.put("highest_income", selectMonth(
-            months, "total_income", Comparator.naturalOrder()));
-        monthRankings.put("lowest_expense", selectMonth(
-            months.stream()
-                .filter(month -> ((BigDecimal) month.get("total_expenses")).signum() > 0)
-                .toList(),
-            "total_expenses",
-            Comparator.reverseOrder()));
-        monthRankings.put("highest_expense", selectMonth(
-            months, "total_expenses", Comparator.naturalOrder()));
-        monthRankings.put("highest_balance", selectMonth(
-            months, "balance", Comparator.naturalOrder()));
-        monthRankings.put("lowest_balance", selectMonth(
-            months, "balance", Comparator.reverseOrder()));
-
-        Map<String, Object> transactionRankings = new LinkedHashMap<>();
-        transactionRankings.put("overall", transactionRankings(transactions));
-        transactionRankings.put("by_month", transactionsByMonth.entrySet().stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> {
-                Map<String, Object> month = new LinkedHashMap<>();
-                month.put("period", entry.getKey().toString());
-                month.put("rankings", transactionRankings(entry.getValue()));
-                return (Object) month;
-            })
-            .toList());
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("scope", Map.of(
-            "transaction_count", transactions.size(),
-            "period_start", transactions.stream()
-                .map(Transaction::getTransactionDate)
-                .min(Comparator.naturalOrder())
-                .orElseThrow()
-                .toString(),
-            "period_end", transactions.stream()
-                .map(Transaction::getTransactionDate)
-                .max(Comparator.naturalOrder())
-                .orElseThrow()
-                .toString()
-        ));
-        result.put("months", months);
-        result.put("month_rankings", monthRankings);
-        result.put("transaction_rankings", transactionRankings);
-        return result;
-    }
-
-    private Map<String, Object> monthlyFact(YearMonth period,
-                                            List<Transaction> transactions) {
-        BigDecimal income = totalByType(transactions, TransactionType.INCOME);
-        BigDecimal expenses = totalByType(transactions, TransactionType.EXPENSE);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("period", period.toString());
-        result.put("transaction_count", transactions.size());
-        result.put("income_count", countByType(transactions, TransactionType.INCOME));
-        result.put("expense_count", countByType(transactions, TransactionType.EXPENSE));
-        result.put("total_income", income);
-        result.put("total_expenses", expenses);
-        result.put("balance", income.subtract(expenses));
-        return result;
-    }
-
-    private Map<String, Object> selectMonth(List<Map<String, Object>> months,
-                                            String metric,
-                                            Comparator<BigDecimal> comparator) {
-        return months.stream()
-            .max((left, right) -> comparator.compare(
-                (BigDecimal) left.get(metric),
-                (BigDecimal) right.get(metric)))
-            .orElse(Map.of());
-    }
-
-    private Map<String, Object> transactionRankings(List<Transaction> transactions) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("smallest_expenses", rankTransactions(
-            transactions,
-            transaction -> transaction.getType() == TransactionType.EXPENSE,
-            true));
-        result.put("largest_expenses", rankTransactions(
-            transactions,
-            transaction -> transaction.getType() == TransactionType.EXPENSE,
-            false));
-        result.put("smallest_incomes", rankTransactions(
-            transactions,
-            transaction -> transaction.getType() == TransactionType.INCOME,
-            true));
-        result.put("largest_incomes", rankTransactions(
-            transactions,
-            transaction -> transaction.getType() == TransactionType.INCOME,
-            false));
-        return result;
-    }
-
-    private List<Object> rankTransactions(List<Transaction> transactions,
-                                          Predicate<Transaction> filter,
-                                          boolean ascending) {
-        Comparator<Transaction> comparator = Comparator
-            .comparing(Transaction::getAmount)
-            .thenComparing(Transaction::getTransactionDate)
-            .thenComparing(transaction -> transaction.getId() == null
-                ? new UUID(0, 0)
-                : transaction.getId());
-        if (!ascending) {
-            comparator = comparator.reversed();
+        monthRankings.put("highest_income", selectMonth(months, "total_income", true));
+        monthRankings.put("lowest_expense", selectPositiveMonth(months, "total_expenses", false));
+        monthRankings.put("highest_expense", selectMonth(months, "total_expenses", true));
+        monthRankings.put("highest_balance", selectMonth(months, "balance", true));
+        monthRankings.put("lowest_balance", selectMonth(months, "balance", false));
+        Map<String, Object> rankings = new LinkedHashMap<>();
+        rankings.put("overall", rankingSet(userId, source, sourceIds, null, null));
+        PeriodFilter period = periodFilter(question);
+        if (period.month() != null && period.year() == null) {
+            period = resolveLatestPeriod(period.month(), months);
         }
-        return transactions.stream()
-            .filter(filter)
-            .sorted(comparator)
-            .limit(ANALYTICAL_RANKING_LIMIT)
-            .map(transaction -> {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("id", transaction.getId());
-                item.put("description", transaction.getDescription());
-                item.put("amount", transaction.getAmount());
-                item.put("date", transaction.getTransactionDate().toString());
-                item.put("type", transaction.getType().name());
-                return (Object) item;
-            })
-            .toList();
+        rankings.put("by_month", period.month() == null || period.year() == null ? List.of()
+            : periodRanking(userId, source, sourceIds, period));
+        Map<String, Object> facts = new LinkedHashMap<>();
+        Map<String, Object> scope = new LinkedHashMap<>();
+        scope.put("transaction_count", overview.transactionCount());
+        scope.put("period_start", value(overview.periodStart()));
+        scope.put("period_end", value(overview.periodEnd()));
+        facts.put("scope", scope);
+        facts.put("months", months);
+        facts.put("month_rankings", monthRankings);
+        facts.put("transaction_rankings", rankings);
+        return facts;
     }
 
-    private long countByType(List<Transaction> transactions, TransactionType type) {
-        return transactions.stream()
-            .filter(transaction -> transaction.getType() == type)
-            .count();
+    private Map<String, Object> rankingSet(UUID userId, String source, List<UUID> sourceIds,
+                                           Integer month, Integer year) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("smallest_expenses", ranked(userId, source, sourceIds, "EXPENSE", true, month, year));
+        result.put("largest_expenses", ranked(userId, source, sourceIds, "EXPENSE", false, month, year));
+        result.put("smallest_incomes", ranked(userId, source, sourceIds, "INCOME", true, month, year));
+        result.put("largest_incomes", ranked(userId, source, sourceIds, "INCOME", false, month, year));
+        return result;
     }
 
-    private void executeStream(
-        OutputStream outputStream,
-        UUID conversationId,
-        AgentRespondRequest aiRequest,
-        String fallbackReply
-    ) {
+    private List<Object> ranked(UUID userId, String source, List<UUID> sourceIds, String type,
+                                boolean ascending, Integer month, Integer year) {
+        List<AgentFinancialContextRepository.TransactionFact> rows = month == null
+            ? financialContextRepository.rankedTransactions(userId, source, sourceIds, type,
+                ascending, ANALYTICAL_RANKING_LIMIT)
+            : financialContextRepository.rankedTransactionsForPeriod(userId, source, sourceIds,
+                type, ascending, month, year, ANALYTICAL_RANKING_LIMIT);
+        return rows.stream().map(item -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("id", item.id()); value.put("description", item.description());
+            value.put("amount", item.amount()); value.put("date", item.date().toString());
+            value.put("type", item.type()); return (Object) value;
+        }).toList();
+    }
+
+    private List<Object> periodRanking(UUID userId, String source, List<UUID> sourceIds,
+                                       PeriodFilter filter) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("period", String.format("%04d-%02d", filter.year(), filter.month()));
+        item.put("rankings", rankingSet(userId, source, sourceIds, filter.month(), filter.year()));
+        return List.of(item);
+    }
+
+    private Map<String, Object> monthlyMap(AgentFinancialContextRepository.MonthlyFact item) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("period", item.period()); value.put("transaction_count", item.transactionCount());
+        value.put("income_count", item.incomeCount()); value.put("expense_count", item.expenseCount());
+        value.put("total_income", item.totalIncome()); value.put("total_expenses", item.totalExpenses());
+        value.put("balance", item.balance()); return value;
+    }
+
+    private Map<String, Object> selectMonth(List<Map<String, Object>> months, String metric,
+                                            boolean maximum) {
+        Comparator<Map<String, Object>> comparator = Comparator.comparing(
+            item -> (BigDecimal) item.get(metric));
+        return months.stream().max(maximum ? comparator : comparator.reversed()).orElse(Map.of());
+    }
+
+    private Map<String, Object> selectPositiveMonth(List<Map<String, Object>> months, String metric,
+                                                    boolean maximum) {
+        return selectMonth(months.stream().filter(item ->
+            ((BigDecimal) item.get(metric)).signum() > 0).toList(), metric, maximum);
+    }
+
+    private PeriodFilter periodFilter(String question) {
+        String normalized = java.text.Normalizer.normalize(question.toLowerCase(Locale.ROOT),
+            java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        Integer month = MONTHS.entrySet().stream().filter(entry -> normalized.contains(entry.getKey()))
+            .map(Map.Entry::getValue).findFirst().orElse(null);
+        Matcher matcher = YEAR_PATTERN.matcher(normalized);
+        return new PeriodFilter(month, matcher.find() ? Integer.valueOf(matcher.group(1)) : null);
+    }
+
+    private PeriodFilter resolveLatestPeriod(int month, List<Map<String, Object>> months) {
+        String suffix = String.format("-%02d", month);
+        Integer latestYear = months.stream()
+            .map(item -> String.valueOf(item.get("period")))
+            .filter(period -> period.endsWith(suffix))
+            .max(String::compareTo)
+            .map(period -> Integer.valueOf(period.substring(0, 4)))
+            .orElse(null);
+        return new PeriodFilter(month, latestYear);
+    }
+
+    private void executeStream(OutputStream output, UUID conversationId, UUID requestId,
+                               PreparedRequest prepared) {
         StringBuilder content = new StringBuilder();
         List<String> tools = new ArrayList<>();
-        List<Map<String, Object>> ragSources = new ArrayList<>();
-        AtomicBoolean clientConnected = new AtomicBoolean(true);
-
-        sendEvent(outputStream, clientConnected, "conversation",
-            Map.of("conversationId", conversationId.toString()));
-
+        List<Map<String, Object>> sources = new ArrayList<>();
         try {
-            aiServiceClient.agentRespondStream(aiRequest, event -> {
-                if ("tools".equals(event.type())) {
-                    tools.clear();
-                    tools.addAll(event.tools());
-                    sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
-                } else if ("sources".equals(event.type())) {
-                    ragSources.clear();
-                    ragSources.addAll(event.sources());
-                    sendEvent(outputStream, clientConnected, "sources",
-                        Map.of("sources", ragSources));
-                } else if ("token".equals(event.type())
-                    && event.token() != null
-                    && !event.token().isEmpty()) {
-                    content.append(event.token());
-                    sendEvent(outputStream, clientConnected, "token",
-                        Map.of("token", event.token()));
-                } else if ("error".equals(event.type())) {
-                    throw new AgentStreamException(event.message());
+            sendEvent(output, "conversation", Map.of("conversationId", conversationId.toString()));
+            aiServiceClient.agentRespondStream(prepared.aiRequest(), event -> {
+                requestCoordinator.heartbeat(conversationId, requestId);
+                switch (event.type()) {
+                    case "tools" -> { tools.clear(); tools.addAll(event.tools());
+                        sendEvent(output, "tools", Map.of("tools", tools)); }
+                    case "sources" -> { sources.clear(); sources.addAll(event.sources());
+                        sendEvent(output, "sources", Map.of("sources", sources)); }
+                    case "token" -> { if (event.token() != null && !event.token().isEmpty()) {
+                        content.append(event.token()); sendEvent(output, "token", Map.of("token", event.token())); } }
+                    case "error" -> throw new AgentStreamException(event.message());
+                    default -> { }
                 }
             });
-        } catch (Exception exception) {
-            log.warn("Falha durante streaming do agente: {}", exception.getMessage());
+            if (content.toString().isBlank()) sendFallback(output, content, tools, prepared.fallbackReply());
+            AgentMessage saved = messageRepository.save(
+                assistantMessage(prepared.conversation(), content.toString(), tools, sources));
+            requestCoordinator.complete(conversationId, requestId, saved.getId());
+            sendDone(output, conversationId, saved, tools, sources);
+        } catch (ClientDisconnectedException exception) {
+            requestCoordinator.fail(conversationId, requestId, "CANCELLED", "CLIENT_DISCONNECTED");
+            log.debug("Streaming cancelado após desconexão do cliente");
+        } catch (RuntimeException exception) {
+            requestCoordinator.fail(conversationId, requestId, "FAILED", "UPSTREAM_ERROR");
             if (!content.toString().isBlank()) {
-                sendEvent(outputStream, clientConnected, "error",
-                    Map.of("message", "A resposta da IA foi interrompida. Tente novamente."));
+                try { sendEvent(output, "error", Map.of("message",
+                    "A resposta da IA foi interrompida. Tente novamente.")); }
+                catch (ClientDisconnectedException ignored) { }
                 return;
             }
-
-            sendFallbackReply(
-                outputStream, clientConnected, content, tools, fallbackReply);
+            try {
+                sendFallback(output, content, tools, prepared.fallbackReply());
+                AgentMessage saved = messageRepository.save(
+                    assistantMessage(prepared.conversation(), content.toString(), tools, sources));
+                requestCoordinator.complete(conversationId, requestId, saved.getId());
+                sendDone(output, conversationId, saved, tools, sources);
+            } catch (ClientDisconnectedException ignored) {
+                requestCoordinator.fail(conversationId, requestId, "CANCELLED", "CLIENT_DISCONNECTED");
+            }
         }
-
-        if (content.toString().isBlank()) {
-            log.warn("O agente concluiu o streaming sem texto; usando resposta segura");
-            sendFallbackReply(
-                outputStream, clientConnected, content, tools, fallbackReply);
-        }
-
-        AgentMessageDto savedMessage = saveAssistantMessage(
-            conversationId, content.toString(), tools, ragSources);
-        Map<String, Object> messagePayload = new HashMap<>();
-        messagePayload.put("id", savedMessage.id().toString());
-        messagePayload.put("role", "assistant");
-        messagePayload.put("content", savedMessage.content());
-        messagePayload.put("timestamp", savedMessage.createdAt().toString());
-        messagePayload.put("tools", tools);
-        messagePayload.put("sources", ragSources);
-        sendEvent(outputStream, clientConnected, "done", Map.of(
-            "conversationId", conversationId.toString(),
-            "message", messagePayload
-        ));
     }
 
-    private void sendFallbackReply(
-        OutputStream outputStream,
-        AtomicBoolean clientConnected,
-        StringBuilder content,
-        List<String> tools,
-        String fallbackReply
-    ) {
-        tools.clear();
-        tools.add("resposta_segura");
-        content.setLength(0);
-        content.append(fallbackReply);
-        sendEvent(outputStream, clientConnected, "tools", Map.of("tools", tools));
-        sendEvent(outputStream, clientConnected, "token", Map.of("token", fallbackReply));
+    private void replayCompleted(OutputStream output, UUID conversationId, AgentMessage message) {
+        List<String> tools = readJsonList(message.getToolCalls(), String.class);
+        List<Map<String, Object>> sources = readJsonMaps(message.getRagSources());
+        sendEvent(output, "conversation", Map.of("conversationId", conversationId.toString()));
+        if (!tools.isEmpty()) sendEvent(output, "tools", Map.of("tools", tools));
+        if (!sources.isEmpty()) sendEvent(output, "sources", Map.of("sources", sources));
+        sendEvent(output, "token", Map.of("token", message.getContent()));
+        sendDone(output, conversationId, message, tools, sources);
     }
 
-    private AgentMessageDto saveAssistantMessage(
-        UUID conversationId,
-        String content,
-        List<String> tools,
-        List<Map<String, Object>> ragSources
-    ) {
-        AgentConversation conversation = conversationRepository.findById(conversationId)
-            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
-        AgentMessage assistantMessage = new AgentMessage();
-        assistantMessage.setConversation(conversation);
-        assistantMessage.setRole("ASSISTANT");
-        assistantMessage.setContent(content);
-        try {
-            assistantMessage.setToolCalls(objectMapper.writeValueAsString(tools));
-            assistantMessage.setRagSources(objectMapper.writeValueAsString(ragSources));
-        } catch (Exception exception) {
-            log.warn("Erro ao serializar tool_calls do streaming: {}", exception.getMessage());
-        }
-        AgentMessage saved = messageRepository.save(assistantMessage);
-        Instant createdAt = saved.getCreatedAt() != null ? saved.getCreatedAt() : Instant.now();
-        return new AgentMessageDto(
-            saved.getId(),
-            conversationId,
-            saved.getRole(),
-            saved.getContent(),
-            saved.getToolCalls(),
-            saved.getRagSources(),
-            createdAt
-        );
+    private void sendFallback(OutputStream output, StringBuilder content, List<String> tools,
+                              String fallback) {
+        tools.clear(); tools.add("resposta_segura"); content.setLength(0); content.append(fallback);
+        sendEvent(output, "tools", Map.of("tools", tools));
+        sendEvent(output, "token", Map.of("token", fallback));
     }
 
-    private void sendEvent(
-        OutputStream outputStream,
-        AtomicBoolean clientConnected,
-        String eventName,
-        Object payload
-    ) {
-        if (!clientConnected.get()) {
-            return;
-        }
+    private void sendDone(OutputStream output, UUID conversationId, AgentMessage saved,
+                          List<String> tools, List<Map<String, Object>> sources) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("id", saved.getId().toString()); payload.put("role", "assistant");
+        payload.put("content", saved.getContent());
+        payload.put("timestamp", (saved.getCreatedAt() == null ? Instant.now() : saved.getCreatedAt()).toString());
+        payload.put("tools", tools); payload.put("sources", sources);
+        sendEvent(output, "done", Map.of("conversationId", conversationId.toString(), "message", payload));
+    }
+
+    private void sendEvent(OutputStream output, String name, Object payload) {
         try {
             String data = objectMapper.writeValueAsString(payload);
-            outputStream.write(("event: " + eventName + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            outputStream.write(("data: " + data + "\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            outputStream.flush();
+            output.write(("event: " + name + "\ndata: " + data + "\n\n").getBytes(StandardCharsets.UTF_8));
+            output.flush();
         } catch (IOException exception) {
-            clientConnected.set(false);
-            log.debug("Cliente SSE desconectou durante a resposta do agente: {}", exception.getMessage());
+            throw new ClientDisconnectedException(exception);
         }
     }
 
-    private static class AgentStreamException extends RuntimeException {
-        AgentStreamException(String message) {
-            super(message);
-        }
+    private AgentMessage assistantMessage(AgentConversation conversation, String content,
+                                          List<String> tools, List<?> sources) {
+        AgentMessage message = new AgentMessage();
+        message.setConversation(conversation); message.setRole("ASSISTANT"); message.setContent(content);
+        message.setToolCalls(writeJson(tools, "ferramentas"));
+        message.setRagSources(writeJson(sources, "fontes RAG"));
+        return message;
     }
 
-    private BigDecimal totalByType(List<Transaction> transactions, TransactionType type) {
-        return transactions.stream()
-            .filter(transaction -> transaction.getType() == type)
-            .map(Transaction::getAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private String generateAssistantReply(String question, AgentConversation conversation,
+                                          AgentRespondRequest.AgentContextDto context) {
+        NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR"));
+        String source = conversation.getTransactionSource() == TransactionSource.CSV_IMPORT
+            ? "arquivo CSV" : "Open Finance";
+        String prefix = "Considerando somente os dados de " + source + " ("
+            + context.financialProfile().transactionCount() + " transações, receitas "
+            + currency.format(context.indicators().totalIncome()) + " e despesas "
+            + currency.format(context.indicators().totalExpenses()) + "): ";
+        String lower = question.toLowerCase(Locale.ROOT);
+        if (lower.contains("poupan") || lower.contains("economia"))
+            return prefix + "revise as maiores despesas e defina uma meta de poupança compatível com o saldo.";
+        if (lower.contains("divida") || lower.contains("dívida"))
+            return prefix + "priorize dívidas com juros altos antes de assumir novos compromissos.";
+        return prefix + "posso ajudar a analisar gastos, indicadores e metas financeiras.";
     }
 
-    private ConversationResponse toResponse(AgentConversation conversation, List<AgentMessage> messages) {
-        List<AgentMessageDto> messageDtos = messages.stream()
-            .map(message -> new AgentMessageDto(
-                message.getId(),
-                conversation.getId(),
-                message.getRole(),
-                message.getContent(),
-                message.getToolCalls(),
-                message.getRagSources(),
-                message.getCreatedAt()))
-            .toList();
+    private AgentConversation findConversation(UUID userId, UUID conversationId) {
+        return conversationRepository.findByIdAndUserId(conversationId, userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
+    }
 
-        return new ConversationResponse(
-            conversation.getId(),
-            conversation.getUser().getId(),
-            conversation.getTitle(),
-            conversation.getStatus(),
-            conversation.getTransactionSource(),
-            selectedSourceIds(conversation),
-            clampTopK(conversation.getRagTopK()),
-            messageDtos,
-            conversation.getCreatedAt()
-        );
+    private ConversationResponse toResponse(AgentConversation conversation, List<AgentMessage> messages,
+                                            long total, int page, int size) {
+        List<AgentMessageDto> dtos = messages.stream().map(message -> new AgentMessageDto(
+            message.getId(), conversation.getId(), message.getRole(), message.getContent(),
+            message.getToolCalls(), message.getRagSources(), message.getCreatedAt())).toList();
+        return new ConversationResponse(conversation.getId(), conversation.getUser().getId(),
+            conversation.getTitle(), conversation.getStatus(), conversation.getTransactionSource(),
+            selectedSourceIds(conversation), clampTopK(conversation.getRagTopK()), dtos,
+            total, page, size, (long) (page + 1) * size < total, conversation.getCreatedAt());
     }
 
     private List<UUID> selectedSourceIds(AgentConversation conversation) {
-        String value = conversation.getRagSourceIds();
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
+        if (conversation.getRagSourceIds() == null || conversation.getRagSourceIds().isBlank()) return List.of();
         try {
-            return objectMapper.readValue(
-                value,
+            return objectMapper.readValue(conversation.getRagSourceIds(),
                 objectMapper.getTypeFactory().constructCollectionType(List.class, UUID.class));
         } catch (Exception exception) {
-            log.warn("Fontes RAG inválidas na conversa {}: {}",
-                conversation.getId(), exception.getMessage());
-            return List.of();
+            log.warn("Fontes RAG inválidas na conversa {}", conversation.getId()); return List.of();
         }
     }
 
-    private int clampTopK(Integer value) {
-        return Math.max(1, Math.min(value != null ? value : 5, 20));
+    private <T> List<T> readJsonList(String value, Class<T> type) {
+        if (value == null || value.isBlank()) return List.of();
+        try { return objectMapper.readValue(value,
+            objectMapper.getTypeFactory().constructCollectionType(List.class, type)); }
+        catch (Exception ignored) { return List.of(); }
     }
 
+    private List<Map<String, Object>> readJsonMaps(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        try { return objectMapper.readValue(value,
+            objectMapper.getTypeFactory().constructCollectionType(List.class,
+                objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class))); }
+        catch (Exception ignored) { return List.of(); }
+    }
+
+    private int monthCount(java.time.LocalDate start, java.time.LocalDate end) {
+        return start == null || end == null ? 0 : Math.toIntExact(
+            ChronoUnit.MONTHS.between(YearMonth.from(start), YearMonth.from(end)) + 1);
+    }
+    private BigDecimal average(BigDecimal value, int months) {
+        return months == 0 ? BigDecimal.ZERO : value.divide(BigDecimal.valueOf(months), 2, RoundingMode.HALF_UP);
+    }
+    private String value(Object value) { return value == null ? null : value.toString(); }
+    private int clampTopK(Integer value) { return Math.max(1, Math.min(value == null ? 5 : value, 20)); }
     private String writeJson(Object value, String label) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception exception) {
-            throw new IllegalStateException("Falha ao serializar " + label, exception);
-        }
+        try { return objectMapper.writeValueAsString(value); }
+        catch (Exception exception) { throw new IllegalStateException("Falha ao serializar " + label, exception); }
+    }
+
+    private record HistoryWindow(List<AgentMessage> messages, String summary) {}
+    private record PreparedRequest(AgentConversation conversation, AgentRespondRequest aiRequest,
+                                   String fallbackReply, AgentMessage completedMessage) {}
+    private record PeriodFilter(Integer month, Integer year) {}
+    private static final class AgentStreamException extends RuntimeException {
+        private AgentStreamException(String message) { super(message); }
+    }
+    private static final class ClientDisconnectedException extends RuntimeException {
+        private ClientDisconnectedException(IOException cause) { super(cause); }
     }
 }

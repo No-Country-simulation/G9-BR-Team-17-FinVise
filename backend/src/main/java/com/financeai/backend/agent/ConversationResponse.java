@@ -14,6 +14,10 @@ public record ConversationResponse(
     List<UUID> sourceIds,
     int topK,
     List<AgentMessageDto> messages,
+    long totalMessages,
+    int messagePage,
+    int messageSize,
+    boolean hasOlderMessages,
     Instant createdAt
 ) {
 }

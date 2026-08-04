@@ -235,7 +235,7 @@ Quando duas ou mais fontes específicas foram selecionadas, o algoritmo tenta in
 
 ## Agente e ferramentas
 
-As ferramentas operam sobre o contexto calculado pelo backend, não fazem SQL direto:
+As ferramentas operam sobre um contexto compacto calculado pelo backend. Totais, períodos, categorias, meses, recorrências e rankings são obtidos por consultas SQL agregadas e limitadas; o backend não materializa todo o extrato para cada pergunta:
 
 - `get_financial_profile`;
 - `get_financial_indicators`;
@@ -249,6 +249,8 @@ As ferramentas operam sobre o contexto calculado pelo backend, não fazem SQL di
 - `simulate_savings_plan`.
 
 A seleção de ferramentas é determinística por termos da última mensagem. Ferramentas e recuperação RAG são executadas em paralelo por um `ThreadPoolExecutor` com dois workers. Seus resultados são anexados ao prompt antes da chamada ao provider.
+
+O histórico enviado ao AI Service contém somente as mensagens recentes configuradas por `AGENT_HISTORY_MAX_MESSAGES`. Mensagens que saem dessa janela são condensadas incrementalmente em `agent_conversations.history_summary`. Backend e AI Service aplicam `AGENT_INPUT_TOKEN_BUDGET`; o segundo limite inclui também resultados de ferramentas e evidências RAG. Os fatos mensais são limitados por `AGENT_ANALYTICAL_MAX_MONTHS`.
 
 Com `ENABLE_LLM=true`, `LLM_PROVIDER=openai` e `LLM_API_KEY`, o provider chama `{LLM_BASE_URL}/chat/completions`. Caso contrário, usa `FallbackTemplateProvider`. O provider recebe `tools=None`: a aplicação já executou as ferramentas antes da geração de texto; não há tool-calling remoto nesta etapa.
 
@@ -273,6 +275,8 @@ Endpoints:
 O Nginx possui uma location específica que desabilita buffering, cache e gzip e usa `proxy_read_timeout 120s`. O backend também retorna `X-Accel-Buffering: no` e `Cache-Control: no-store`.
 
 Eventos públicos: `conversation`, `tools`, `sources`, `token`, `done` e, em falha parcial, `error`. O backend persiste a mensagem do usuário antes da chamada e a mensagem do assistente somente após uma conclusão com texto.
+
+Cada envio possui `clientMessageId`. `agent_message_requests` registra o estado idempotente e `agent_conversations.active_request_id` impede processamento concorrente inclusive com mais de uma réplica do backend. Locks abandonados podem ser retomados após `AGENT_CONVERSATION_LOCK_TIMEOUT_MS`. A desconexão do cliente interrompe a leitura da resposta interna; o fechamento se propaga ao gerador FastAPI e ao stream HTTP do provider.
 
 ## Status e operação
 

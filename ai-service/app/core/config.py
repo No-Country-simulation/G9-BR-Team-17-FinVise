@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     )
     agent_enable_recommendations: bool = Field(default=True, alias="AGENT_ENABLE_RECOMMENDATIONS")
     agent_enable_simulations: bool = Field(default=True, alias="AGENT_ENABLE_SIMULATIONS")
+    agent_input_token_budget: int = Field(
+        default=8000, ge=1000, alias="AGENT_INPUT_TOKEN_BUDGET"
+    )
 
     dataset_raw_dir: Path = Field(
         default=Path("../finance_ai_dataset"), alias="DATASET_RAW_DIR"

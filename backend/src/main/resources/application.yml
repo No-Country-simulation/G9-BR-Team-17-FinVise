@@ -69,6 +69,16 @@ finance-ai:
     service-token: ${AI_SERVICE_TOKEN}
     connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${AI_SERVICE_READ_TIMEOUT_MS:30000}
+  agent:
+    context:
+      history-max-messages: ${AGENT_HISTORY_MAX_MESSAGES:16}
+      input-token-budget: ${AGENT_INPUT_TOKEN_BUDGET:8000}
+      summary-max-chars: ${AGENT_SUMMARY_MAX_CHARS:4000}
+      summary-batch-size: ${AGENT_SUMMARY_BATCH_SIZE:100}
+      recent-transactions: ${AGENT_RECENT_TRANSACTIONS:20}
+      recurring-expenses: ${AGENT_RECURRING_EXPENSES:20}
+      analytical-max-months: ${AGENT_ANALYTICAL_MAX_MONTHS:60}
+      conversation-lock-timeout-ms: ${AGENT_CONVERSATION_LOCK_TIMEOUT_MS:120000}
   rag:
     index-queue:
       enabled: ${RAG_INDEX_QUEUE_ENABLED:true}

@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -32,7 +33,8 @@ class AgentControllerStreamingTest {
         AuthenticatedUserProvider userProvider = mock(AuthenticatedUserProvider.class);
         when(userProvider.getUserId()).thenReturn(userId);
         when(agentService.streamMessage(
-            userId, conversationId, new SendMessageRequest("Como estou?")))
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(conversationId), any(SendMessageRequest.class)))
             .thenReturn(output -> output.write(
                 "event: done\ndata: {}\n\n".getBytes(StandardCharsets.UTF_8)));
         MockMvc mockMvc = standaloneSetup(
@@ -43,7 +45,8 @@ class AgentControllerStreamingTest {
                 conversationId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
-                .content("{\"content\":\"Como estou?\"}"))
+                .content("{\"content\":\"Como estou?\",\"clientMessageId\":\""
+                    + UUID.randomUUID() + "\"}"))
             .andExpect(request().asyncStarted())
             .andReturn();
 

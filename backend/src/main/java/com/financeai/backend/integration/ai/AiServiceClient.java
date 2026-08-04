@@ -7,6 +7,7 @@ import com.financeai.backend.config.AiServiceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -24,17 +25,25 @@ import java.util.function.Consumer;
 public class AiServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(AiServiceClient.class);
+    private static final String USER_ID_HEADER = "X-FinVise-User-Id";
+    private static final int MINIMUM_SERVICE_TOKEN_LENGTH = 32;
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AiServiceClient(AiServiceProperties properties) {
+        String serviceToken = properties.getServiceToken();
+        if (serviceToken == null || serviceToken.length() < MINIMUM_SERVICE_TOKEN_LENGTH) {
+            throw new IllegalStateException(
+                "AI_SERVICE_TOKEN deve conter pelo menos 32 caracteres");
+        }
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(properties.getConnectTimeoutMs().intValue());
         factory.setReadTimeout(properties.getReadTimeoutMs().intValue());
         this.restClient = RestClient.builder()
             .baseUrl(properties.getUrl())
             .requestFactory(factory)
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
             .build();
     }
 
@@ -68,6 +77,7 @@ public class AiServiceClient {
         try {
             return restClient.post()
                 .uri("/internal/v1/agent/respond")
+                .header(USER_ID_HEADER, request.userId())
                 .body(request)
                 .retrieve()
                 .body(AgentRespondResponse.class);
@@ -83,6 +93,7 @@ public class AiServiceClient {
     ) {
         restClient.post()
             .uri("/internal/v1/agent/respond/stream")
+            .header(USER_ID_HEADER, request.userId())
             .contentType(MediaType.APPLICATION_JSON)
             .accept(MediaType.TEXT_EVENT_STREAM)
             .body(request)
@@ -161,26 +172,49 @@ public class AiServiceClient {
                                  List<String> sourceIds,
                                  boolean background) {
         try {
-            RagIndexResponse response = restClient.post()
-                .uri("/internal/v1/rag/index")
-                .body(java.util.Map.of(
-                    "user_id", userId,
-                    "source_ids", sourceIds != null ? sourceIds : List.of(),
-                    "background", background))
-                .retrieve()
-                .body(RagIndexResponse.class);
-            int count = response != null ? response.indexedCount() : 0;
-            log.info("Indexação RAG concluída no ai-service com {} vetores para user_id={}", count, userId);
-            return count;
-        } catch (RestClientException e) {
+            return requestRagIndex(userId, sourceIds, background, null).indexedCount();
+        } catch (RuntimeException e) {
             log.warn("Falha ao solicitar indexação RAG ao ai-service: {}", e.getMessage());
             return 0;
         }
     }
 
+    public int indexRagDocumentsOrThrow(String userId, List<String> sourceIds) {
+        return requestRagIndex(userId, sourceIds, false, null).indexedCount();
+    }
+
+    public RagIndexResponse indexRagBatchOrThrow(String userId, List<String> sourceIds) {
+        return requestRagIndex(userId, sourceIds, false, 1);
+    }
+
+    private RagIndexResponse requestRagIndex(String userId,
+                                             List<String> sourceIds,
+                                             boolean background,
+                                             Integer maxBatches) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("source_ids", sourceIds != null ? sourceIds : List.of());
+        body.put("background", background);
+        if (maxBatches != null) {
+            body.put("max_batches", maxBatches);
+        }
+        RagIndexResponse response = restClient.post()
+            .uri("/internal/v1/rag/index")
+            .header(USER_ID_HEADER, userId)
+            .body(body)
+            .retrieve()
+            .body(RagIndexResponse.class);
+        if (response == null) {
+            throw new IllegalStateException("Resposta vazia do AI Service na indexação RAG");
+        }
+        log.info("Indexação RAG concluída no ai-service com {} vetores para user_id={}",
+            response.indexedCount(), userId);
+        return response;
+    }
+
     public record RagIndexResponse(
         @JsonProperty("indexed_count") int indexedCount,
-        @JsonProperty("user_id") String userId
+        @JsonProperty("user_id") String userId,
+        @JsonProperty("has_more") boolean hasMore
     ) {}
 
     public record AgentStreamEvent(

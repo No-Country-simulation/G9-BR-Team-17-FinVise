@@ -1,27 +1,21 @@
 package com.financeai.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.financeai.backend.agent.AgentConversation;
-import com.financeai.backend.agent.AgentConversationRepository;
-import com.financeai.backend.agent.AgentMessage;
-import com.financeai.backend.agent.AgentMessageRepository;
-import com.financeai.backend.agent.AgentService;
-import com.financeai.backend.agent.SendMessageRequest;
+import com.financeai.backend.agent.*;
 import com.financeai.backend.integration.ai.AiServiceClient;
 import com.financeai.backend.integration.ai.AgentRespondRequest;
-import com.financeai.backend.transaction.Transaction;
-import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionSource;
-import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.data.domain.PageImpl;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,367 +23,197 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
 
 class AgentStreamingServiceTest {
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void shouldSendExactAnalyticalFactsForSelectedSource() throws Exception {
-        UUID userId = UUID.randomUUID();
-        UUID conversationId = UUID.randomUUID();
-        UUID sourceId = UUID.randomUUID();
+    private final UUID userId = UUID.randomUUID();
+    private final UUID conversationId = UUID.randomUUID();
+    private final UUID requestId = UUID.randomUUID();
+    private AgentConversationRepository conversations;
+    private AgentMessageRepository messages;
+    private AgentFinancialContextRepository financialContext;
+    private AgentRequestCoordinator coordinator;
+    private AiServiceClient aiClient;
+    private AgentService service;
+    private AgentConversation conversation;
+
+    @BeforeEach
+    void setUp() {
+        conversations = mock(AgentConversationRepository.class);
+        messages = mock(AgentMessageRepository.class);
+        financialContext = mock(AgentFinancialContextRepository.class);
+        coordinator = mock(AgentRequestCoordinator.class);
+        aiClient = mock(AiServiceClient.class);
         User user = new User();
         user.setId(userId);
-        AgentConversation conversation = new AgentConversation();
+        conversation = new AgentConversation();
         conversation.setId(conversationId);
         conversation.setUser(user);
         conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
-        conversation.setRagSourceIds("[\"" + sourceId + "\"]");
-        conversation.setRagTopK(5);
-
-        AgentConversationRepository conversationRepository =
-            mock(AgentConversationRepository.class);
-        AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
-        TransactionRepository transactionRepository = mock(TransactionRepository.class);
-        AiServiceClient aiServiceClient = mock(AiServiceClient.class);
-        when(conversationRepository.findByIdAndUserId(conversationId, userId))
+        conversation.setRagSourceIds("[]");
+        when(conversations.findByIdAndUserId(conversationId, userId))
             .thenReturn(Optional.of(conversation));
-        when(conversationRepository.findById(conversationId))
-            .thenReturn(Optional.of(conversation));
-        when(transactionRepository.findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
-            userId, TransactionSource.CSV_IMPORT.name(), List.of(sourceId)))
-            .thenReturn(List.of(
-                transaction(user, sourceId, "Salário", "5000.00", "2024-11-01",
-                    TransactionType.INCOME),
-                transaction(user, sourceId, "Aluguel", "1000.00", "2024-11-05",
-                    TransactionType.EXPENSE),
-                transaction(user, sourceId, "Salário", "6000.00", "2024-12-01",
-                    TransactionType.INCOME),
-                transaction(user, sourceId, "Café", "20.00", "2024-12-10",
-                    TransactionType.EXPENSE),
-                transaction(user, sourceId, "Mercado", "500.00", "2024-12-15",
-                    TransactionType.EXPENSE)
-            ));
-        AgentMessage historyMessage = new AgentMessage();
-        historyMessage.setRole("USER");
-        historyMessage.setContent("qual foi minha melhor transação de dezembro");
-        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
-            .thenReturn(List.of(historyMessage));
-        when(messageRepository.save(any(AgentMessage.class))).thenAnswer(invocation -> {
+        when(coordinator.start(eq(conversationId), eq(userId), eq(requestId), anyString(), anyLong()))
+            .thenReturn(new AgentRequestCoordinator.StartResult(
+                AgentRequestCoordinator.StartOutcome.ACQUIRED,
+                new AgentRequestCoordinator.RequestState(requestId, conversationId, "Como estou?",
+                    AgentRequestCoordinator.RequestStatus.PROCESSING, null, null)));
+        when(messages.save(any())).thenAnswer(invocation -> {
             AgentMessage message = invocation.getArgument(0);
-            if ("ASSISTANT".equals(message.getRole())) {
-                message.setId(UUID.randomUUID());
-            }
+            if (message.getId() == null) message.setId(UUID.randomUUID());
+            if (message.getCreatedAt() == null) message.setCreatedAt(Instant.now());
             return message;
         });
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
-            consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "token", "Dezembro foi analisado.", List.of(), null));
-            return null;
-        }).when(aiServiceClient).agentRespondStream(any(), any());
-        AgentService service = new AgentService(
-            conversationRepository,
-            messageRepository,
-            mock(UserRepository.class),
-            transactionRepository,
-            aiServiceClient,
-            new ObjectMapper()
-        );
-
-        StreamingResponseBody stream = service.streamMessage(
-            userId,
-            conversationId,
-            new SendMessageRequest("qual foi minha melhor transação de dezembro")
-        );
-        stream.writeTo(new ByteArrayOutputStream());
-
-        ArgumentCaptor<AgentRespondRequest> captor =
-            ArgumentCaptor.forClass(AgentRespondRequest.class);
-        verify(aiServiceClient).agentRespondStream(captor.capture(), any());
-        Map<String, Object> analyticalFacts = captor.getValue().context().analyticalFacts();
-        Map<String, Object> monthRankings =
-            (Map<String, Object>) analyticalFacts.get("month_rankings");
-        Map<String, Object> highestBalance =
-            (Map<String, Object>) monthRankings.get("highest_balance");
-        assertThat(highestBalance.get("period")).isEqualTo("2024-12");
-
-        Map<String, Object> transactionRankings =
-            (Map<String, Object>) analyticalFacts.get("transaction_rankings");
-        List<Map<String, Object>> byMonth =
-            (List<Map<String, Object>>) transactionRankings.get("by_month");
-        Map<String, Object> december = byMonth.stream()
-            .filter(month -> "2024-12".equals(month.get("period")))
-            .findFirst()
-            .orElseThrow();
-        Map<String, Object> decemberRankings =
-            (Map<String, Object>) december.get("rankings");
-        List<Map<String, Object>> smallestExpenses =
-            (List<Map<String, Object>>) decemberRankings.get("smallest_expenses");
-        List<Map<String, Object>> largestIncomes =
-            (List<Map<String, Object>>) decemberRankings.get("largest_incomes");
-        assertThat(smallestExpenses.getFirst().get("description")).isEqualTo("Café");
-        assertThat(largestIncomes.getFirst().get("description")).isEqualTo("Salário");
+        when(messages.findByConversationId(eq(conversationId), any()))
+            .thenAnswer(invocation -> {
+                AgentMessage userMessage = new AgentMessage();
+                userMessage.setId(UUID.randomUUID());
+                userMessage.setConversation(conversation);
+                userMessage.setRole("USER");
+                userMessage.setContent("Como estou?");
+                userMessage.setCreatedAt(Instant.now());
+                return new PageImpl<>(List.of(userMessage));
+            });
+        when(financialContext.overview(userId, "CSV_IMPORT", List.of()))
+            .thenReturn(new AgentFinancialContextRepository.Overview(2,
+                java.time.LocalDate.parse("2026-01-01"), java.time.LocalDate.parse("2026-01-31"),
+                new BigDecimal("5000"), new BigDecimal("3000")));
+        when(financialContext.monthlyFacts(any(), any(), any(), anyInt())).thenReturn(List.of(
+            new AgentFinancialContextRepository.MonthlyFact("2026-01", 2, 1, 1,
+                new BigDecimal("5000"), new BigDecimal("3000"))));
+        when(financialContext.expenseCategories(any(), any(), any())).thenReturn(List.of());
+        when(financialContext.recentTransactions(any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(financialContext.recurringExpenses(any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(financialContext.rankedTransactions(any(), any(), any(), anyString(), anyBoolean(), anyInt()))
+            .thenReturn(List.of());
+        service = new AgentService(conversations, messages, mock(UserRepository.class),
+            financialContext, coordinator, new AgentContextProperties(), aiClient, new ObjectMapper());
     }
 
     @Test
-    void shouldForwardTokensAndPersistTheCompletedAssistantMessage() throws Exception {
-        UUID userId = UUID.randomUUID();
-        UUID conversationId = UUID.randomUUID();
-        User user = new User();
-        user.setId(userId);
-        AgentConversation conversation = new AgentConversation();
-        conversation.setId(conversationId);
-        conversation.setUser(user);
-        conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
-        UUID sourceId = UUID.randomUUID();
-        conversation.setRagSourceIds("[\"" + sourceId + "\"]");
-        conversation.setRagTopK(8);
-
-        AgentConversationRepository conversationRepository =
-            mock(AgentConversationRepository.class);
-        AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
-        TransactionRepository transactionRepository = mock(TransactionRepository.class);
-        AiServiceClient aiServiceClient = mock(AiServiceClient.class);
-        when(conversationRepository.findByIdAndUserId(conversationId, userId))
-            .thenReturn(Optional.of(conversation));
-        when(conversationRepository.findById(conversationId))
-            .thenReturn(Optional.of(conversation));
-        when(transactionRepository.findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
-            userId, TransactionSource.CSV_IMPORT.name(), List.of(sourceId)))
-            .thenReturn(List.of());
-
-        AgentMessage historyMessage = new AgentMessage();
-        historyMessage.setRole("USER");
-        historyMessage.setContent("Como estou?");
-        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
-            .thenReturn(List.of(historyMessage));
-        when(messageRepository.save(any(AgentMessage.class))).thenAnswer(invocation -> {
-            AgentMessage message = invocation.getArgument(0);
-            if ("ASSISTANT".equals(message.getRole())) {
-                message.setId(UUID.randomUUID());
-            }
-            return message;
-        });
+    void deveTransmitirTokensEPersistirRespostaCompleta() throws Exception {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
             consumer.accept(new AiServiceClient.AgentStreamEvent(
                 "tools", null, List.of("get_financial_profile"), null));
             consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "sources",
-                null,
-                List.of(),
-                List.of(Map.of(
-                    "id", "chunk-1",
-                    "source_id", sourceId.toString(),
-                    "source_name", "extrato.csv",
-                    "chunk_type", "MONTHLY_SUMMARY",
-                    "score", 0.91)),
-                null));
-            consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "token", "Olá", List.of(), null));
-            consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "token", "!", List.of(), null));
-            consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "done", null, List.of(), null));
+                "token", "Sua saúde financeira está estável.", List.of(), null));
             return null;
-        }).when(aiServiceClient).agentRespondStream(any(), any());
+        }).when(aiClient).agentRespondStream(any(AgentRespondRequest.class), any());
 
-        AgentService service = new AgentService(
-            conversationRepository,
-            messageRepository,
-            mock(UserRepository.class),
-            transactionRepository,
-            aiServiceClient,
-            new ObjectMapper()
-        );
-
-        StreamingResponseBody stream = service.streamMessage(
-            userId, conversationId, new SendMessageRequest("Como estou?"));
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        stream.writeTo(output);
-        String sse = output.toString(java.nio.charset.StandardCharsets.UTF_8);
+        service.streamMessage(userId, conversationId,
+            new SendMessageRequest("Como estou?", requestId)).writeTo(output);
 
-        assertThat(sse)
-            .contains("event: conversation")
-            .contains("event: tools")
-            .contains("event: sources")
-            .contains("extrato.csv")
-            .contains("\"get_financial_profile\"")
-            .contains("event: token")
-            .contains("\"token\":\"Olá\"")
-            .contains("event: done")
-            .contains("\"content\":\"Olá!\"");
+        assertThat(output.toString(java.nio.charset.StandardCharsets.UTF_8))
+            .contains("event: token", "event: done", "get_financial_profile");
+        verify(coordinator).complete(eq(conversationId), eq(requestId), any(UUID.class));
+        verify(messages, times(2)).save(any(AgentMessage.class));
         ArgumentCaptor<AgentRespondRequest> requestCaptor =
             ArgumentCaptor.forClass(AgentRespondRequest.class);
-        verify(aiServiceClient).agentRespondStream(requestCaptor.capture(), any());
-        assertThat(requestCaptor.getValue().context().retrieval().topK()).isEqualTo(8);
-        assertThat(requestCaptor.getValue().context().retrieval().sourceIds())
-            .containsExactly(sourceId.toString());
-        ArgumentCaptor<AgentMessage> savedMessages =
-            ArgumentCaptor.forClass(AgentMessage.class);
-        verify(messageRepository, times(2)).save(savedMessages.capture());
-        assertThat(savedMessages.getAllValues())
-            .extracting(AgentMessage::getRole)
-            .containsExactly("USER", "ASSISTANT");
-        assertThat(savedMessages.getAllValues().get(1).getContent()).isEqualTo("Olá!");
-        assertThat(savedMessages.getAllValues().get(1).getToolCalls())
-            .isEqualTo("[\"get_financial_profile\"]");
-        assertThat(savedMessages.getAllValues().get(1).getRagSources())
-            .contains("extrato.csv");
-    }
-
-    @Test
-    void shouldUseSafeReplyWhenModelFinishesWithoutText() throws Exception {
-        UUID userId = UUID.randomUUID();
-        UUID conversationId = UUID.randomUUID();
-        User user = new User();
-        user.setId(userId);
-        AgentConversation conversation = new AgentConversation();
-        conversation.setId(conversationId);
-        conversation.setUser(user);
-        conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
-
-        AgentConversationRepository conversationRepository =
-            mock(AgentConversationRepository.class);
-        AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
-        TransactionRepository transactionRepository = mock(TransactionRepository.class);
-        AiServiceClient aiServiceClient = mock(AiServiceClient.class);
-        when(conversationRepository.findByIdAndUserId(conversationId, userId))
-            .thenReturn(Optional.of(conversation));
-        when(conversationRepository.findById(conversationId))
-            .thenReturn(Optional.of(conversation));
-        when(transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
-            userId, TransactionSource.CSV_IMPORT.name()))
-            .thenReturn(List.of());
-        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
-            .thenReturn(List.of());
-        when(messageRepository.save(any(AgentMessage.class))).thenAnswer(invocation -> {
-            AgentMessage message = invocation.getArgument(0);
-            if ("ASSISTANT".equals(message.getRole())) {
-                message.setId(UUID.randomUUID());
-            }
-            return message;
+        verify(aiClient).agentRespondStream(requestCaptor.capture(), any());
+        assertThat(requestCaptor.getValue().context().financialProfile().transactionCount())
+            .isEqualTo(2);
+        assertThat(requestCaptor.getValue().messages()).hasSize(1);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> monthlyFacts = (List<Map<String, Object>>)
+            requestCaptor.getValue().context().analyticalFacts().get("months");
+        assertThat(monthlyFacts).singleElement().satisfies(month -> {
+            assertThat(month.get("period")).isEqualTo("2026-01");
+            assertThat(month.get("balance")).isEqualTo(new BigDecimal("2000"));
         });
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
-            consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "tools", null, List.of("simulate_savings_plan"), null));
-            consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "sources", null, List.of(), List.of(), null));
-            return null;
-        }).when(aiServiceClient).agentRespondStream(any(), any());
-
-        AgentService service = new AgentService(
-            conversationRepository,
-            messageRepository,
-            mock(UserRepository.class),
-            transactionRepository,
-            aiServiceClient,
-            new ObjectMapper()
-        );
-
-        StreamingResponseBody stream = service.streamMessage(
-            userId, conversationId, new SendMessageRequest("Onde posso economizar?"));
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        stream.writeTo(output);
-        String sse = output.toString(java.nio.charset.StandardCharsets.UTF_8);
-
-        assertThat(sse)
-            .contains("event: token")
-            .contains("resposta_segura")
-            .contains("Considerando somente os dados")
-            .contains("event: done")
-            .doesNotContain("\"content\":\"\"");
-        ArgumentCaptor<AgentMessage> savedMessages =
-            ArgumentCaptor.forClass(AgentMessage.class);
-        verify(messageRepository, times(2)).save(savedMessages.capture());
-        assertThat(savedMessages.getAllValues().get(1).getContent()).isNotBlank();
+        verify(financialContext).recentTransactions(userId, "CSV_IMPORT", List.of(), 20);
     }
 
     @Test
-    void shouldReportAnInterruptedStreamWithoutPersistingPartialResponse() throws Exception {
-        UUID userId = UUID.randomUUID();
-        UUID conversationId = UUID.randomUUID();
-        User user = new User();
-        user.setId(userId);
-        AgentConversation conversation = new AgentConversation();
-        conversation.setId(conversationId);
-        conversation.setUser(user);
-        conversation.setTransactionSource(TransactionSource.CSV_IMPORT);
-
-        AgentConversationRepository conversationRepository =
-            mock(AgentConversationRepository.class);
-        AgentMessageRepository messageRepository = mock(AgentMessageRepository.class);
-        TransactionRepository transactionRepository = mock(TransactionRepository.class);
-        AiServiceClient aiServiceClient = mock(AiServiceClient.class);
-        when(conversationRepository.findByIdAndUserId(conversationId, userId))
-            .thenReturn(Optional.of(conversation));
-        when(transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(
-            userId, TransactionSource.CSV_IMPORT.name()))
-            .thenReturn(List.of());
-        when(messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId))
-            .thenReturn(List.of());
+    void deveCancelarProcessamentoQuandoClienteDesconecta() throws Exception {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
             consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "token", "Resposta parcial", List.of(), null));
+                "token", "primeiro token", List.of(), null));
             consumer.accept(new AiServiceClient.AgentStreamEvent(
-                "error", null, List.of(), "Falha no modelo"));
+                "token", "token que não deve continuar", List.of(), null));
             return null;
-        }).when(aiServiceClient).agentRespondStream(any(), any());
+        }).when(aiClient).agentRespondStream(any(), any());
+        OutputStream disconnected = new OutputStream() {
+            private int writes;
+            @Override public void write(int value) throws IOException {
+                if (++writes > 1) throw new IOException("cliente desconectado");
+            }
+        };
 
-        AgentService service = new AgentService(
-            conversationRepository,
-            messageRepository,
-            mock(UserRepository.class),
-            transactionRepository,
-            aiServiceClient,
-            new ObjectMapper()
-        );
+        service.streamMessage(userId, conversationId,
+            new SendMessageRequest("Como estou?", requestId)).writeTo(disconnected);
 
-        StreamingResponseBody stream = service.streamMessage(
-            userId, conversationId, new SendMessageRequest("Como estou?"));
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        stream.writeTo(output);
-        String sse = output.toString(java.nio.charset.StandardCharsets.UTF_8);
-
-        assertThat(sse)
-            .contains("event: token")
-            .contains("event: error")
-            .contains("A resposta da IA foi interrompida")
-            .doesNotContain("event: done");
-        verify(messageRepository, times(1)).save(any(AgentMessage.class));
-        verify(conversationRepository, never()).findById(conversationId);
+        verify(coordinator).fail(conversationId, requestId, "CANCELLED", "CLIENT_DISCONNECTED");
+        verify(coordinator, never()).complete(any(), any(), any());
     }
 
-    private static Transaction transaction(User user,
-                                           UUID sourceId,
-                                           String description,
-                                           String amount,
-                                           String date,
-                                           TransactionType type) {
-        Transaction transaction = new Transaction();
-        transaction.setId(UUID.randomUUID());
-        transaction.setUser(user);
-        transaction.setImportSourceId(sourceId);
-        transaction.setSource(TransactionSource.CSV_IMPORT.name());
-        transaction.setDescription(description);
-        transaction.setAmount(new BigDecimal(amount));
-        transaction.setTransactionDate(LocalDate.parse(date));
-        transaction.setType(type);
-        transaction.setRecurrent(false);
-        return transaction;
+    @Test
+    void deveReproduzirRespostaConcluidaSemNovaChamadaAoModelo() throws Exception {
+        AgentMessage completed = new AgentMessage();
+        completed.setId(UUID.randomUUID());
+        completed.setConversation(conversation);
+        completed.setRole("ASSISTANT");
+        completed.setContent("Resposta já concluída");
+        completed.setCreatedAt(Instant.now());
+        when(coordinator.start(any(), any(), any(), any(), anyLong())).thenReturn(
+            new AgentRequestCoordinator.StartResult(AgentRequestCoordinator.StartOutcome.COMPLETED,
+                new AgentRequestCoordinator.RequestState(requestId, conversationId, "Como estou?",
+                    AgentRequestCoordinator.RequestStatus.COMPLETED, UUID.randomUUID(), completed.getId())));
+        when(messages.findById(completed.getId())).thenReturn(Optional.of(completed));
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        service.streamMessage(userId, conversationId,
+            new SendMessageRequest("Como estou?", requestId)).writeTo(output);
+
+        assertThat(output.toString(java.nio.charset.StandardCharsets.UTF_8))
+            .contains("Resposta já concluída", "event: done");
+        verifyNoInteractions(aiClient);
+    }
+
+    @Test
+    void deveResumirMensagensQueSairamDaJanelaRecente() throws Exception {
+        AgentMessage recent = message("USER", "Como estou?", Instant.parse("2026-08-04T12:00:00Z"));
+        AgentMessage old = message("ASSISTANT", "Uma resposta antiga importante",
+            Instant.parse("2026-08-01T12:00:00Z"));
+        when(messages.findByConversationId(eq(conversationId), any())).thenReturn(
+            new PageImpl<>(List.of(recent),
+                org.springframework.data.domain.PageRequest.of(0, 16), 17));
+        when(messages.findSummaryCandidates(eq(conversationId), isNull(), isNull(),
+            eq(recent.getCreatedAt()), eq(recent.getId()), any())).thenReturn(List.of(old));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<AiServiceClient.AgentStreamEvent> consumer = invocation.getArgument(1);
+            consumer.accept(new AiServiceClient.AgentStreamEvent(
+                "token", "Resposta atual", List.of(), null));
+            return null;
+        }).when(aiClient).agentRespondStream(any(), any());
+
+        service.streamMessage(userId, conversationId,
+            new SendMessageRequest("Como estou?", requestId))
+            .writeTo(new ByteArrayOutputStream());
+
+        ArgumentCaptor<AgentRespondRequest> captor = ArgumentCaptor.forClass(AgentRespondRequest.class);
+        verify(aiClient).agentRespondStream(captor.capture(), any());
+        assertThat(captor.getValue().historySummary())
+            .contains("ASSISTANT: Uma resposta antiga importante");
+        assertThat(conversation.getSummarizedMessageCount()).isEqualTo(1);
+        verify(conversations).save(conversation);
+    }
+
+    private AgentMessage message(String role, String content, Instant createdAt) {
+        AgentMessage message = new AgentMessage();
+        message.setId(UUID.randomUUID());
+        message.setConversation(conversation);
+        message.setRole(role);
+        message.setContent(content);
+        message.setCreatedAt(createdAt);
+        return message;
     }
 }

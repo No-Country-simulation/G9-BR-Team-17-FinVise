@@ -55,10 +55,13 @@ public class AnalysisController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<java.util.List<AnalysisResponse>>> getAnalyses(
-        @RequestParam(name = "source", required = false) TransactionSource source) {
+    public ResponseEntity<ApiResponse<AnalysisPageResponse>> getAnalyses(
+        @RequestParam(name = "source", required = false) TransactionSource source,
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @RequestParam(name = "size", defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-            analysisService.getAnalyses(authenticatedUserProvider.getUserId(), source)));
+            analysisService.getAnalyses(
+                authenticatedUserProvider.getUserId(), source, page, size)));
     }
 
     @GetMapping("/latest")

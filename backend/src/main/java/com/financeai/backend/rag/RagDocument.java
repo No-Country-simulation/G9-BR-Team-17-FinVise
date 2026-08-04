@@ -37,6 +37,18 @@ public class RagDocument {
     @Column(name = "content_hash", length = 64)
     private String contentHash;
 
+    @Column(name = "chunk_key", nullable = false, length = 200)
+    private String chunkKey;
+
+    @Column(name = "schema_version", nullable = false, length = 20)
+    private String schemaVersion = "2.0";
+
+    @Column(name = "embedding_model", length = 120)
+    private String embeddingModel;
+
+    @Column(name = "embedding_created_at")
+    private Instant embeddingCreatedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "index_status", nullable = false)
     private RagIndexStatus indexStatus = RagIndexStatus.PENDING;
@@ -112,6 +124,38 @@ public class RagDocument {
 
     public void setContentHash(String contentHash) {
         this.contentHash = contentHash;
+    }
+
+    public String getChunkKey() {
+        return chunkKey;
+    }
+
+    public void setChunkKey(String chunkKey) {
+        this.chunkKey = chunkKey;
+    }
+
+    public String getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public void setSchemaVersion(String schemaVersion) {
+        this.schemaVersion = schemaVersion;
+    }
+
+    public String getEmbeddingModel() {
+        return embeddingModel;
+    }
+
+    public void setEmbeddingModel(String embeddingModel) {
+        this.embeddingModel = embeddingModel;
+    }
+
+    public Instant getEmbeddingCreatedAt() {
+        return embeddingCreatedAt;
+    }
+
+    public void setEmbeddingCreatedAt(Instant embeddingCreatedAt) {
+        this.embeddingCreatedAt = embeddingCreatedAt;
     }
 
     public RagIndexStatus getIndexStatus() {

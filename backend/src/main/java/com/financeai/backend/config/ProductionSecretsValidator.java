@@ -12,15 +12,19 @@ import java.util.Locale;
 public class ProductionSecretsValidator {
 
     private static final int MINIMUM_DATABASE_PASSWORD_LENGTH = 16;
+    private static final int MINIMUM_SERVICE_TOKEN_LENGTH = 32;
 
     private final JwtProperties jwtProperties;
+    private final AiServiceProperties aiServiceProperties;
     private final String databasePassword;
 
     public ProductionSecretsValidator(
         JwtProperties jwtProperties,
+        AiServiceProperties aiServiceProperties,
         @Value("${spring.datasource.password}") String databasePassword
     ) {
         this.jwtProperties = jwtProperties;
+        this.aiServiceProperties = aiServiceProperties;
         this.databasePassword = databasePassword;
     }
 
@@ -35,6 +39,14 @@ public class ProductionSecretsValidator {
             || isPlaceholder(databasePassword)) {
             throw new IllegalStateException(
                 "SPRING_DATASOURCE_PASSWORD must contain at least 16 characters "
+                    + "and must not use a placeholder");
+        }
+        String serviceToken = aiServiceProperties.getServiceToken();
+        if (serviceToken == null
+            || serviceToken.length() < MINIMUM_SERVICE_TOKEN_LENGTH
+            || isPlaceholder(serviceToken)) {
+            throw new IllegalStateException(
+                "AI_SERVICE_TOKEN must contain at least 32 characters "
                     + "and must not use a placeholder");
         }
     }

@@ -16,13 +16,16 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+          batch_size: ${HIBERNATE_JDBC_BATCH_SIZE:100}
+        order_inserts: true
+        order_updates: true
     open-in-view: false
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
-    repair-on-migrate: true
-    validate-on-migrate: false
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-on-migrate: true
   servlet:
     multipart:
       max-file-size: 5MB
@@ -63,8 +66,29 @@ finance-ai:
       allow-credentials: true
   ai-service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
+    service-token: ${AI_SERVICE_TOKEN}
     connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${AI_SERVICE_READ_TIMEOUT_MS:30000}
+  agent:
+    context:
+      history-max-messages: ${AGENT_HISTORY_MAX_MESSAGES:16}
+      input-token-budget: ${AGENT_INPUT_TOKEN_BUDGET:8000}
+      summary-max-chars: ${AGENT_SUMMARY_MAX_CHARS:4000}
+      summary-batch-size: ${AGENT_SUMMARY_BATCH_SIZE:100}
+      recent-transactions: ${AGENT_RECENT_TRANSACTIONS:20}
+      recurring-expenses: ${AGENT_RECURRING_EXPENSES:20}
+      analytical-max-months: ${AGENT_ANALYTICAL_MAX_MONTHS:60}
+      conversation-lock-timeout-ms: ${AGENT_CONVERSATION_LOCK_TIMEOUT_MS:120000}
+  rag:
+    index-queue:
+      enabled: ${RAG_INDEX_QUEUE_ENABLED:true}
+      poll-delay-ms: ${RAG_INDEX_QUEUE_POLL_DELAY_MS:1000}
+      lock-timeout-ms: ${RAG_INDEX_QUEUE_LOCK_TIMEOUT_MS:120000}
+      heartbeat-interval-ms: ${RAG_INDEX_QUEUE_HEARTBEAT_INTERVAL_MS:30000}
+      max-batches-per-drain: ${RAG_INDEX_QUEUE_MAX_BATCHES_PER_DRAIN:100}
+      max-attempts: ${RAG_INDEX_QUEUE_MAX_ATTEMPTS:5}
+      retry-base-delay-ms: ${RAG_INDEX_QUEUE_RETRY_BASE_DELAY_MS:2000}
+      retry-max-delay-ms: ${RAG_INDEX_QUEUE_RETRY_MAX_DELAY_MS:60000}
   open-finance:
     provider: ${OPEN_FINANCE_PROVIDER:pluggy}
     base-url: ${OPEN_FINANCE_BASE_URL:https://api.pluggy.ai}

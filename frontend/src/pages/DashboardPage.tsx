@@ -103,12 +103,24 @@ export function DashboardPage() {
     error: analysisError,
   } = useQuery<FinancialAnalysisResponse | null>({
     queryKey: ['analyses', 'latest', source, importSourceId],
-    queryFn: () => analysisService.getLatest(source, importSourceId),
+    queryFn: async () => {
+      const sourceAnalysis = await analysisService.getLatest(source, importSourceId);
+      if (sourceAnalysis || !importSourceId) return sourceAnalysis;
+      return analysisService.getLatest(source);
+    },
     retry: false,
     enabled: !sourcesLoading,
   });
 
   const analysis = latestAnalysis ?? null;
+  const isGeneralAnalysis = Boolean(
+    analysis
+      && importSourceId
+      && analysis.modelVersions.importSourceId !== importSourceId,
+  );
+  const newAnalysisUrl = importSourceId
+    ? `/analyses/new?source=${source}&importSourceId=${importSourceId}`
+    : `/analyses/new?source=${source}`;
 
   const pieData = useMemo(
     () =>
@@ -167,7 +179,7 @@ export function DashboardPage() {
               />
             </label>
           )}
-          <Link to="/analyses/new">
+          <Link to={newAnalysisUrl}>
           <Button className="w-full whitespace-nowrap sm:w-auto">
             Nova Análise
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -191,7 +203,9 @@ export function DashboardPage() {
           title="Score Financeiro"
           value={score?.toString() ?? '—'}
           icon={TrendingUp}
-          trend={score === null ? 'Gere uma análise' : score >= 70 ? 'Excelente' : score >= 50 ? 'Bom' : 'Precisa de atenção'}
+          trend={score === null
+            ? 'Gere uma análise'
+            : `${score >= 70 ? 'Excelente' : score >= 50 ? 'Bom' : 'Precisa de atenção'}${isGeneralAnalysis ? ' · análise geral' : ''}`}
           variant={score === null ? 'default' : score >= 70 ? 'success' : score >= 50 ? 'warning' : 'danger'}
         />
         <MetricCard

@@ -35,7 +35,7 @@ A maior parte da API pública retorna o envelope:
 Exceções que não usam esse envelope:
 
 - `/api/v1/auth/forgot-password`, `/validate-reset-code` e `/reset-password`;
-- `/api/v1/rag/index-step` e `/api/v1/rag/status`;
+- `/api/v1/rag/index-step`, `/api/v1/rag/status`, `/api/v1/rag/queue` e `/api/v1/rag/reprocess`;
 - `/api/v1/model-status`;
 - `/actuator/**`;
 - o stream SSE do agente;
@@ -348,7 +348,7 @@ Tarifa,-25.00,2026-07-06,,DEBIT_CARD,0
 
 Cabeçalhos não diferenciam maiúsculas de minúsculas. `categoria`, `subcategoria`, `forma_pagamento`, `canal` e outros campos do dataset sintético não são lidos pelo importador atual.
 
-Depois de persistir as linhas válidas, o backend categoriza as transações, reconstrói fatos financeiros, cria chunks RAG, solicita indexação assíncrona e tenta gerar uma análise `MACHINE_LEARNING`. A ausência de receitas ou de transações impede apenas essa análise automática. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham.
+O backend categoriza as linhas válidas antes de abrir a transação de persistência. Em uma transação curta, grava o arquivo e as transações, reconstrói fatos financeiros, cria chunks RAG e registra o job durável de indexação no mesmo commit. A importação não gera análise financeira automaticamente; ela pode ser solicitada depois por `/financial-analyses/from-transactions`. Linhas inválidas aparecem em `errors`; o arquivo ainda termina com status `COMPLETED` quando outras etapas não falham. Se a persistência falhar, o objeto armazenado é removido como compensação.
 
 Resposta em `data`:
 
@@ -429,11 +429,12 @@ Não há geração de PDF ou Excel implementada.
 | Método | Endpoint | Descrição |
 | --- | --- | --- |
 | `POST` | `/api/v1/agent/conversations` | Cria uma conversa |
-| `GET` | `/api/v1/agent/conversations/{conversationId}` | Retorna conversa e mensagens |
-| `POST` | `/api/v1/agent/conversations/{conversationId}/messages` | Persiste a mensagem e retorna a conversa completa |
+| `GET` | `/api/v1/agent/conversations?page=0&size=20` | Lista conversas de forma paginada |
+| `GET` | `/api/v1/agent/conversations/{conversationId}?page=0&size=50` | Retorna uma página do histórico; cada página vem em ordem cronológica |
+| `POST` | `/api/v1/agent/conversations/{conversationId}/messages` | Processa a mensagem e retorna a página mais recente da conversa |
 | `POST` | `/api/v1/agent/conversations/{conversationId}/messages/stream` | Persiste e transmite a resposta por SSE |
 
-Não existe endpoint para listar todas as conversas.
+`page` começa em zero. O tamanho máximo do histórico é 100; a resposta inclui `totalMessages`, `messagePage`, `messageSize` e `hasOlderMessages`. A listagem de conversas aceita no máximo 50 itens por página.
 
 Criação:
 
@@ -451,8 +452,13 @@ Criação:
 Mensagem:
 
 ```json
-{"content":"Qual foi meu pior mês de despesas?"}
+{
+  "content": "Qual foi meu pior mês de despesas?",
+  "clientMessageId": "80d03f32-bc0a-4f70-851b-a03276eb9432"
+}
 ```
+
+`clientMessageId` identifica a tentativa de forma idempotente. Repetir o mesmo UUID e o mesmo conteúdo não cria mensagens duplicadas; se a resposta já terminou, o stream reproduz a mensagem persistida. Reutilizar o UUID com outro conteúdo recebe `409 AGENT_IDEMPOTENCY_CONFLICT`. Uma segunda mensagem diferente durante o processamento da conversa recebe `409 AGENT_CONVERSATION_BUSY`.
 
 No modo não streaming, `data.messages[].toolCalls` e `ragSources` são strings contendo JSON serializado, pois correspondem a colunas JSONB representadas como `String` no DTO atual.
 
@@ -477,6 +483,8 @@ data: {"conversationId":"<uuid>","message":{"id":"<uuid>","role":"assistant","co
 
 Também pode ocorrer `event: error` com `{"message":"..."}`. Se a chamada ao AI Service falhar antes de produzir texto, o backend emite uma resposta segura como eventos `tools`, `token` e `done`. Se a falha ocorrer depois de texto parcial, emite `error` e não persiste uma resposta concluída.
 
+Quando o cliente fecha ou cancela o `fetch`, a gravação no SSE falha imediatamente, o backend fecha a resposta HTTP interna e o AI Service encerra o gerador do provider. A requisição fica `CANCELLED`, libera a conversa e pode ser refeita com o mesmo `clientMessageId`.
+
 Ferramentas implementadas: `get_financial_profile`, `get_financial_indicators`, `get_spending_summary`, `get_monthly_rankings`, `get_transaction_rankings`, `get_transactions`, `get_recommendations`, `compare_periods`, `get_recurring_expenses` e `simulate_savings_plan`.
 
 ### RAG
@@ -485,6 +493,8 @@ Ferramentas implementadas: `get_financial_profile`, `get_financial_indicators`, 
 | --- | --- | --- |
 | `GET` | `/api/v1/rag/status?sourceIds=<id>&sourceIds=<id>` | Contadores de documentos do usuário |
 | `POST` | `/api/v1/rag/index-step?sourceIds=<id>&sourceIds=<id>` | Executa uma etapa síncrona de indexação e retorna contadores |
+| `GET` | `/api/v1/rag/queue` | Estado operacional do job durável do usuário |
+| `POST` | `/api/v1/rag/reprocess` | Recupera o job e reenfileira documentos elegíveis |
 
 Status:
 
@@ -500,6 +510,43 @@ Status:
 ```
 
 `status` pode ser `EMPTY`, `PENDING`, `PROCESSING`, `FAILED` ou `COMPLETE`. A resposta de `/index-step` acrescenta `indexedCount`. `sourceIds` é opcional; sem ele, o escopo abrange todos os chunks do usuário.
+
+Exemplo de job em dead-letter:
+
+```json
+{
+  "status": "DEAD_LETTER",
+  "attempts": 5,
+  "rerunRequested": false,
+  "nextAttemptAt": "2026-08-03T12:00:00Z",
+  "heartbeatAt": null,
+  "deadLetteredAt": "2026-08-03T12:00:00Z",
+  "lastError": "Falha ao gerar embeddings",
+  "manualReprocessCount": 0,
+  "updatedAt": "2026-08-03T12:00:00Z"
+}
+```
+
+Reprocessamento normal:
+
+```http
+POST /api/v1/rag/reprocess
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{"force": false}
+```
+
+```json
+{
+  "queued": true,
+  "force": false,
+  "resetDocuments": 18,
+  "queueStatus": "PENDING"
+}
+```
+
+O corpo é opcional e equivale a `force=false`. O modo normal reinicia documentos sem embedding ativo ou em `PENDING`, `PROCESSING` ou `FAILED`; `force=true` invalida todos os embeddings, inclusive os preservados de outros modelos. A API retorna `202` ao enfileirar, `200` com `queued=false` quando não há documentos e `409 RAG_QUEUE_CONFLICT` se o job já está em processamento.
 
 ### Sistema
 
@@ -542,18 +589,21 @@ O conteúdo dos mapas de classificadores depende dos artefatos. O backend retorn
 
 ## Endpoints internos do AI Service
 
-Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas pelo backend na rede Docker. O FastAPI não implementa autenticação própria para elas; o isolamento é de rede.
+Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas pelo backend na rede Docker. Todas as rotas `/internal/v1/*` exigem `Authorization: Bearer <AI_SERVICE_TOKEN>`. Agente e RAG exigem também `X-FinVise-User-Id`, preenchido pelo backend com o UUID extraído do JWT; `user_id` enviado no JSON é rejeitado. `/health` permanece público.
 
 | Método | Endpoint | Contrato resumido |
 | --- | --- | --- |
 | `GET` | `/health` | `status`, `version`, `environment` |
 | `GET` | `/internal/v1/models/status` | Registry, artefatos e LLM |
+| `GET` | `/internal/v1/rag/retrieval/metrics` | Uso dos canais, falhas vetoriais e latências da recuperação |
 | `POST` | `/internal/v1/transactions/classify` | `{items:[{description,amount,payment_method,recurrent,channel}]}` |
 | `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e nove indicadores |
 | `POST` | `/internal/v1/profiles/recommendations` | Recomendações do motor Python |
-| `POST` | `/internal/v1/agent/respond` | Resposta completa do agente |
-| `POST` | `/internal/v1/agent/respond/stream` | SSE `tools`, `sources`, `token`, `done` ou `error` |
-| `POST` | `/internal/v1/rag/index` | `{user_id,source_ids,background}`; indexação síncrona ou em background |
+| `POST` | `/internal/v1/agent/respond` | Header de usuário confiável e resposta completa do agente |
+| `POST` | `/internal/v1/agent/respond/stream` | Header de usuário confiável e SSE `tools`, `sources`, `token`, `done` ou `error` |
+| `POST` | `/internal/v1/rag/index` | Header de usuário confiável e `{source_ids,background,max_batches}` |
+
+O worker da fila durável sempre usa `background=false`, pois precisa confirmar sucesso ou falha antes de concluir/reagendar o job. `background=true` permanece disponível apenas para chamadas internas diretas e não oferece a mesma garantia de persistência.
 
 Não existe `/internal/v1/rag/search`; a recuperação é chamada internamente pelo orquestrador do agente.
 

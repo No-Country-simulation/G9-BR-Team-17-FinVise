@@ -1,15 +1,10 @@
 package com.financeai.backend;
 
-import com.financeai.backend.analysis.AnalysisService;
-import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.importation.*;
 import com.financeai.backend.common.exception.BusinessException;
-import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
-import com.financeai.backend.transaction.TransactionRepository;
-import com.financeai.backend.transaction.TransactionSource;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,8 +33,6 @@ import static org.mockito.Mockito.*;
 class CsvImportServiceTest {
 
     @Mock
-    private TransactionRepository transactionRepository;
-    @Mock
     private TransactionCategorizationService categorizationService;
     @Mock
     private ImportedFileRepository importedFileRepository;
@@ -48,12 +41,7 @@ class CsvImportServiceTest {
     @Mock
     private ObjectStorageService objectStorageService;
     @Mock
-    private com.financeai.backend.rag.RagIngestionService ragIngestionService;
-    @Mock
-    private FinancialFactsService financialFactsService;
-    @Mock
-    private AnalysisService analysisService;
-
+    private CsvImportPersistenceService persistenceService;
     @InjectMocks
     private CsvImportService csvImportService;
 
@@ -74,6 +62,23 @@ class CsvImportServiceTest {
             return new TransactionCategorizationService.CategorizationResult(
                 transactions.size(), transactions.size(), "FALLBACK");
         });
+        lenient().when(persistenceService.persist(
+            any(), anyString(), anyString(), anyLong(), anyString(), anyList(), any(), anyList()
+        )).thenAnswer(invocation -> {
+            List<Transaction> transactions = invocation.getArgument(5);
+            TransactionCategorizationService.CategorizationResult categorization =
+                invocation.getArgument(6);
+            List<String> errors = invocation.getArgument(7);
+            return new ImportResultResponse(
+                UUID.randomUUID(),
+                invocation.getArgument(1),
+                invocation.getArgument(2),
+                ImportStatus.COMPLETED,
+                transactions.size(),
+                categorization.categorizedCount(),
+                categorization.modelVersion(),
+                errors);
+        });
     }
 
     @Test
@@ -81,15 +86,6 @@ class CsvImportServiceTest {
         // given
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(objectStorageService.store(any(InputStream.class), anyString(), anyLong())).thenReturn("stored.csv");
-        when(objectStorageService.retrieve("stored.csv")).thenReturn(new ByteArrayInputStream(csvContent().getBytes(StandardCharsets.UTF_8)));
-        when(importedFileRepository.save(any(ImportedFile.class))).thenAnswer(invocation -> {
-            ImportedFile file = invocation.getArgument(0);
-            if (file.getId() == null) {
-                file.setId(UUID.randomUUID());
-            }
-            return file;
-        });
-        when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MultipartFile file = new MockMultipartFile("file", "transacoes.csv", "text/csv", csvContent().getBytes(StandardCharsets.UTF_8));
 
@@ -103,27 +99,14 @@ class CsvImportServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Transaction>> transactionCaptor = ArgumentCaptor.forClass(List.class);
-        verify(transactionRepository).saveAll(transactionCaptor.capture());
+        verify(persistenceService).persist(
+            eq(userId), eq("transacoes.csv"), eq("stored.csv"), anyLong(),
+            anyString(), transactionCaptor.capture(), any(), anyList());
         assertThat(transactionCaptor.getValue())
-            .allMatch(t -> t.getUser().getId().equals(userId));
+            .allMatch(t -> t.getUser() == null && t.getImportSourceId() == null);
         assertThat(transactionCaptor.getValue())
             .anyMatch(t -> "Supermercado".equals(t.getDescription()));
-        verify(financialFactsService).rebuild(
-            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
-        verify(analysisService).analyzeStoredTransactions(
-            eq(userId),
-            eq(ProfileAnalysisModel.MACHINE_LEARNING),
-            eq(TransactionSource.CSV_IMPORT),
-            any(UUID.class),
-            eq(null),
-            eq(null)
-        );
-
-        ArgumentCaptor<ImportedFile> importedFileCaptor = ArgumentCaptor.forClass(ImportedFile.class);
-        verify(importedFileRepository, atLeast(2)).save(importedFileCaptor.capture());
-        assertThat(importedFileCaptor.getAllValues())
-            .anyMatch(imported -> imported.getProcessedCount() == 2
-                && imported.getCategorizedCount() == 2);
+        verify(objectStorageService, never()).retrieve(anyString());
     }
 
     @Test
@@ -131,15 +114,6 @@ class CsvImportServiceTest {
         // given
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(objectStorageService.store(any(InputStream.class), anyString(), anyLong())).thenReturn("stored.csv");
-        when(objectStorageService.retrieve("stored.csv")).thenReturn(new ByteArrayInputStream(invalidCsvContent().getBytes(StandardCharsets.UTF_8)));
-        when(importedFileRepository.save(any(ImportedFile.class))).thenAnswer(invocation -> {
-            ImportedFile file = invocation.getArgument(0);
-            if (file.getId() == null) {
-                file.setId(UUID.randomUUID());
-            }
-            return file;
-        });
-        when(transactionRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
         MultipartFile file = new MockMultipartFile("file", "invalido.csv", "text/csv", invalidCsvContent().getBytes(StandardCharsets.UTF_8));
 
@@ -166,37 +140,15 @@ class CsvImportServiceTest {
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("mesmo arquivo CSV");
 
-        verifyNoInteractions(objectStorageService, transactionRepository);
+        verifyNoInteractions(objectStorageService, persistenceService);
     }
 
     @Test
-    void shouldKeepImportWhenFinancialProfileHasNoIncome() {
+    void shouldImportFileWithOnlyExpensesWithoutCreatingAnImplicitAnalysis() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(objectStorageService.store(any(InputStream.class), anyString(), anyLong()))
             .thenReturn("stored.csv");
         String content = expenseOnlyCsvContent();
-        when(objectStorageService.retrieve("stored.csv")).thenReturn(
-            new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)));
-        when(importedFileRepository.save(any(ImportedFile.class))).thenAnswer(invocation -> {
-            ImportedFile imported = invocation.getArgument(0);
-            if (imported.getId() == null) {
-                imported.setId(UUID.randomUUID());
-            }
-            return imported;
-        });
-        when(transactionRepository.saveAll(anyList()))
-            .thenAnswer(invocation -> invocation.getArgument(0));
-        when(analysisService.analyzeStoredTransactions(
-            eq(userId),
-            eq(ProfileAnalysisModel.MACHINE_LEARNING),
-            eq(TransactionSource.CSV_IMPORT),
-            any(UUID.class),
-            eq(null),
-            eq(null)
-        )).thenThrow(new BusinessException(
-            "NO_INCOME_TRANSACTIONS",
-            "Não há transações de receita suficientes"
-        ));
         MultipartFile file = new MockMultipartFile(
             "file", "despesas.csv", "text/csv", content.getBytes(StandardCharsets.UTF_8));
 
@@ -204,8 +156,29 @@ class CsvImportServiceTest {
 
         assertThat(result.status()).isEqualTo(ImportStatus.COMPLETED);
         assertThat(result.processedCount()).isEqualTo(1);
-        verify(financialFactsService).rebuild(
-            eq(userId), eq(TransactionSource.CSV_IMPORT), any(UUID.class));
+        verify(persistenceService).persist(
+            eq(userId), eq("despesas.csv"), eq("stored.csv"), anyLong(),
+            anyString(), anyList(), any(), anyList());
+    }
+
+    @Test
+    void shouldDeleteStoredFileWhenDatabasePersistenceFails() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(objectStorageService.store(any(InputStream.class), anyString(), anyLong()))
+            .thenReturn("stored.csv");
+        doThrow(new IllegalStateException("database unavailable"))
+            .when(persistenceService).persist(
+                any(), anyString(), anyString(), anyLong(), anyString(),
+                anyList(), any(), anyList());
+        MultipartFile file = new MockMultipartFile(
+            "file", "transacoes.csv", "text/csv",
+            csvContent().getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> csvImportService.importTransactionsCsv(userId, file))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("database unavailable");
+
+        verify(objectStorageService).delete("stored.csv");
     }
 
     private String csvContent() {

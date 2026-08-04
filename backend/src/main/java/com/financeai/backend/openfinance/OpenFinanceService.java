@@ -4,23 +4,21 @@ import com.financeai.backend.analysis.AnalysisResponse;
 import com.financeai.backend.analysis.AnalysisService;
 import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.config.OpenFinanceProperties;
-import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.transaction.TransactionSource;
-import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -34,8 +32,7 @@ public class OpenFinanceService {
     private final TransactionCategorizationService categorizationService;
     private final UserRepository userRepository;
     private final AnalysisService analysisService;
-    private final com.financeai.backend.rag.RagIngestionService ragIngestionService;
-    private final FinancialFactsService financialFactsService;
+    private final OpenFinancePersistenceService persistenceService;
 
     public OpenFinanceService(OpenFinanceProperties properties,
                               PluggyClient pluggyClient,
@@ -44,8 +41,7 @@ public class OpenFinanceService {
                               TransactionCategorizationService categorizationService,
                               UserRepository userRepository,
                               AnalysisService analysisService,
-                              com.financeai.backend.rag.RagIngestionService ragIngestionService,
-                              FinancialFactsService financialFactsService) {
+                              OpenFinancePersistenceService persistenceService) {
         this.properties = properties;
         this.pluggyClient = pluggyClient;
         this.connectionRepository = connectionRepository;
@@ -53,8 +49,7 @@ public class OpenFinanceService {
         this.categorizationService = categorizationService;
         this.userRepository = userRepository;
         this.analysisService = analysisService;
-        this.ragIngestionService = ragIngestionService;
-        this.financialFactsService = financialFactsService;
+        this.persistenceService = persistenceService;
     }
 
     public OpenFinanceStatusResponse status() {
@@ -71,17 +66,15 @@ public class OpenFinanceService {
             properties.isIncludeSandbox());
     }
 
-    @Transactional
     public OpenFinanceSyncResponse synchronize(UUID userId,
                                                String itemId,
                                                ProfileAnalysisModel model) {
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
-        OpenFinanceConnection existingConnection = connectionRepository
-            .findByProviderAndExternalItemId(properties.getProvider(), itemId)
+        UUID ownerId = connectionRepository
+            .findOwnerIdByProviderAndExternalItemId(properties.getProvider(), itemId)
             .orElse(null);
-        if (existingConnection != null
-            && !existingConnection.getUser().getId().equals(userId)) {
+        if (ownerId != null && !ownerId.equals(userId)) {
             throw new AccessDeniedException(
                 "A conexão Open Finance não pertence ao usuário autenticado");
         }
@@ -89,67 +82,51 @@ public class OpenFinanceService {
         PluggyClient.PluggySyncData syncData = pluggyClient.fetchTransactions(
             itemId, userId.toString());
         List<PluggyClient.PluggyTransaction> providerTransactions = syncData.transactions();
-        OpenFinanceConnection connection = existingConnection != null
-            ? existingConnection
-            : new OpenFinanceConnection();
-        connection.setUser(user);
-        connection.setProvider(properties.getProvider());
-        connection.setExternalItemId(itemId);
-        if (syncData.displayName() != null && !syncData.displayName().isBlank()) {
-            connection.setDisplayName(syncData.displayName());
-        }
-        connection.setStatus("SYNCING");
-        connection = connectionRepository.save(connection);
-
-        List<Transaction> newTransactions = new ArrayList<>();
-        int skipped = 0;
-
+        List<Transaction> mappedTransactions = new ArrayList<>();
         for (PluggyClient.PluggyTransaction providerTransaction : providerTransactions) {
             String externalId = itemId + ":" + providerTransaction.id();
-            if (transactionRepository.existsByUserIdAndSourceAndExternalId(userId, SOURCE, externalId)) {
-                skipped++;
-                continue;
-            }
-            Transaction transaction = mapTransaction(
-                user, connection.getId(), externalId, providerTransaction);
+            Transaction transaction = mapTransaction(externalId, providerTransaction);
             if (transaction == null) {
-                skipped++;
                 continue;
             }
-            newTransactions.add(transaction);
+            mappedTransactions.add(transaction);
         }
+
+        Set<String> existingExternalIds = mappedTransactions.isEmpty()
+            ? Set.of()
+            : transactionRepository.findExistingExternalIds(
+                userId,
+                SOURCE,
+                mappedTransactions.stream().map(Transaction::getExternalId).toList());
+        Set<String> uniqueExternalIds = new HashSet<>();
+        List<Transaction> newTransactions = mappedTransactions.stream()
+            .filter(transaction -> !existingExternalIds.contains(transaction.getExternalId()))
+            .filter(transaction -> uniqueExternalIds.add(transaction.getExternalId()))
+            .toList();
 
         categorizationService.categorize(newTransactions);
-        transactionRepository.saveAll(newTransactions);
-        financialFactsService.rebuild(
-            userId, TransactionSource.OPEN_FINANCE_PLUGGY, connection.getId());
-        if (!newTransactions.isEmpty()) {
-            ragIngestionService.ingestTransactions(
-                userId,
-                "OPEN_FINANCE",
-                connection.getId().toString(),
-                connection.getDisplayName(),
-                newTransactions);
-        }
-
-        connection.setStatus("CONNECTED");
-        connection.setLastSyncAt(Instant.now());
-        connectionRepository.save(connection);
+        OpenFinancePersistenceService.PersistResult persisted = persistenceService.persist(
+            userId,
+            properties.getProvider(),
+            itemId,
+            syncData.displayName(),
+            newTransactions);
 
         AnalysisResponse analysis = analysisService.analyzeStoredTransactions(
-            userId, model, TransactionSource.OPEN_FINANCE_PLUGGY, connection.getId(), null, null);
-        return new OpenFinanceSyncResponse(newTransactions.size(), skipped, analysis);
+            userId, model, TransactionSource.OPEN_FINANCE_PLUGGY,
+            persisted.connectionId(), null, null);
+        return new OpenFinanceSyncResponse(
+            persisted.insertedCount(),
+            providerTransactions.size() - persisted.insertedCount(),
+            analysis);
     }
 
-    private Transaction mapTransaction(User user,
-                                       UUID importSourceId,
-                                       String externalId,
+    private Transaction mapTransaction(String externalId,
                                        PluggyClient.PluggyTransaction source) {
         TransactionType type = resolveType(source);
         if (type == null || source.amount().signum() == 0) return null;
 
         Transaction transaction = new Transaction();
-        transaction.setUser(user);
         transaction.setExternalId(externalId);
         transaction.setDescription(source.description());
         transaction.setAmount(source.amount().abs());
@@ -157,7 +134,6 @@ public class OpenFinanceService {
         transaction.setType(type);
         transaction.setRecurrent(false);
         transaction.setSource(SOURCE);
-        transaction.setImportSourceId(importSourceId);
         return transaction;
     }
 

@@ -101,6 +101,16 @@ SPRING_DATASOURCE_PASSWORD=<senha>
 
 Fallbacks: `POSTGRES_USER`, `POSTGRES_PASSWORD` e banco `finvise`. O serviço não lê uma variável separada de host/porta; eles são extraídos da URL.
 
+As conexões são reutilizadas por um pool iniciado e encerrado com a aplicação:
+
+| Variável | Padrão | Uso |
+| --- | --- | --- |
+| `RAG_DB_POOL_MIN_SIZE` | `0` | conexões mantidas mesmo sem demanda |
+| `RAG_DB_POOL_MAX_SIZE` | `10` | limite de conexões simultâneas do AI Service |
+| `RAG_DB_POOL_TIMEOUT_SECONDS` | `10` | espera máxima por uma conexão disponível |
+
+`RAG_DB_POOL_MIN_SIZE` não pode superar `RAG_DB_POOL_MAX_SIZE`. O padrão mínimo zero evita conexão antecipada; após o primeiro uso, conexões ociosas permanecem disponíveis para reutilização conforme a política do pool.
+
 ### LLM
 
 | Variável | Padrão |
@@ -114,7 +124,7 @@ Fallbacks: `POSTGRES_USER`, `POSTGRES_PASSWORD` e banco `finvise`. O serviço n�
 | `LLM_MAX_TOKENS` | `1024` |
 | `LLM_TEMPERATURE` | `0.2` |
 
-Somente `LLM_PROVIDER=openai` ativa `OpenAIProvider`; outro valor usa o provider de template. O cliente chama `{LLM_BASE_URL}/chat/completions` com `httpx`. Não há LangChain nem SDK oficial da OpenAI.
+Somente `LLM_PROVIDER=openai` ativa `OpenAIProvider`; outro valor usa o provider de template. O cliente chama `{LLM_BASE_URL}/chat/completions` com `httpx`. O agente e o cliente HTTP são compartilhados pelo processo; chat e embeddings reutilizam o pool de conexões, fechado no encerramento do FastAPI. Não há LangChain nem SDK oficial da OpenAI.
 
 ### RAG
 
@@ -125,8 +135,34 @@ Somente `LLM_PROVIDER=openai` ativa `OpenAIProvider`; outro valor usa o provider
 | `RAG_EMBEDDING_BATCH_SIZE` | `200` | 1–500 |
 | `RAG_INDEX_MAX_BATCHES` | `100` | 1–100 |
 | `RAG_MIN_RELEVANCE` | `0.18` | limiar vetorial |
+| `RAG_HYBRID_RRF_K` | `60` | constante de suavização da fusão |
+| `RAG_VECTOR_WEIGHT` | `1.0` | peso positivo do ranking vetorial |
+| `RAG_TEXT_WEIGHT` | `1.0` | peso positivo do ranking textual |
+| `RAG_CANDIDATE_MULTIPLIER` | `4` | 1–20; candidatos por canal |
+| `RAG_RETRIEVAL_METRICS_WINDOW` | `1000` | 10–10.000 latências recentes |
 
-Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. A busca cai para full-text quando `pgvector`/vetor não está disponível ou não retorna candidato relevante.
+Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. Vetor e full-text em português são consultados separadamente e fundidos com RRF. Se pgvector ou o provedor falhar, o ranking textual continua disponível.
+
+As métricas do processo ficam em `GET /internal/v1/rag/retrieval/metrics`. Para avaliar um conjunto rotulado real:
+
+```bash
+evaluate-rag --dataset consultas-rag.json --user-id <uuid> --k 5 \
+  --minimum-recall-at-k 0.8 --maximum-p95-ms 500 --output relatorio-rag.json
+```
+
+Cada caso do JSON contém `query`, `relevant_ids` e, opcionalmente, `source_type` e `source_ids`. O comando calcula Recall@K, Precision@K, MRR@K e latência; os limiares devem ser definidos conforme o ambiente e o conjunto de validação.
+
+```json
+{
+  "cases": [
+    {
+      "query": "Quais foram meus gastos com supermercado?",
+      "relevant_ids": ["<uuid-do-chunk-relevante>"],
+      "source_ids": ["<uuid-da-fonte>"]
+    }
+  ]
+}
+```
 
 ### Agente e dados
 
@@ -143,6 +179,12 @@ Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. A busca cai para fu
 
 ## Endpoints
 
+`AI_SERVICE_TOKEN` é obrigatório e deve possuir ao menos 32 caracteres. Todas as
+rotas `/internal/v1/*` exigem `Authorization: Bearer <token>`. As rotas de agente
+e RAG exigem também `X-FinVise-User-Id` com um UUID; esse cabeçalho só é aceito
+depois da autenticação do serviço. O campo `user_id` não faz parte desses payloads.
+`/health` permanece público para health checks.
+
 | Método | Endpoint | Uso |
 | --- | --- | --- |
 | `GET` | `/health` | health do processo |
@@ -156,7 +198,8 @@ Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. A busca cai para fu
 
 Não existe `/internal/v1/rag/search`; a recuperação é chamada diretamente pelo orquestrador.
 
-O serviço não autentica essas rotas. No Compose, ele não publica porta e o Nginx bloqueia `/internal/`; ao executá-lo isoladamente em `8000`, proteja o acesso por rede.
+No Compose, o AI Service não publica porta e o Nginx também bloqueia `/internal/`.
+Essas barreiras de rede complementam a autenticação por token e não a substituem.
 
 Documentação FastAPI em execução isolada:
 

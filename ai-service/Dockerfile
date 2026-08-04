@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml requirements.lock ./
 COPY app ./app
 COPY training ./training
+COPY evaluation ./evaluation
 RUN mkdir -p ./models
 COPY tests ./tests
 

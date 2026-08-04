@@ -6,7 +6,7 @@ import {
   AgentMessage,
   RagSource,
 } from '@/types/agent';
-import { ApiResponse } from '@/types/common';
+import { ApiResponse, PaginatedResponse } from '@/types/common';
 
 interface BackendMessage {
   id: string;
@@ -23,6 +23,10 @@ interface BackendConversation {
   sourceIds: string[];
   topK: number;
   messages: BackendMessage[];
+  totalMessages: number;
+  messagePage: number;
+  messageSize: number;
+  hasOlderMessages: boolean;
   createdAt: string;
 }
 
@@ -64,6 +68,10 @@ function mapConversation(source: BackendConversation): AgentConversation {
     source: source.source,
     sourceIds: source.sourceIds || [],
     topK: source.topK || 5,
+    totalMessages: source.totalMessages || source.messages.length,
+    messagePage: source.messagePage || 0,
+    messageSize: source.messageSize || source.messages.length,
+    hasOlderMessages: source.hasOlderMessages || false,
   };
 }
 
@@ -83,9 +91,10 @@ async function createConversation(request: AgentRequest): Promise<string> {
 export const agentService = {
   async sendMessage(request: AgentRequest): Promise<AgentResponse> {
     const conversationId = request.conversationId || await createConversation(request);
+    const clientMessageId = request.clientMessageId || crypto.randomUUID();
     const { data: response } = await api.post<ApiResponse<BackendConversation>>(
       `/agent/conversations/${conversationId}/messages`,
-      { content: request.message }
+      { content: request.message, clientMessageId }
     );
     const assistantMessage = response.data.messages
       .map(mapMessage)
@@ -104,6 +113,7 @@ export const agentService = {
     signal?: AbortSignal
   ): Promise<AgentResponse> {
     const conversationId = request.conversationId || await createConversation(request);
+    const clientMessageId = request.clientMessageId || crypto.randomUUID();
     handlers.onConversation?.(conversationId);
 
     const token = localStorage.getItem('finance_ai_token');
@@ -117,7 +127,7 @@ export const agentService = {
           Accept: 'text/event-stream',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ content: request.message }),
+        body: JSON.stringify({ content: request.message, clientMessageId }),
         signal,
       }
     );
@@ -230,10 +240,21 @@ export const agentService = {
     return { message: completedMessage, conversationId };
   },
 
-  async getConversation(id: string): Promise<AgentConversation> {
+  async getConversation(id: string, page = 0, size = 50): Promise<AgentConversation> {
     const { data: response } = await api.get<ApiResponse<BackendConversation>>(
-      `/agent/conversations/${id}`
+      `/agent/conversations/${id}`,
+      { params: { page, size } }
     );
     return mapConversation(response.data);
+  },
+
+  async getConversations(page = 0, size = 20): Promise<PaginatedResponse<AgentConversation>> {
+    const { data: response } = await api.get<
+      ApiResponse<PaginatedResponse<BackendConversation>>
+    >('/agent/conversations', { params: { page, size } });
+    return {
+      ...response.data,
+      content: response.data.content.map(mapConversation),
+    };
   },
 };

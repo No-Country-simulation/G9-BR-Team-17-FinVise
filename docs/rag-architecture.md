@@ -304,7 +304,8 @@ Uma nova tentativa manual reprocessa documentos sem embedding ou cujo `embedding
 - Todas as consultas e contagens incluem `user_id`.
 - `source_type` e `source_ids` restringem ainda mais o escopo.
 - O backend obtém o usuário do JWT; o frontend não envia `user_id` ao endpoint público.
-- O endpoint interno recebe `user_id` do backend e não tem autenticação própria.
+- O backend autentica a chamada interna com `AI_SERVICE_TOKEN` e envia o UUID em `X-FinVise-User-Id`.
+- O AI Service rejeita `user_id` no payload e só usa a identidade do cabeçalho após validar o token de serviço.
 - `/internal/` é bloqueado no Nginx e o AI Service não publica porta no Compose.
 - `LLM_API_KEY` permanece no AI Service.
 - Apenas trechos recuperados e resultados de ferramentas são enviados ao provider de LLM; ainda assim, podem conter dados financeiros do usuário e exigem avaliação de privacidade antes de habilitar um provedor remoto.

@@ -237,7 +237,8 @@ Ferramentas e recuperação rodam em paralelo no AI Service. O LLM recebe apenas
 ## Segurança e limites de confiança
 
 - Nginx é o único serviço publicado no override de produção.
-- `/internal/` recebe `403` no Nginx, mas o FastAPI não autentica chamadas internas; a rede Docker é o limite de confiança atual.
+- `/internal/` recebe `403` no Nginx e o FastAPI exige um Bearer token de serviço em todas as rotas internas.
+- Agente e RAG recebem o UUID em `X-FinVise-User-Id` somente após autenticar o backend; `user_id` no corpo é rejeitado.
 - O backend aplica JWT e extrai o usuário do principal autenticado.
 - Consultas RAG sempre filtram `user_id` e opcionalmente origem/fontes.
 - Credenciais Pluggy e chaves de LLM ficam no servidor.
@@ -253,6 +254,7 @@ As decisões e seus ajustes estão em `docs/adr/`. Em especial:
 - ADR 006 descreve ferramentas, RAG e fallbacks do agente;
 - ADR 007 limita o Object Storage implementado aos arquivos CSV importados;
 - ADR 008 define a fila PostgreSQL durável para indexação RAG.
+- ADR 011 define a autenticação e a propagação confiável de identidade entre backend e AI Service.
 
 ## Escopo implementado
 

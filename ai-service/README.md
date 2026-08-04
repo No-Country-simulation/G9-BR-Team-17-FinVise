@@ -153,6 +153,12 @@ Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. A busca cai para fu
 
 ## Endpoints
 
+`AI_SERVICE_TOKEN` é obrigatório e deve possuir ao menos 32 caracteres. Todas as
+rotas `/internal/v1/*` exigem `Authorization: Bearer <token>`. As rotas de agente
+e RAG exigem também `X-FinVise-User-Id` com um UUID; esse cabeçalho só é aceito
+depois da autenticação do serviço. O campo `user_id` não faz parte desses payloads.
+`/health` permanece público para health checks.
+
 | Método | Endpoint | Uso |
 | --- | --- | --- |
 | `GET` | `/health` | health do processo |
@@ -166,7 +172,8 @@ Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. A busca cai para fu
 
 Não existe `/internal/v1/rag/search`; a recuperação é chamada diretamente pelo orquestrador.
 
-O serviço não autentica essas rotas. No Compose, ele não publica porta e o Nginx bloqueia `/internal/`; ao executá-lo isoladamente em `8000`, proteja o acesso por rede.
+No Compose, o AI Service não publica porta e o Nginx também bloqueia `/internal/`.
+Essas barreiras de rede complementam a autenticação por token e não a substituem.
 
 Documentação FastAPI em execução isolada:
 

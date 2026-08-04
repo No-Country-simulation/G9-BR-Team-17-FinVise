@@ -1,5 +1,6 @@
 package com.financeai.backend.integration.ai;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.List;
@@ -7,7 +8,7 @@ import java.util.Map;
 
 public record AgentRespondRequest(
     @JsonProperty("conversation_id") String conversationId,
-    @JsonProperty("user_id") String userId,
+    @JsonIgnore String userId,
     @JsonProperty("messages") List<MessageDto> messages,
     @JsonProperty("context") AgentContextDto context
 ) {

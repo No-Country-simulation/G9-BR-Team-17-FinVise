@@ -111,6 +111,7 @@ Obrigatórias para o Compose:
 POSTGRES_PASSWORD=<senha-forte>
 SPRING_DATASOURCE_PASSWORD=<a-mesma-senha-forte>
 JWT_SECRET=<segredo-hmac-aleatorio-com-32-ou-mais-bytes>
+AI_SERVICE_TOKEN=<segredo-aleatorio-com-32-ou-mais-caracteres>
 ```
 
 No perfil de produção, a senha da datasource precisa ter pelo menos 16 caracteres e não pode ser um placeholder conhecido. Mantenha `POSTGRES_PASSWORD` e `SPRING_DATASOURCE_PASSWORD` iguais na topologia padrão.

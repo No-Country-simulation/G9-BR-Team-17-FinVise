@@ -12,7 +12,7 @@ Os controles implementados cobrem proxy/rede, autenticação JWT, isolamento por
 - Backend, frontend e AI Service não publicam portas no host.
 - O override de produção remove a porta do PostgreSQL e publica somente Nginx em `80:80`.
 - Todos os serviços compartilham `finvise_internal`. Apesar do nome, a rede usa `internal: false` para permitir saída à internet, necessária a Pluggy, Resend, API de LLM e pull de dependências/imagens.
-- Nginx retorna `403` para `/internal/`; os endpoints FastAPI internos não implementam autenticação própria.
+- Nginx retorna `403` para `/internal/`; adicionalmente, os endpoints FastAPI internos exigem Bearer token de serviço.
 
 ### TLS
 
@@ -41,6 +41,15 @@ Rotas públicas no Spring Security:
 
 Todas as demais rotas do backend exigem autenticação.
 
+### Autenticação Backend → AI Service
+
+- `AI_SERVICE_TOKEN` é obrigatório nos dois serviços e deve ter pelo menos 32 caracteres.
+- O backend envia o token como `Authorization: Bearer` em toda rota `/internal/v1/*`.
+- O AI Service compara o segredo em tempo constante e responde `401` sem revelar se o token estava ausente ou incorreto.
+- Agente e RAG recebem a identidade em `X-FinVise-User-Id`, validada como UUID somente depois da autenticação do serviço.
+- Os payloads dessas rotas proíbem `user_id`, impedindo que o chamador substitua a identidade delegada.
+- `/health` é público e não expõe dados financeiros nem configuração do token.
+
 ### Segredo JWT
 
 O JJWT cria uma chave HMAC a partir dos bytes de `JWT_SECRET`; use pelo menos 32 bytes aleatórios. No perfil `production`, `ProductionSecretsValidator` rejeita segredo vazio e valores contendo placeholders conhecidos.
@@ -66,7 +75,7 @@ O backend lê `CORS_ALLOWED_ORIGINS` e permite os métodos `GET,POST,PUT,PATCH,D
 
 Em produção, substitua as origens locais/IPs de exemplo pelo domínio efetivo. Como credenciais estão habilitadas, não use origem curinga no backend.
 
-O FastAPI configura CORS com `allow_origins=["*"]` e `allow_credentials=True`, mas não é exposto pelo Compose/Nginx ao navegador. O limite de confiança atual é a rede interna.
+O FastAPI configura CORS com `allow_origins=["*"]` e `allow_credentials=True`, mas não é exposto pelo Compose/Nginx ao navegador. Rede interna, bloqueio no Nginx e token de serviço formam camadas independentes; CORS não substitui nenhuma delas.
 
 ## Dados e isolamento RAG
 
@@ -101,6 +110,7 @@ O Compose exige valores não vazios para:
 - `POSTGRES_PASSWORD`;
 - `SPRING_DATASOURCE_PASSWORD`;
 - `JWT_SECRET`.
+- `AI_SERVICE_TOKEN`.
 
 As duas senhas do banco devem ser iguais na topologia padrão. No perfil `production`, a senha da datasource deve ter pelo menos 16 caracteres e não pode ser `finvise`, `postgres` ou conter `change_me`/`change-me`.
 

@@ -86,11 +86,16 @@ class AgentContext(BaseModel):
     retrieval: RetrievalConfig = Field(default_factory=RetrievalConfig)
 
 
-class AgentRequest(BaseModel):
+class AgentApiRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     conversation_id: str
-    user_id: str
     messages: list[Message] = Field(..., min_length=1)
     context: AgentContext = Field(default_factory=AgentContext)
+
+
+class AgentRequest(AgentApiRequest):
+    user_id: str
 
 
 class ToolCall(BaseModel):

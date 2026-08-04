@@ -76,7 +76,7 @@ class IntegrationTest extends PostgresTestSupport {
               and column_name in ('chunk_key', 'schema_version')
             """, Integer.class);
 
-        assertThat(appliedMigrations).isEqualTo(24);
+        assertThat(appliedMigrations).isEqualTo(25);
         assertThat(usersTable).isEqualTo("users");
         assertThat(ragQueueTable).isEqualTo("rag_index_jobs");
         assertThat(ragConsistencyColumns).isEqualTo(2);

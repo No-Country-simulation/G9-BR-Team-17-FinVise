@@ -135,8 +135,34 @@ Somente `LLM_PROVIDER=openai` ativa `OpenAIProvider`; outro valor usa o provider
 | `RAG_EMBEDDING_BATCH_SIZE` | `200` | 1–500 |
 | `RAG_INDEX_MAX_BATCHES` | `100` | 1–100 |
 | `RAG_MIN_RELEVANCE` | `0.18` | limiar vetorial |
+| `RAG_HYBRID_RRF_K` | `60` | constante de suavização da fusão |
+| `RAG_VECTOR_WEIGHT` | `1.0` | peso positivo do ranking vetorial |
+| `RAG_TEXT_WEIGHT` | `1.0` | peso positivo do ranking textual |
+| `RAG_CANDIDATE_MULTIPLIER` | `4` | 1–20; candidatos por canal |
+| `RAG_RETRIEVAL_METRICS_WINDOW` | `1000` | 10–10.000 latências recentes |
 
-Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. A busca cai para full-text quando `pgvector`/vetor não está disponível ou não retorna candidato relevante.
+Sem embeddings remotos, o modelo efetivo é `local-hash-v2`. Vetor e full-text em português são consultados separadamente e fundidos com RRF. Se pgvector ou o provedor falhar, o ranking textual continua disponível.
+
+As métricas do processo ficam em `GET /internal/v1/rag/retrieval/metrics`. Para avaliar um conjunto rotulado real:
+
+```bash
+evaluate-rag --dataset consultas-rag.json --user-id <uuid> --k 5 \
+  --minimum-recall-at-k 0.8 --maximum-p95-ms 500 --output relatorio-rag.json
+```
+
+Cada caso do JSON contém `query`, `relevant_ids` e, opcionalmente, `source_type` e `source_ids`. O comando calcula Recall@K, Precision@K, MRR@K e latência; os limiares devem ser definidos conforme o ambiente e o conjunto de validação.
+
+```json
+{
+  "cases": [
+    {
+      "query": "Quais foram meus gastos com supermercado?",
+      "relevant_ids": ["<uuid-do-chunk-relevante>"],
+      "source_ids": ["<uuid-da-fonte>"]
+    }
+  ]
+}
+```
 
 ### Agente e dados
 

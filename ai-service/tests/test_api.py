@@ -76,6 +76,14 @@ def test_models_status(client):
     assert data["profile_classifier"]["status"] in {"LOADED", "FALLBACK"}
 
 
+def test_rag_retrieval_metrics_are_service_authenticated(client):
+    response = client.get("/internal/v1/rag/retrieval/metrics")
+
+    assert response.status_code == 200
+    assert "requests" in response.json()
+    assert "latency_ms" in response.json()
+
+
 def test_classify_transactions(client):
     payload = {
         "items": [

@@ -100,7 +100,7 @@ O schema efetivo é a composição das migrações `V1`–`V21`:
 | Transações | `transactions`, `transaction_categories`, `imported_files`, `open_finance_connections` | movimentações e suas fontes |
 | Análises | `financial_analyses`, `financial_indicators`, `spending_summaries`, `recommendations` | diagnósticos persistidos |
 | Agente | `agent_conversations`, `agent_messages`, `agent_message_requests` | origem, opções RAG, histórico resumido, idempotência, concorrência, tools e fontes citadas |
-| RAG/fatos | `rag_documents`, `rag_index_jobs`, `financial_fact_snapshots` | chunks, vetores, fila durável, status de índice e snapshots JSONB |
+| RAG/fatos | `rag_documents`, `rag_document_embeddings`, `rag_index_jobs`, `financial_fact_snapshots` | chunks, vetores isolados por modelo, fila durável, status e snapshots JSONB |
 | Modelos | `model_versions` | tabela criada no schema inicial; o status HTTP atual vem do registry em memória do AI Service |
 
 Relações e isolamento principais:
@@ -112,7 +112,7 @@ Relações e isolamento principais:
 - chunks RAG mantêm `user_id`, `source_type`, `source_id`, `chunk_type` e `transaction_id` quando aplicável;
 - `financial_fact_snapshots` é único por `(user_id, source_type, source_id)`.
 
-O `pgvector` é habilitado de forma tolerante: em ambientes sem a extensão, Flyway mantém o restante do schema e o RAG pode usar busca full-text por palavras-chave. Quando disponível, `embedding vector(1536)` possui índice HNSW com distância de cosseno.
+O `pgvector` é habilitado de forma tolerante: em ambientes sem a extensão, Flyway mantém o restante do schema e o RAG usa full-text configurado para português. Quando disponível, `rag_document_embeddings` preserva um vetor por documento e modelo com índice HNSW. Os rankings vetorial e textual são independentes e fundidos por Reciprocal Rank Fusion.
 
 ### Infraestrutura
 
@@ -260,6 +260,7 @@ As decisões e seus ajustes estão em `docs/adr/`. Em especial:
 - ADR 008 define a fila PostgreSQL durável para indexação RAG.
 - ADR 011 define a autenticação e a propagação confiável de identidade entre backend e AI Service.
 - ADR 012 define limites de contexto, idempotência, concorrência e cancelamento do SSE.
+- ADR 013 define rankings vetorial/textual independentes, isolamento por modelo e fusão RRF.
 
 ## Escopo implementado
 

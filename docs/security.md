@@ -83,6 +83,7 @@ O FastAPI configura CORS com `allow_origins=["*"]` e `allow_credentials=True`, m
 - IDs de domínio são UUIDs.
 - O backend controla o schema com Flyway; o AI Service não executa DDL.
 - Consultas vetoriais/full-text sempre incluem `user_id` e podem restringir `source_type`/`source_id`.
+- `rag_document_embeddings` não armazena `user_id`; a autorização é aplicada pelo `JOIN` obrigatório com `rag_documents`, e a FK remove vetores junto com o chunk.
 - Itens Pluggy são validados por `clientUserId` antes da sincronização.
 - Conexões Pluggy já associadas a outro usuário são rejeitadas.
 - Duplicatas CSV são bloqueadas por SHA-256 por usuário.

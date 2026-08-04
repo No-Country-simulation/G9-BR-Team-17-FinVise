@@ -68,18 +68,29 @@ class IntegrationTest extends PostgresTestSupport {
             "select to_regclass('public.users')", String.class);
         String ragQueueTable = jdbcTemplate.queryForObject(
             "select to_regclass('public.rag_index_jobs')", String.class);
+        String ragEmbeddingTable = jdbcTemplate.queryForObject(
+            "select to_regclass('public.rag_document_embeddings')", String.class);
         Integer ragConsistencyColumns = jdbcTemplate.queryForObject("""
             select count(*)
             from information_schema.columns
             where table_schema = 'public'
               and table_name = 'rag_documents'
-              and column_name in ('chunk_key', 'schema_version')
+              and column_name in ('chunk_key', 'schema_version', 'search_vector')
+            """, Integer.class);
+        Integer portugueseFullTextIndexes = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*)
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND indexname = 'idx_rag_documents_full_text_pt'
+              AND indexdef ILIKE '%using gin%'
             """, Integer.class);
 
-        assertThat(appliedMigrations).isEqualTo(27);
+        assertThat(appliedMigrations).isEqualTo(28);
         assertThat(usersTable).isEqualTo("users");
         assertThat(ragQueueTable).isEqualTo("rag_index_jobs");
-        assertThat(ragConsistencyColumns).isEqualTo(2);
+        assertThat(ragEmbeddingTable).isEqualTo("rag_document_embeddings");
+        assertThat(ragConsistencyColumns).isEqualTo(3);
+        assertThat(portugueseFullTextIndexes).isEqualTo(1);
     }
 
     @Test
@@ -99,6 +110,45 @@ class IntegrationTest extends PostgresTestSupport {
             """, Integer.class);
 
         assertThat(indexes).isEqualTo(6);
+    }
+
+    @Test
+    @Transactional
+    void ragShouldUsePortugueseFullTextAndIsolateEmbeddingsByModel() {
+        UUID userId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        jdbcTemplate.update("""
+            INSERT INTO users (id, email, password_hash, name)
+            VALUES (?, ?, 'hash', 'Teste busca híbrida')
+            """, userId, userId + "@example.com");
+        jdbcTemplate.update("""
+            INSERT INTO rag_documents (
+                id, user_id, source_type, source_id, chunk_type,
+                chunk_key, document_chunk, metadata
+            )
+            VALUES (?, ?, 'CSV_IMPORT', 'fonte-1', 'TRANSACTION',
+                    'transaction:teste', 'Despesas recorrentes em supermercados', '{}'::jsonb)
+            """, documentId, userId);
+
+        Integer matches = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*)
+            FROM rag_documents
+            WHERE id = ?
+              AND search_vector @@ websearch_to_tsquery('portuguese', 'supermercado')
+            """, Integer.class, documentId);
+
+        jdbcTemplate.update("""
+            INSERT INTO rag_document_embeddings (document_id, embedding_model, dimensions)
+            VALUES (?, 'modelo-a', 1536), (?, 'modelo-b', 1536)
+            """, documentId, documentId);
+        Integer models = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*)
+            FROM rag_document_embeddings
+            WHERE document_id = ?
+            """, Integer.class, documentId);
+
+        assertThat(matches).isEqualTo(1);
+        assertThat(models).isEqualTo(2);
     }
 
     @Test

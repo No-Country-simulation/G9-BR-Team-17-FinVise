@@ -25,7 +25,7 @@ O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastr
 - Classificação de transações por modelo Scikit-learn ou fallback por palavras-chave.
 - Classificação de perfil por modelo Scikit-learn, regras financeiras selecionáveis ou fallback.
 - Indicadores, resumos mensais e por categoria, recomendações determinísticas e simulação de poupança.
-- Agente com ferramentas analíticas, recuperação híbrida vetorial/full-text e respostas síncronas ou por SSE.
+- Agente com ferramentas analíticas, rankings vetorial e full-text em português independentes, fusão RRF e respostas síncronas ou por SSE.
 - Contexto do agente com agregações SQL, histórico paginado/resumido, orçamento de tokens, idempotência e cancelamento ponta a ponta.
 - Seleção de origem e de fontes específicas (`sourceIds`) para isolar o contexto do agente.
 - Indexação RAG assíncrona por fila durável no PostgreSQL, com retry, status consultável e reprocessamento manual.
@@ -218,7 +218,7 @@ O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-serv
 | Banco/segurança | `POSTGRES_*`, `SPRING_DATASOURCE_*`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS` |
 | AI Service | `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
 | LLM | `ENABLE_LLM`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT` |
-| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE`, `RAG_INDEX_QUEUE_*` |
+| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE`, `RAG_HYBRID_RRF_K`, `RAG_VECTOR_WEIGHT`, `RAG_TEXT_WEIGHT`, `RAG_CANDIDATE_MULTIPLIER`, `RAG_INDEX_QUEUE_*` |
 | Open Finance | `OPEN_FINANCE_*`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` |
 | Arquivos/OCI | `STORAGE_TYPE`, `STORAGE_LOCAL_BASE_PATH`, `OCI_NAMESPACE`, `OCI_BUCKET_NAME`, `OCI_REGION` |
 | E-mail | `RESEND_API_KEY`, `RESEND_FROM_ADDRESS` |

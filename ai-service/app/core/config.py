@@ -51,11 +51,23 @@ class Settings(BaseSettings):
         default=True, alias="RAG_ENABLE_REMOTE_EMBEDDINGS"
     )
     rag_embedding_model: str = Field(
-        default="text-embedding-3-small", alias="RAG_EMBEDDING_MODEL"
+        default="text-embedding-3-small",
+        min_length=1,
+        max_length=120,
+        alias="RAG_EMBEDDING_MODEL",
     )
     rag_embedding_batch_size: int = Field(default=200, alias="RAG_EMBEDDING_BATCH_SIZE")
     rag_index_max_batches: int = Field(default=100, alias="RAG_INDEX_MAX_BATCHES")
     rag_min_relevance: float = Field(default=0.18, alias="RAG_MIN_RELEVANCE")
+    rag_hybrid_rrf_k: int = Field(default=60, ge=1, alias="RAG_HYBRID_RRF_K")
+    rag_vector_weight: float = Field(default=1.0, gt=0, alias="RAG_VECTOR_WEIGHT")
+    rag_text_weight: float = Field(default=1.0, gt=0, alias="RAG_TEXT_WEIGHT")
+    rag_candidate_multiplier: int = Field(
+        default=4, ge=1, le=20, alias="RAG_CANDIDATE_MULTIPLIER"
+    )
+    rag_retrieval_metrics_window: int = Field(
+        default=1000, ge=10, le=10000, alias="RAG_RETRIEVAL_METRICS_WINDOW"
+    )
     rag_db_pool_min_size: int = Field(
         default=0, ge=0, alias="RAG_DB_POOL_MIN_SIZE"
     )

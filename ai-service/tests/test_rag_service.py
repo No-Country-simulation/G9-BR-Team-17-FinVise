@@ -63,12 +63,14 @@ def test_retrieve_context_filters_chronological_query_by_source(monkeypatch):
 
     query, params = connection.cursor_instance.executions[0]
     assert "source_type = %s" in query
+    assert "search_vector" in query
+    assert "websearch_to_tsquery('portuguese'" in query
     assert params == (
         "gastos",
         "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
         "CSV_IMPORT",
         "gastos",
-        5,
+        20,
     )
 
 
@@ -85,13 +87,16 @@ def test_retrieve_context_filters_vector_query_by_source(monkeypatch):
         "OPEN_FINANCE",
     )
 
-    query, params = connection.cursor_instance.executions[0]
-    assert "source_type = %s" in query
-    assert "index_status = 'INDEXED'" in query
-    assert "embedding_model = %s" in query
+    vector_query, params = connection.cursor_instance.executions[0]
+    text_query, _text_params = connection.cursor_instance.executions[1]
+    assert "source_type = %s" in vector_query
+    assert "JOIN rag_documents" in vector_query
+    assert "rag_document_embeddings" in vector_query
+    assert "embedding_model = %s" in vector_query
+    assert "ts_rank" not in vector_query
+    assert "websearch_to_tsquery('portuguese'" in text_query
     assert params == (
         "[0.5]",
-        "gastos",
         "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
         "OPEN_FINANCE",
         rag_service._embedding_model_name(),
@@ -116,6 +121,70 @@ def test_retrieve_context_filters_selected_source_ids(monkeypatch):
     query, params = connection.cursor_instance.executions[0]
     assert "source_id = ANY(%s)" in query
     assert params[3] == ["arquivo-1", "arquivo-2"]
+
+
+def test_hybrid_search_fuses_independent_rankings_with_rrf():
+    common = {
+        "source_type": "CSV_IMPORT",
+        "source_id": "fonte-1",
+        "chunk_type": "TRANSACTION",
+        "content": "conteúdo",
+        "metadata": {},
+        "source_name": "fonte.csv",
+        "created_at": "2026-08-04T00:00:00Z",
+        "score": 0.0,
+    }
+    vector_results = [
+        {**common, "id": "doc-a", "vector_score": 0.9, "text_score": 0.0},
+        {**common, "id": "doc-b", "vector_score": 0.8, "text_score": 0.0},
+    ]
+    text_results = [
+        {**common, "id": "doc-b", "vector_score": 0.0, "text_score": 0.7},
+        {**common, "id": "doc-c", "vector_score": 0.0, "text_score": 0.6},
+    ]
+
+    results = rag_service._fuse_rankings(vector_results, text_results)
+
+    assert [result["id"] for result in results] == ["doc-b", "doc-a", "doc-c"]
+    assert results[0]["retrieval_channels"] == ["vector", "text"]
+    assert results[0]["vector_rank"] == 2
+    assert results[0]["text_rank"] == 1
+    assert results[0]["score"] > results[1]["score"]
+
+
+def test_vector_results_survive_text_channel_failure(monkeypatch):
+    connection = _FakeConnection()
+    connection.rollback = lambda: None
+    monkeypatch.setattr(rag_service, "_get_connection", lambda: connection)
+    monkeypatch.setattr(rag_service, "_ensure_embedding_column", lambda _conn: True)
+    vector_result = {
+        "id": "doc-a",
+        "source_type": "CSV_IMPORT",
+        "source_id": "fonte-1",
+        "chunk_type": "TRANSACTION",
+        "content": "Mercado",
+        "metadata": {},
+        "source_name": "fonte.csv",
+        "created_at": "2026-08-04T00:00:00Z",
+        "score": 0.9,
+        "vector_score": 0.9,
+        "text_score": 0.0,
+    }
+    monkeypatch.setattr(
+        rag_service,
+        "_vector_search",
+        lambda *_args: ([vector_result], False),
+    )
+
+    def fail_text(*_args):
+        raise RuntimeError("FTS indisponível")
+
+    monkeypatch.setattr(rag_service, "_keyword_search", fail_text)
+
+    results = rag_service.retrieve_context("user-1", "mercado", limit=5)
+
+    assert [result["id"] for result in results] == ["doc-a"]
+    assert results[0]["retrieval_channels"] == ["vector"]
 
 
 def test_agent_maps_selected_source_to_rag_source_type():
@@ -212,9 +281,14 @@ def test_indexing_tracks_processing_and_indexed_status(monkeypatch):
     processing_query, processing_params = (
         connection.cursor_instance.executemany_calls[0]
     )
-    indexed_query, _indexed_params = connection.cursor_instance.executemany_calls[1]
+    embedding_query, embedding_params = (
+        connection.cursor_instance.executemany_calls[1]
+    )
+    indexed_query, _indexed_params = connection.cursor_instance.executemany_calls[2]
     assert "index_status = %s" in processing_query
     assert processing_params[0][0] == "PROCESSING"
+    assert "INSERT INTO rag_document_embeddings" in embedding_query
+    assert embedding_params[0][1] == rag_service._embedding_model_name()
     assert "index_status = 'INDEXED'" in indexed_query
 
 

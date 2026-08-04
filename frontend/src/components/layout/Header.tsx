@@ -1,18 +1,88 @@
-import { Bell, ChevronRight, Menu, User } from 'lucide-react';
+import { Bell, ChevronRight, Menu, TrendingDown, TrendingUp, User } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { useNotificationPreferences } from '@/components/auth/NotificationPreferencesProvider';
 import { useTheme } from '@/components/auth/ThemeProvider';
-import { cn } from '@/lib/utils';
-import { getInitials } from '@/lib/utils';
+import { cn, formatCurrency, getInitials } from '@/lib/utils';
+import { importSourceService } from '@/services/importSourceService';
+import { transactionService } from '@/services/transactionService';
+import type { TransactionSource } from '@/types/transaction';
 
 interface HeaderProps {
   userName?: string;
   onMenuClick?: () => void;
 }
 
+const notificationTickerStorageKey = 'finvise-header-ticker-enabled';
+
 export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
   const { resolvedTheme } = useTheme();
+  const { preferences } = useNotificationPreferences();
   const initials = getInitials(userName);
+  const [isTickerEnabled, setIsTickerEnabled] = useState(true);
+  const currentSource = (window.localStorage.getItem('finance_ai_transaction_source') as TransactionSource) || 'CSV_IMPORT';
+  const { data: importSources = [] } = useQuery({
+    queryKey: ['header', 'import-sources'],
+    queryFn: importSourceService.getAll,
+    staleTime: 60 * 1000,
+  });
+  const { data: summary } = useQuery({
+    queryKey: ['header', 'summary', currentSource],
+    queryFn: () => transactionService.getSummary(currentSource),
+    staleTime: 60 * 1000,
+  });
+  const { data: monthlySummary = [] } = useQuery({
+    queryKey: ['header', 'monthly-summary', currentSource],
+    queryFn: () => transactionService.getMonthlySummary(currentSource),
+    staleTime: 60 * 1000,
+  });
+
+  const tickerItems = useMemo(() => {
+    const items: string[] = [];
+    const latestImport = [...importSources].sort(
+      (left, right) => new Date(right.lastSyncAt || right.createdAt).getTime() - new Date(left.lastSyncAt || left.createdAt).getTime()
+    )[0];
+
+    if (preferences.weeklyReport) {
+      items.push(
+        latestImport
+          ? `Importação recente: ${latestImport.displayName} com ${latestImport.transactionCount.toLocaleString('pt-BR')} transações indexadas`
+          : 'Importações: nenhuma fonte conectada até o momento'
+      );
+    }
+
+    if (preferences.spendingAlerts && summary) {
+      items.push(`Saldo atual: ${formatCurrency(summary.balance)} | Receitas: ${formatCurrency(summary.totalIncome)} | Despesas: ${formatCurrency(summary.totalExpense)}`);
+
+      const currentMonth = monthlySummary[monthlySummary.length - 1];
+      const previousMonth = monthlySummary[monthlySummary.length - 2];
+      if (currentMonth && previousMonth) {
+        const balanceDelta = currentMonth.balance - previousMonth.balance;
+        if (balanceDelta !== 0) {
+          items.push(`${balanceDelta > 0 ? 'Alta' : 'Queda'} no orçamento: ${formatCurrency(Math.abs(balanceDelta))} em relação ao mês anterior`);
+        }
+      }
+    }
+
+    if (preferences.productNews) {
+      items.push('FinVise atualizado: acompanhe importações e variações do orçamento em tempo real no topo da aplicação');
+    }
+
+    return items;
+  }, [importSources, monthlySummary, preferences, summary]);
+
+  useEffect(() => {
+    const storedValue = window.localStorage.getItem(notificationTickerStorageKey);
+    if (storedValue === 'false') {
+      setIsTickerEnabled(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(notificationTickerStorageKey, String(isTickerEnabled));
+  }, [isTickerEnabled]);
 
   return (
     <header
@@ -30,9 +100,46 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
         <span className={cn('text-base font-bold tracking-tight lg:hidden', resolvedTheme === 'dark' ? 'text-cyan-200' : 'text-primary-700')}>FinVise</span>
       </div>
 
+      <div className="hidden min-w-0 flex-1 overflow-hidden px-2 lg:block">
+        <div
+          className={cn(
+            'flex h-10 items-center overflow-hidden rounded-full border px-4',
+            resolvedTheme === 'dark'
+              ? 'border-white/10 bg-white/[0.03]'
+              : 'border-slate-200/80 bg-white/60'
+          )}
+        >
+          {isTickerEnabled && tickerItems.length > 0 ? (
+            <div className="ticker-track flex min-w-max items-center gap-8 whitespace-nowrap">
+              {[...tickerItems, ...tickerItems].map((item, index) => (
+                <div key={`${item}-${index}`} className={cn('inline-flex items-center gap-2 text-xs font-medium sm:text-sm', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+                  {item.includes('Alta')
+                    ? <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                    : item.includes('Queda')
+                      ? <TrendingDown className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                      : <Bell className={cn('h-3.5 w-3.5 shrink-0', resolvedTheme === 'dark' ? 'text-cyan-300' : 'text-primary-600')} />}
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn('truncate text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              O FinVise nao mostra apenas para onde o dinheiro foi. Ele explica o que esta acontecendo e indica o proximo passo.
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label="Notificações">
-          <Bell className={cn('h-5 w-5', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-600')} />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={isTickerEnabled ? 'Desativar ticker de notificações' : 'Ativar ticker de notificações'}
+          aria-pressed={isTickerEnabled ? 'true' : 'false'}
+          onClick={() => setIsTickerEnabled((current) => !current)}
+          className={cn(isTickerEnabled && (resolvedTheme === 'dark' ? 'bg-cyan-400/12 text-cyan-100' : 'bg-primary-50 text-primary-700'))}
+        >
+          <Bell className={cn('h-5 w-5', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-600', isTickerEnabled && (resolvedTheme === 'dark' ? 'text-cyan-100' : 'text-primary-700'))} />
         </Button>
         <Link
           to="/profile"

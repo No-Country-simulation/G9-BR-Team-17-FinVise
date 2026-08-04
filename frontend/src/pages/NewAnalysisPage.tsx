@@ -72,7 +72,7 @@ export function NewAnalysisPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 sm:space-y-6">
+    <div className="mx-auto w-full max-w-none space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Analisar transações</h1>
         <p className="text-sm text-slate-500 sm:text-base">Escolha um dos dois modelos para analisar os dados já importados</p>

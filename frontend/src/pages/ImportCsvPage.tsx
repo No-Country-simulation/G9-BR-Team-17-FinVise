@@ -131,7 +131,7 @@ export function ImportCsvPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
+    <div className="mx-auto w-full max-w-none space-y-4 sm:space-y-6">
       <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">Importar transações</h1>
@@ -248,7 +248,7 @@ export function ImportCsvPage() {
           <CardTitle>Formato Esperado</CardTitle>
         </CardHeader>
         <CardContent>
-          <code className="block rounded-lg bg-slate-900 p-4 text-xs text-slate-100">
+          <code className="block rounded-xl bg-slate-900 p-4 text-xs leading-6 text-[rgb(241,245,249)] sm:p-5 sm:text-sm">
             description,amount,date,type
             <br />
             Salário,5000,2026-06-01,INCOME

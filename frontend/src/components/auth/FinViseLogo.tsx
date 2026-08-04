@@ -9,7 +9,7 @@ interface FinViseLogoProps {
   showSubtitle?: boolean;
 }
 
-function FinViseMark(props: SVGProps<SVGSVGElement>) {
+export function FinViseMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 72 72" fill="none" aria-hidden="true" {...props}>
       <rect x="10" y="12" width="10" height="48" rx="4" fill="currentColor" />

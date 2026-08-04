@@ -166,12 +166,21 @@
       animation: none;
       display: none;
     }
+
+    .ticker-track {
+      animation: none;
+    }
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .ticker-track {
+    animation: ticker-scroll 28s linear infinite;
+    will-change: transform;
   }
 
   .mobile-safe-top {
@@ -202,5 +211,15 @@
 
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
   }
 }

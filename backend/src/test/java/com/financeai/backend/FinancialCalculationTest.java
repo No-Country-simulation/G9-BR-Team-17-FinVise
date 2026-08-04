@@ -95,14 +95,17 @@ class FinancialCalculationTest {
         TransactionCategory others = new TransactionCategory();
         others.setId(UUID.randomUUID());
         others.setCode("OUTROS");
-        when(categoryRepository.findByCode("OUTROS")).thenReturn(Optional.of(others));
+        when(categoryRepository.findAll()).thenReturn(List.of(others));
+        when(categoryRepository.findAllById(any())).thenReturn(List.of(others));
 
-        when(transactionRepository.save(any())).thenAnswer(invocation -> {
-            Transaction t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                t.setId(UUID.randomUUID());
-            }
-            return t;
+        when(transactionRepository.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<Transaction> transactionsToSave = invocation.getArgument(0);
+            transactionsToSave.forEach(transaction -> {
+                if (transaction.getId() == null) {
+                    transaction.setId(UUID.randomUUID());
+                }
+            });
+            return transactionsToSave;
         });
         when(analysisRepository.save(any())).thenAnswer(invocation -> {
             FinancialAnalysis a = invocation.getArgument(0);
@@ -167,14 +170,17 @@ class FinancialCalculationTest {
         TransactionCategory others = new TransactionCategory();
         others.setId(UUID.randomUUID());
         others.setCode("OUTROS");
-        when(categoryRepository.findByCode("OUTROS")).thenReturn(Optional.of(others));
+        when(categoryRepository.findAll()).thenReturn(List.of(others));
+        when(categoryRepository.findAllById(any())).thenReturn(List.of(others));
 
-        when(transactionRepository.save(any())).thenAnswer(invocation -> {
-            Transaction t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                t.setId(UUID.randomUUID());
-            }
-            return t;
+        when(transactionRepository.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<Transaction> transactionsToSave = invocation.getArgument(0);
+            transactionsToSave.forEach(transaction -> {
+                if (transaction.getId() == null) {
+                    transaction.setId(UUID.randomUUID());
+                }
+            });
+            return transactionsToSave;
         });
         when(analysisRepository.save(any())).thenAnswer(invocation -> {
             FinancialAnalysis a = invocation.getArgument(0);

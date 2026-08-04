@@ -5,7 +5,7 @@ import {
   ProfileAnalysisModel,
   ProfileModelOption,
 } from '@/types/analysis';
-import { ApiResponse } from '@/types/common';
+import { ApiResponse, PaginatedResponse } from '@/types/common';
 import { TransactionSource } from '@/types/transaction';
 
 interface BackendAnalysisResponse {
@@ -165,11 +165,20 @@ export const analysisService = {
     return response.data ? mapAnalysis(response.data) : null;
   },
 
-  async getAll(source: TransactionSource): Promise<FinancialAnalysisResponse[]> {
-    const { data: response } = await api.get<ApiResponse<BackendAnalysisResponse[]>>(
+  async getAll(
+    source: TransactionSource,
+    page = 0,
+    size = 20,
+  ): Promise<PaginatedResponse<FinancialAnalysisResponse>> {
+    const { data: response } = await api.get<
+      ApiResponse<PaginatedResponse<BackendAnalysisResponse>>
+    >(
       '/financial-analyses',
-      { params: { source } }
+      { params: { source, page, size } }
     );
-    return response.data.map(mapAnalysis);
+    return {
+      ...response.data,
+      content: response.data.content.map(mapAnalysis),
+    };
   },
 };

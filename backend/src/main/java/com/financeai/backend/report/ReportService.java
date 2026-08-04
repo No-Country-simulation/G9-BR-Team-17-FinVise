@@ -1,11 +1,7 @@
 package com.financeai.backend.report;
 
 import com.financeai.backend.common.exception.ResourceNotFoundException;
-import com.financeai.backend.transaction.Transaction;
-import com.financeai.backend.transaction.TransactionCategory;
-import com.financeai.backend.transaction.TransactionCategoryRepository;
 import com.financeai.backend.transaction.TransactionRepository;
-import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -14,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,14 +21,11 @@ public class ReportService {
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
 
     private final TransactionRepository transactionRepository;
-    private final TransactionCategoryRepository categoryRepository;
     private final UserRepository userRepository;
 
     public ReportService(TransactionRepository transactionRepository,
-                         TransactionCategoryRepository categoryRepository,
                          UserRepository userRepository) {
         this.transactionRepository = transactionRepository;
-        this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
     }
 
@@ -42,22 +34,23 @@ public class ReportService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
 
-        List<Transaction> transactions = transactionRepository.findByUserIdOrderByTransactionDateDesc(userId);
-
-        BigDecimal totalIncome = sumByType(transactions, TransactionType.INCOME);
-        BigDecimal totalExpenses = sumByType(transactions, TransactionType.EXPENSE);
+        TransactionRepository.TotalsProjection totals =
+            transactionRepository.summarize(userId, null, null);
+        BigDecimal totalIncome = scaled(totals.getTotalIncome());
+        BigDecimal totalExpenses = scaled(totals.getTotalExpense());
         BigDecimal balance = totalIncome.subtract(totalExpenses);
 
         Map<String, FinancialReportDto.CategoryTotal> summaryByCategory = new HashMap<>();
-        Map<String, BigDecimal> categoryTotals = groupByCategory(transactions);
-
         BigDecimal totalForPercentage = totalExpenses.compareTo(BigDecimal.ZERO) > 0
             ? totalExpenses
             : totalIncome;
 
-        categoryTotals.forEach((code, amount) -> {
+        transactionRepository.summarizeExpensesByCategory(userId, null, null).forEach(category -> {
+            BigDecimal amount = scaled(category.getAmount());
             BigDecimal percentage = safePercentage(amount, totalForPercentage);
-            summaryByCategory.put(code, new FinancialReportDto.CategoryTotal(amount, percentage));
+            summaryByCategory.put(
+                category.getCategoryCode(),
+                new FinancialReportDto.CategoryTotal(amount, percentage));
         });
 
         return new FinancialReportDto(
@@ -70,31 +63,8 @@ public class ReportService {
         );
     }
 
-    private BigDecimal sumByType(List<Transaction> transactions, TransactionType type) {
-        return transactions.stream()
-            .filter(t -> t.getType() == type)
-            .map(Transaction::getAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .setScale(SCALE, ROUNDING);
-    }
-
-    private Map<String, BigDecimal> groupByCategory(List<Transaction> transactions) {
-        Map<String, BigDecimal> result = new HashMap<>();
-        for (Transaction transaction : transactions) {
-            String code = categoryCodeOf(transaction);
-            result.merge(code, transaction.getAmount(), BigDecimal::add);
-        }
-        return result;
-    }
-
-    private String categoryCodeOf(Transaction transaction) {
-        UUID categoryId = transaction.getCategoryId();
-        if (categoryId == null) {
-            return "OUTROS";
-        }
-        return categoryRepository.findById(categoryId)
-            .map(TransactionCategory::getCode)
-            .orElse("OUTROS");
+    private BigDecimal scaled(BigDecimal value) {
+        return (value != null ? value : BigDecimal.ZERO).setScale(SCALE, ROUNDING);
     }
 
     private BigDecimal safePercentage(BigDecimal value, BigDecimal total) {

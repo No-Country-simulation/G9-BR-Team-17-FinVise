@@ -1,19 +1,22 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, BrainCircuit, FileUp, Landmark, Scale } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
 import { InlineMetricsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { analysisService } from '@/services/analysisService';
+import { importSourceService } from '@/services/importSourceService';
 import { transactionService } from '@/services/transactionService';
 import { extractErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { ProfileAnalysisModel } from '@/types/analysis';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { TransactionSourceSelector } from '@/components/transactions/TransactionSourceSelector';
+import { TransactionSource } from '@/types/transaction';
 
 const modelOptions: Array<{
   code: ProfileAnalysisModel;
@@ -37,20 +40,52 @@ const modelOptions: Array<{
 
 export function NewAnalysisPage() {
   const navigate = useNavigate();
-  const { source, setSource } = useTransactionSource();
+  const [searchParams] = useSearchParams();
+  const { source: rememberedSource, setSource: rememberSource } = useTransactionSource();
+  const requestedSource = searchParams.get('source');
+  const initialSource: TransactionSource = requestedSource === 'OPEN_FINANCE_PLUGGY'
+    ? 'OPEN_FINANCE_PLUGGY'
+    : requestedSource === 'CSV_IMPORT'
+      ? 'CSV_IMPORT'
+      : rememberedSource;
+  const [source, setSource] = useState<TransactionSource>(initialSource);
+  const [selectedImportSourceId, setSelectedImportSourceId] = useState(
+    searchParams.get('importSourceId') ?? '',
+  );
   const [model, setModel] = useState<ProfileAnalysisModel>('MACHINE_LEARNING');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { data: importSources = [], isLoading: sourcesLoading } = useQuery({
+    queryKey: ['import-sources'],
+    queryFn: importSourceService.getAll,
+  });
+  const compatibleSources = importSources.filter((item) => (
+    source === 'CSV_IMPORT' ? item.type === 'CSV' : item.type === 'OPEN_FINANCE'
+  ));
+  const effectiveImportSourceId = compatibleSources.some(
+    (item) => item.id === selectedImportSourceId,
+  )
+    ? selectedImportSourceId
+    : compatibleSources.find((item) => item.defaultSource)?.id
+      ?? compatibleSources[0]?.id;
+
   const { data: transactionPage, isLoading: transactionsLoading } = useQuery({
-    queryKey: ['transactions', 'analysis-count', source],
-    queryFn: () => transactionService.getAll({ page: 0, size: 1, source }),
+    queryKey: ['transactions', 'analysis-count', source, effectiveImportSourceId],
+    queryFn: () => transactionService.getAll({
+      page: 0,
+      size: 1,
+      source,
+      importSourceId: effectiveImportSourceId,
+    }),
+    enabled: !sourcesLoading,
   });
   const { data: summary } = useQuery({
-    queryKey: ['transactions', 'summary', source],
-    queryFn: () => transactionService.getSummary(source),
+    queryKey: ['transactions', 'summary', source, effectiveImportSourceId],
+    queryFn: () => transactionService.getSummary(source, effectiveImportSourceId),
+    enabled: !sourcesLoading,
   });
 
   const transactionCount = transactionPage?.totalElements ?? 0;
@@ -62,7 +97,7 @@ export function NewAnalysisPage() {
       const result = await analysisService.analyzeStoredTransactions(model, source, {
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-      });
+      }, effectiveImportSourceId);
       navigate(`/analyses/${result.id}`);
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -93,11 +128,31 @@ export function NewAnalysisPage() {
         <CardContent>
           <TransactionSourceSelector
             value={source}
-            onChange={setSource}
+            onChange={(nextSource) => {
+              setSource(nextSource);
+              rememberSource(nextSource);
+              setSelectedImportSourceId('');
+            }}
             className="mb-5 block max-w-sm"
             label="Analisar somente"
           />
-          {transactionsLoading ? (
+          {compatibleSources.length > 0 && (
+            <label className="mb-5 block max-w-sm">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Fonte importada
+              </span>
+              <Select
+                aria-label="Fonte importada"
+                value={effectiveImportSourceId ?? ''}
+                onChange={(event) => setSelectedImportSourceId(event.target.value)}
+                options={compatibleSources.map((item) => ({
+                  value: item.id,
+                  label: `${item.defaultSource ? '★ ' : ''}${item.displayName}`,
+                }))}
+              />
+            </label>
+          )}
+          {transactionsLoading || sourcesLoading ? (
             <InlineMetricsSkeleton />
           ) : transactionCount === 0 ? (
             <div className="space-y-4 text-center">
@@ -150,7 +205,7 @@ export function NewAnalysisPage() {
       <Card>
         <CardHeader>
           <CardTitle>Período opcional</CardTitle>
-          <CardDescription>Deixe em branco para analisar todo o histórico importado.</CardDescription>
+          <CardDescription>Deixe em branco para analisar todo o histórico da fonte selecionada.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -168,7 +223,7 @@ export function NewAnalysisPage() {
         <Button
           size="lg"
           onClick={handleAnalyze}
-          disabled={transactionCount === 0 || transactionsLoading || isAnalyzing}
+          disabled={transactionCount === 0 || transactionsLoading || sourcesLoading || isAnalyzing}
           isLoading={isAnalyzing}
         >
           {isAnalyzing ? 'Analisando transações...' : `Analisar com ${model === 'MACHINE_LEARNING' ? 'Machine Learning' : 'Regras financeiras'}`}

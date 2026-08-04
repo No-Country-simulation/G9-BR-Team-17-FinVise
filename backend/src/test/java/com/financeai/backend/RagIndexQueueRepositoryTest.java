@@ -100,6 +100,32 @@ class RagIndexQueueRepositoryTest extends PostgresTestSupport {
     }
 
     @Test
+    void shouldContinueImmediatelyAfterSuccessfulBatchAndResetAttempts() {
+        queueRepository.enqueue(userId);
+        RagIndexJob job = queueRepository.claimNext(120000).orElseThrow();
+        jdbcTemplate.update(
+            "UPDATE rag_index_jobs SET attempts = 2 WHERE user_id = ?", userId);
+
+        assertThat(queueRepository.continueAfterBatch(job)).isTrue();
+
+        assertThat(status()).isEqualTo("PENDING");
+        assertThat(attempts()).isZero();
+        assertThat(queueRepository.claimNext(120000)).isPresent();
+    }
+
+    @Test
+    void shouldDeferLockContentionWithoutIncrementingAttempts() {
+        queueRepository.enqueue(userId);
+        RagIndexJob job = queueRepository.claimNext(120000).orElseThrow();
+
+        assertThat(queueRepository.deferWithoutFailure(job, 60000, "ocupado")).isTrue();
+
+        assertThat(status()).isEqualTo("PENDING");
+        assertThat(attempts()).isZero();
+        assertThat(queueRepository.claimNext(120000)).isEmpty();
+    }
+
+    @Test
     void shouldMoveJobToFailedAfterLastAttemptAndResetOnNewEnqueue() {
         queueRepository.enqueue(userId);
         RagIndexJob job = queueRepository.claimNext(120000).orElseThrow();

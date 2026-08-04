@@ -16,6 +16,10 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+class RAGIndexBusyError(RuntimeError):
+    """Raised when another worker already owns the per-user indexing lock."""
+
+
 class RAGService:
     def __init__(
         self,
@@ -171,6 +175,7 @@ class RAGService:
         self,
         user_id: str,
         source_ids: list[str] | None = None,
+        requested_max_batches: int | None = None,
     ) -> int:
         if not user_id:
             return 0
@@ -179,7 +184,12 @@ class RAGService:
         source_clause = " AND source_id = ANY(%s)" if normalized_sources else ""
         model_name = self._embedding_model_name()
         batch_size = max(1, min(settings.rag_embedding_batch_size, 500))
-        max_batches = max(1, min(settings.rag_index_max_batches, 100))
+        configured_max_batches = max(1, min(settings.rag_index_max_batches, 100))
+        max_batches = (
+            configured_max_batches
+            if requested_max_batches is None
+            else max(1, min(requested_max_batches, configured_max_batches))
+        )
         total_updated = 0
 
         try:
@@ -193,7 +203,7 @@ class RAGService:
                     )
                     lock = cur.fetchone()
                     if not lock or not lock[0]:
-                        raise RuntimeError(
+                        raise RAGIndexBusyError(
                             f"RAG indexing already running for user_id={user_id}"
                         )
 
@@ -278,6 +288,42 @@ class RAGService:
                 user_id,
             )
         return total_updated
+
+    def has_unembedded_chunks(
+        self,
+        user_id: str,
+        source_ids: list[str] | None = None,
+    ) -> bool:
+        if not user_id:
+            return False
+
+        normalized_sources = self._normalize_source_ids(source_ids)
+        source_clause = " AND source_id = ANY(%s)" if normalized_sources else ""
+        params: list[Any] = [user_id]
+        if normalized_sources:
+            params.append(normalized_sources)
+        params.append(self._embedding_model_name())
+
+        with self._get_connection() as conn:
+            if not self._ensure_embedding_column(conn):
+                return False
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM rag_documents
+                        WHERE user_id = %s::uuid{source_clause}
+                          AND (
+                              embedding IS NULL
+                              OR embedding_model IS DISTINCT FROM %s
+                          )
+                    );
+                    """,
+                    tuple(params),
+                )
+                row = cur.fetchone()
+                return bool(row and row[0])
 
     def _mark_index_status(
         self,

@@ -23,10 +23,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -51,6 +51,7 @@ public class AnalysisService {
     private final UserRepository userRepository;
     private final AiServiceClient aiServiceClient;
     private final RecommendationEngine recommendationEngine;
+    private final TransactionOperations transactionOperations;
 
     public AnalysisService(FinancialAnalysisRepository analysisRepository,
                            FinancialIndicatorRepository indicatorRepository,
@@ -60,7 +61,8 @@ public class AnalysisService {
                            TransactionCategoryRepository categoryRepository,
                            UserRepository userRepository,
                            AiServiceClient aiServiceClient,
-                           RecommendationEngine recommendationEngine) {
+                           RecommendationEngine recommendationEngine,
+                           TransactionOperations transactionOperations) {
         this.analysisRepository = analysisRepository;
         this.indicatorRepository = indicatorRepository;
         this.spendingSummaryRepository = spendingSummaryRepository;
@@ -70,14 +72,14 @@ public class AnalysisService {
         this.userRepository = userRepository;
         this.aiServiceClient = aiServiceClient;
         this.recommendationEngine = recommendationEngine;
+        this.transactionOperations = transactionOperations;
     }
 
-    @Transactional
     public AnalysisResponse createAnalysis(UUID userId, CreateAnalysisRequest request) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
 
-        List<Transaction> classifiedTransactions = classifyAndPersistTransactions(user, request.transactions());
+        List<Transaction> classifiedTransactions = classifyTransactions(user, request.transactions());
 
         Map<UUID, TransactionCategory> categories = categoriesFor(classifiedTransactions);
         Map<String, BigDecimal> spendingByCategory =
@@ -128,7 +130,6 @@ public class AnalysisService {
             recommendations, modelVersions);
     }
 
-    @Transactional
     public AnalysisResponse analyzeStoredTransactions(UUID userId,
                                                       ProfileAnalysisModel model,
                                                       TransactionSource source,
@@ -139,7 +140,7 @@ public class AnalysisService {
             throw new BusinessException("INVALID_PERIOD", "A data inicial não pode ser posterior à data final");
         }
 
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
 
         List<Transaction> transactions;
@@ -242,31 +243,19 @@ public class AnalysisService {
             modelVersions.put("importSourceId", importSourceId.toString());
         }
 
-        FinancialAnalysis analysis = new FinancialAnalysis();
-        analysis.setUser(user);
-        analysis.setAnalysisPeriod(firstMonth + ".." + lastMonth);
-        analysis.setProfileClassification(profileResult.classification());
-        analysis.setScore(profileResult.score());
-        analysis.setConfidence(profileResult.confidence());
-        analysis.setModelVersions(modelVersions);
-        analysis = analysisRepository.save(analysis);
-
-        indicator.setAnalysis(analysis);
-        indicatorRepository.save(indicator);
-        spendingSummaryRepository.saveAll(
-            buildSpendingSummaries(analysis, monthlyExpenses, spendingByCategory));
-        List<Recommendation> recommendations =
-            recommendationEngine.generateRecommendations(analysis, indicator);
-        recommendationRepository.saveAll(recommendations);
-
-        return buildResponse(
-            analysis,
-            indicator,
-            spendingByCategory,
-            Collections.emptyList(),
-            recommendations,
-            modelVersions
-        );
+        return Objects.requireNonNull(transactionOperations.execute(status -> {
+            User managedUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
+            return persistAnalysis(
+                managedUser,
+                firstMonth + ".." + lastMonth,
+                profileResult,
+                indicator,
+                monthlyExpenses,
+                spendingByCategory,
+                Collections.emptyList(),
+                modelVersions);
+        }));
     }
 
     @Transactional(readOnly = true)
@@ -307,7 +296,7 @@ public class AnalysisService {
             result.getNumber());
     }
 
-    private List<Transaction> classifyAndPersistTransactions(User user, List<TransactionDto> transactionDtos) {
+    private List<Transaction> classifyTransactions(User user, List<TransactionDto> transactionDtos) {
         List<TransactionClassificationRequest.TransactionPayload> payload = transactionDtos.stream()
             .map(t -> new TransactionClassificationRequest.TransactionPayload(
                 t.description(), t.amount(), t.paymentMethod(), t.recurrent(), t.source()))
@@ -340,6 +329,40 @@ public class AnalysisService {
             transactions.add(transaction);
         }
         return transactionRepository.saveAllAndFlush(transactions);
+    }
+
+    private AnalysisResponse persistAnalysis(User user,
+                                             String analysisPeriod,
+                                             ProfileAnalysisResult profileResult,
+                                             FinancialIndicator indicator,
+                                             BigDecimal summaryTotal,
+                                             Map<String, BigDecimal> spendingByCategory,
+                                             List<ClassifiedTransactionDto> classifiedTransactions,
+                                             Map<String, String> modelVersions) {
+        FinancialAnalysis analysis = new FinancialAnalysis();
+        analysis.setUser(user);
+        analysis.setAnalysisPeriod(analysisPeriod);
+        analysis.setProfileClassification(profileResult.classification());
+        analysis.setScore(profileResult.score());
+        analysis.setConfidence(profileResult.confidence());
+        analysis.setModelVersions(modelVersions);
+        analysis = analysisRepository.save(analysis);
+
+        indicator.setAnalysis(analysis);
+        indicatorRepository.save(indicator);
+        spendingSummaryRepository.saveAll(
+            buildSpendingSummaries(analysis, summaryTotal, spendingByCategory));
+        List<Recommendation> recommendations =
+            recommendationEngine.generateRecommendations(analysis, indicator);
+        recommendationRepository.saveAll(recommendations);
+
+        return buildResponse(
+            analysis,
+            indicator,
+            spendingByCategory,
+            classifiedTransactions,
+            recommendations,
+            modelVersions);
     }
 
     private String resolveCategoryCode(TransactionClassificationResult result, int index, TransactionDto dto) {

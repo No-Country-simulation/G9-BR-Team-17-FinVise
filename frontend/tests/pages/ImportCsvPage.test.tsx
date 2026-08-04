@@ -67,19 +67,11 @@ describe('ImportCsvPage', () => {
     expect(screen.getByRole('button', { name: /importar/i })).toBeDisabled();
   });
 
-  it('acompanha a indexação enfileirada sem disparar uma segunda indexação', async () => {
+  it('gera a análise sem bloquear na indexação vetorial em segundo plano', async () => {
     mocks.importCsv.mockResolvedValue({
       sourceId: 'fonte-123',
       importedCount: 2,
       categorizedCount: 2,
-    });
-    mocks.getRagIndexStatus.mockResolvedValue({
-      status: 'COMPLETE',
-      totalDocuments: 2,
-      pendingDocuments: 0,
-      processingDocuments: 0,
-      indexedDocuments: 2,
-      failedDocuments: 0,
     });
     mocks.analyzeStoredTransactions.mockResolvedValue({ id: 'analise-123' });
 
@@ -95,15 +87,16 @@ describe('ImportCsvPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^importar e analisar$/i }));
 
     await waitFor(() => {
-      expect(mocks.getRagIndexStatus).toHaveBeenCalledOnce();
+      expect(mocks.analyzeStoredTransactions).toHaveBeenCalledOnce();
     });
-    expect(mocks.getRagIndexStatus).toHaveBeenCalledWith('fonte-123');
+    expect(mocks.getRagIndexStatus).not.toHaveBeenCalled();
     expect(mocks.analyzeStoredTransactions).toHaveBeenCalledWith(
       'MACHINE_LEARNING',
       'CSV_IMPORT',
       undefined,
       'fonte-123',
     );
-    expect(screen.getByText(/2 transações importadas; 2 categorizadas/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 transações importadas e 2 categorizadas/i)).toBeInTheDocument();
+    expect(screen.getByText(/indexação vetorial continua em segundo plano/i)).toBeInTheDocument();
   });
 });

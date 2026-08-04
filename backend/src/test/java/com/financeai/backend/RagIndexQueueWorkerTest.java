@@ -10,7 +10,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,8 +56,9 @@ class RagIndexQueueWorkerTest {
         RagIndexJob job = job(0);
         when(queueRepository.claimNext(properties.getLockTimeoutMs()))
             .thenReturn(Optional.of(job));
-        when(aiServiceClient.indexRagDocumentsOrThrow(job.userId().toString(), List.of()))
-            .thenReturn(12);
+        when(aiServiceClient.indexRagBatchOrThrow(job.userId().toString(), List.of()))
+            .thenReturn(new AiServiceClient.RagIndexResponse(
+                12, job.userId().toString(), false));
         when(queueRepository.complete(job)).thenReturn(true);
 
         worker.processNext();
@@ -63,11 +68,28 @@ class RagIndexQueueWorkerTest {
     }
 
     @Test
+    void shouldContinueJobAfterSuccessfulBatchWhenDocumentsRemain() {
+        RagIndexJob job = job(1);
+        when(queueRepository.claimNext(properties.getLockTimeoutMs()))
+            .thenReturn(Optional.of(job));
+        when(aiServiceClient.indexRagBatchOrThrow(job.userId().toString(), List.of()))
+            .thenReturn(new AiServiceClient.RagIndexResponse(
+                200, job.userId().toString(), true));
+        when(queueRepository.continueAfterBatch(job)).thenReturn(true);
+
+        worker.processNext();
+
+        verify(queueRepository).continueAfterBatch(job);
+        verify(queueRepository, never()).complete(any());
+        verify(queueRepository, never()).fail(any(), anyInt(), anyInt(), anyLong(), anyString());
+    }
+
+    @Test
     void shouldScheduleRetryWithExponentialBackoff() {
         RagIndexJob job = job(2);
         when(queueRepository.claimNext(properties.getLockTimeoutMs()))
             .thenReturn(Optional.of(job));
-        when(aiServiceClient.indexRagDocumentsOrThrow(job.userId().toString(), List.of()))
+        when(aiServiceClient.indexRagBatchOrThrow(job.userId().toString(), List.of()))
             .thenThrow(new IllegalStateException("AI Service indisponível"));
         when(queueRepository.fail(any(), anyInt(), anyInt(), anyLong(), anyString()))
             .thenReturn(true);
@@ -81,6 +103,30 @@ class RagIndexQueueWorkerTest {
             8000,
             "AI Service indisponível");
         verify(queueRepository, never()).complete(any());
+    }
+
+    @Test
+    void shouldDeferBusyJobWithoutConsumingRetryAttempt() {
+        RagIndexJob job = job(2);
+        HttpClientErrorException conflict = HttpClientErrorException.create(
+            HttpStatus.CONFLICT,
+            "Conflict",
+            HttpHeaders.EMPTY,
+            new byte[0],
+            StandardCharsets.UTF_8);
+        when(queueRepository.claimNext(properties.getLockTimeoutMs()))
+            .thenReturn(Optional.of(job));
+        when(aiServiceClient.indexRagBatchOrThrow(job.userId().toString(), List.of()))
+            .thenThrow(conflict);
+        when(queueRepository.deferWithoutFailure(
+            eq(job), eq(properties.getRetryBaseDelayMs()), anyString()))
+            .thenReturn(true);
+
+        worker.processNext();
+
+        verify(queueRepository).deferWithoutFailure(
+            eq(job), eq(properties.getRetryBaseDelayMs()), anyString());
+        verify(queueRepository, never()).fail(any(), anyInt(), anyInt(), anyLong(), anyString());
     }
 
     @Test

@@ -177,6 +177,26 @@ class AiServiceClientIntegrationTest {
     }
 
     @Test
+    void shouldRequestSingleRagBatchAndReturnContinuationState() {
+        wireMock.stubFor(post(urlEqualTo("/internal/v1/rag/index"))
+            .withRequestBody(matchingJsonPath("$.max_batches", equalTo("1")))
+            .willReturn(okJson("""
+                {
+                    "indexed_count": 200,
+                    "user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+                    "has_more": true,
+                    "status": "processing"
+                }
+                """)));
+
+        AiServiceClient.RagIndexResponse result = aiServiceClient.indexRagBatchOrThrow(
+            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", List.of());
+
+        assertThat(result.indexedCount()).isEqualTo(200);
+        assertThat(result.hasMore()).isTrue();
+    }
+
+    @Test
     void shouldConsumeNamedAgentStreamEvents() {
         String responseBody = """
             event: tools

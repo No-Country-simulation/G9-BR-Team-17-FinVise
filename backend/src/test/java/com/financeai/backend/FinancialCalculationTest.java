@@ -15,6 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,7 +77,8 @@ class FinancialCalculationTest {
             categoryRepository,
             userRepository,
             aiServiceClient,
-            recommendationEngine
+            recommendationEngine,
+            immediateTransactions()
         );
     }
 
@@ -151,6 +155,15 @@ class FinancialCalculationTest {
 
         // Renda 5.000 - despesas 2.000 = sobra 3.000 => taxa de poupança base 60%
         assertThat(indicators.estimatedSavingsRate()).isEqualByComparingTo(BigDecimal.valueOf(60.00));
+    }
+
+    private TransactionOperations immediateTransactions() {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                return action.doInTransaction(org.mockito.Mockito.mock(TransactionStatus.class));
+            }
+        };
     }
 
     @Test

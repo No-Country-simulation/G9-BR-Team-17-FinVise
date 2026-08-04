@@ -5,8 +5,6 @@ spring:
     password: ${DATABASE_PASSWORD:financeai}
   jpa:
     show-sql: false
-  flyway:
-    clean-disabled: false
 
 logging:
   level:

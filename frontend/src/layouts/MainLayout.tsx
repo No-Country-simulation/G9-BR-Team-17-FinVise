@@ -12,8 +12,11 @@ import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
 import { userService } from '@/services/userService';
 
+const sidebarCollapsedStorageKey = 'finvise-sidebar-collapsed';
+
 export function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { pathname } = useLocation();
   const isAgentPage = pathname === '/agent';
   const { resolvedTheme } = useTheme();
@@ -28,6 +31,15 @@ export function MainLayout() {
   const userEmail = authService.getUserEmail();
   const fallbackUserName = userEmail ? userEmail.split('@')[0] : 'Usuário';
   const userName = dashboardUser?.name || fallbackUserName;
+
+  useEffect(() => {
+    const savedValue = window.localStorage.getItem(sidebarCollapsedStorageKey);
+    setIsSidebarCollapsed(savedValue === 'true');
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(sidebarCollapsedStorageKey, String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
@@ -73,12 +85,18 @@ export function MainLayout() {
     <div
       data-theme={resolvedTheme}
       className={cn(
-        'auth-shell relative flex min-h-dvh w-full max-w-full overflow-x-hidden lg:pl-64',
+        'auth-shell relative flex min-h-dvh w-full max-w-full overflow-x-hidden transition-[padding] duration-300',
+        isSidebarCollapsed ? 'lg:pl-[5.5rem]' : 'lg:pl-64',
         resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
       )}
     >
       <AuthBackground />
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
+      />
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <Header userName={userName} onMenuClick={() => setIsSidebarOpen(true)} />

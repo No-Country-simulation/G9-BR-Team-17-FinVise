@@ -4,8 +4,10 @@ import com.financeai.backend.integration.ai.AiServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,16 +46,39 @@ public class RagIndexQueueWorker {
 
         RagIndexJob job = claimed.get();
         try {
-            int indexed = aiServiceClient.indexRagDocumentsOrThrow(
+            AiServiceClient.RagIndexResponse response = aiServiceClient.indexRagBatchOrThrow(
                 job.userId().toString(), List.of());
-            if (queueRepository.complete(job)) {
-                log.info("Job RAG {} concluído com {} vetores para o usuário {}",
-                    job.id(), indexed, job.userId());
-            } else {
+            boolean updated = response.hasMore()
+                ? queueRepository.continueAfterBatch(job)
+                : queueRepository.complete(job);
+            if (!updated) {
                 log.warn("Resultado ignorado para o job RAG {} com lock expirado", job.id());
+            } else if (response.hasMore()) {
+                log.info("Lote do job RAG {} concluiu {} vetores; ainda há documentos pendentes",
+                    job.id(), response.indexedCount());
+            } else {
+                log.info("Job RAG {} concluído com {} vetores no último lote para o usuário {}",
+                    job.id(), response.indexedCount(), job.userId());
+            }
+        } catch (HttpClientErrorException exception) {
+            if (exception.getStatusCode() == HttpStatus.CONFLICT) {
+                deferBusyJob(job, exception);
+            } else {
+                handleFailure(job, exception);
             }
         } catch (Exception exception) {
             handleFailure(job, exception);
+        }
+    }
+
+    private void deferBusyJob(RagIndexJob job, Exception exception) {
+        long retryDelay = properties.getRetryBaseDelayMs();
+        String message = errorMessage(exception);
+        if (queueRepository.deferWithoutFailure(job, retryDelay, message)) {
+            log.info("Job RAG {} já está em processamento; nova verificação em {} ms",
+                job.id(), retryDelay);
+        } else {
+            log.warn("Contenção ignorada para o job RAG {} com lock expirado", job.id());
         }
     }
 

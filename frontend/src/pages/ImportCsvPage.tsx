@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
 import { Spinner } from '@/components/ui/Spinner';
 import { Select } from '@/components/ui/Select';
-import { RagIndexStatus, transactionService } from '@/services/transactionService';
+import { transactionService } from '@/services/transactionService';
 import { analysisService } from '@/services/analysisService';
 import { extractErrorMessage } from '@/lib/api';
 import { ProfileAnalysisModel } from '@/types/analysis';
@@ -15,32 +15,6 @@ import { rememberTransactionSource } from '@/hooks/useTransactionSource';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const CSV_CONTENT_TYPES = ['text/csv', 'application/csv', 'application/vnd.ms-excel'];
-const RAG_STATUS_POLL_INTERVAL_MS = 1500;
-const RAG_STATUS_MAX_ATTEMPTS = 80;
-
-const wait = (durationMs: number) => new Promise((resolve) => {
-  setTimeout(resolve, durationMs);
-});
-
-async function waitForRagIndexing(
-  sourceId: string,
-  onStatus: (status: RagIndexStatus) => void,
-): Promise<RagIndexStatus> {
-  for (let attempt = 0; attempt < RAG_STATUS_MAX_ATTEMPTS; attempt++) {
-    const status = await transactionService.getRagIndexStatus(sourceId);
-    onStatus(status);
-
-    if (status.status === 'COMPLETE') return status;
-    if (status.status === 'FAILED') {
-      throw new Error(`A indexação vetorial falhou em ${status.failedDocuments} documento(s).`);
-    }
-
-    await wait(RAG_STATUS_POLL_INTERVAL_MS);
-  }
-
-  throw new Error('A indexação vetorial excedeu o tempo limite. Tente novamente em instantes.');
-}
-
 export function ImportCsvPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -91,24 +65,13 @@ export function ImportCsvPage() {
       // 1. Upload CSV
       const { sourceId, importedCount, categorizedCount } = await transactionService.importCsv(file);
 
-      setProgress(30);
-      setStatusStep('2/4 Vetorizando em lotes no PostgreSQL (pgvector)...');
+      setProgress(55);
+      setStatusStep('2/4 Indexação vetorial enfileirada...');
+      setBatchInfo('Os vetores serão gerados em segundo plano sem bloquear a análise.');
 
-      // O backend já enfileira a indexação após o commit. A tela apenas acompanha
-      // a fonte importada para não disputar o advisory lock com o worker assíncrono.
-      await waitForRagIndexing(sourceId, (status) => {
-        const ratio = status.totalDocuments > 0
-          ? status.indexedDocuments / status.totalDocuments
-          : 0;
-        setProgress(Math.min(30 + Math.round(ratio * 50), 80));
-        setBatchInfo(
-          `Indexação assíncrona: ${status.indexedDocuments}/${status.totalDocuments} vetores prontos...`,
-        );
-      });
-
-      setProgress(85);
+      setProgress(75);
       setStatusStep('3/4 Gerando diagnóstico financeiro e perfil IA...');
-      setBatchInfo(`Vetorização RAG concluída: ${importedCount} transações salvas.`);
+      setBatchInfo(`${importedCount} transações salvas; preparando o perfil financeiro.`);
 
       // 3. Generate Analysis
       const analysis = await analysisService.analyzeStoredTransactions(
@@ -130,7 +93,7 @@ export function ImportCsvPage() {
 
       setResult({
         success: true,
-        message: `${importedCount} transações importadas; ${categorizedCount} categorizadas e vetorizadas com sucesso.`,
+        message: `${importedCount} transações importadas e ${categorizedCount} categorizadas. A indexação vetorial continua em segundo plano.`,
       });
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';

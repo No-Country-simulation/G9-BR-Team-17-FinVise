@@ -99,6 +99,35 @@ public class RagIndexQueueRepository {
             """, job.id(), job.lockToken()) == 1;
     }
 
+    public boolean continueAfterBatch(RagIndexJob job) {
+        return jdbcTemplate.update("""
+            UPDATE rag_index_jobs
+            SET status = 'PENDING',
+                rerun_requested = FALSE,
+                attempts = 0,
+                next_attempt_at = CURRENT_TIMESTAMP,
+                locked_at = NULL,
+                lock_token = NULL,
+                last_error = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND status = 'PROCESSING' AND lock_token = ?
+            """, job.id(), job.lockToken()) == 1;
+    }
+
+    public boolean deferWithoutFailure(RagIndexJob job, long retryDelayMs, String reason) {
+        return jdbcTemplate.update("""
+            UPDATE rag_index_jobs
+            SET status = 'PENDING',
+                rerun_requested = FALSE,
+                next_attempt_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 millisecond'),
+                locked_at = NULL,
+                lock_token = NULL,
+                last_error = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND status = 'PROCESSING' AND lock_token = ?
+            """, retryDelayMs, reason, job.id(), job.lockToken()) == 1;
+    }
+
     public boolean fail(RagIndexJob job,
                         int attempt,
                         int maxAttempts,

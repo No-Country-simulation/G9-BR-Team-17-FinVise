@@ -136,6 +136,7 @@ class RagIndexRequest(BaseModel):
     user_id: str
     source_ids: list[str] = Field(default_factory=list)
     background: bool = False
+    max_batches: int | None = Field(default=None, ge=1, le=100)
 
 
 @router.post("/internal/v1/rag/index")
@@ -143,7 +144,7 @@ def rag_index(request: RagIndexRequest, background_tasks: BackgroundTasks):
     """Indexes all un-embedded RAG document chunks for the given user.
     Called by the Java backend after ingesting transactions (CSV or Open Finance).
     """
-    from app.agent.rag_service import rag_service
+    from app.agent.rag_service import RAGIndexBusyError, rag_service
 
     if not request.user_id or not request.user_id.strip():
         raise HTTPException(
@@ -156,20 +157,34 @@ def rag_index(request: RagIndexRequest, background_tasks: BackgroundTasks):
                 rag_service.index_unembedded_chunks,
                 request.user_id.strip(),
                 request.source_ids,
+                request.max_batches,
             )
             return {
                 "indexed_count": 0,
                 "user_id": request.user_id,
                 "status": "queued",
             }
+        normalized_user_id = request.user_id.strip()
         count = rag_service.index_unembedded_chunks(
-            request.user_id.strip(), request.source_ids
+            normalized_user_id,
+            request.source_ids,
+            request.max_batches,
+        )
+        has_more = rag_service.has_unembedded_chunks(
+            normalized_user_id,
+            request.source_ids,
         )
         return {
             "indexed_count": count,
             "user_id": request.user_id,
-            "status": "completed",
+            "has_more": has_more,
+            "status": "processing" if has_more else "completed",
         }
+    except RAGIndexBusyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("RAG indexing failed for user_id=%s", request.user_id)
         raise HTTPException(

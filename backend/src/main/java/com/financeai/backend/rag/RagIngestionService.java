@@ -408,8 +408,8 @@ public class RagIngestionService {
             return 0;
         }
         try {
-            int count = aiServiceClient.indexRagDocuments(
-                userId.toString(), normalizedSourceIds(sourceIds));
+            int count = aiServiceClient.indexRagBatchOrThrow(
+                userId.toString(), normalizedSourceIds(sourceIds)).indexedCount();
             log.info("Indexação RAG concluída com {} vetores para o usuário {}", count, userId);
             return count;
         } catch (Exception exception) {

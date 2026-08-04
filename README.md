@@ -88,7 +88,7 @@ git clone https://github.com/No-Country-simulation/G9-BR-Team-17-FinVise.git
 cd G9-BR-Team-17-FinVise
 
 cp .env.example .env
-# Defina ao menos POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD e JWT_SECRET.
+# Defina POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD, JWT_SECRET e AI_SERVICE_TOKEN.
 # As duas senhas do banco devem ser iguais.
 
 docker compose up -d --build
@@ -99,6 +99,7 @@ A aplicação fica disponível em `http://localhost:8080`. No Compose versionado
 Requisitos dos segredos:
 
 - `JWT_SECRET`: pelo menos 32 bytes para a chave HMAC.
+- `AI_SERVICE_TOKEN`: pelo menos 32 caracteres aleatórios; o mesmo valor autentica o backend no AI Service.
 - `POSTGRES_PASSWORD` e `SPRING_DATASOURCE_PASSWORD`: mesmo valor; no perfil `production`, o backend exige pelo menos 16 caracteres e rejeita placeholders conhecidos.
 - `RESEND_API_KEY`: necessária para a entrega efetiva de e-mails de redefinição de senha. A ausência da chave não impede o backend de iniciar, mas o envio falhará de forma assíncrona.
 
@@ -212,7 +213,7 @@ O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-serv
 | Grupo | Variáveis relevantes |
 | --- | --- |
 | Banco/segurança | `POSTGRES_*`, `SPRING_DATASOURCE_*`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS` |
-| AI Service | `AI_SERVICE_URL`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
+| AI Service | `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
 | LLM | `ENABLE_LLM`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT` |
 | RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE`, `RAG_INDEX_QUEUE_*` |
 | Open Finance | `OPEN_FINANCE_*`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` |

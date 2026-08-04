@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent.tools.simulate_savings_plan import simulate_savings_plan
-from app.schemas.agent import AgentRequest
+from app.schemas.agent import AgentApiRequest
 
 CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "contracts" / "agent-context-v1.json"
@@ -19,7 +19,7 @@ def load_contract() -> dict:
 def test_agent_context_contract_fixture_is_valid():
     payload = load_contract()
 
-    request = AgentRequest.model_validate(payload)
+    request = AgentApiRequest.model_validate(payload)
 
     assert request.context.schema_version == "1.0"
     assert request.context.financial_profile.monthly_income == 5000.0
@@ -40,7 +40,7 @@ def test_agent_context_contract_rejects_unknown_schema_version():
     payload["context"]["schema_version"] = "2.0"
 
     with pytest.raises(ValidationError):
-        AgentRequest.model_validate(payload)
+        AgentApiRequest.model_validate(payload)
 
 
 def test_agent_context_contract_rejects_unknown_fields():
@@ -48,4 +48,4 @@ def test_agent_context_contract_rejects_unknown_fields():
     payload["context"]["financial_profile"]["monthlyIncome"] = 5000
 
     with pytest.raises(ValidationError):
-        AgentRequest.model_validate(payload)
+        AgentApiRequest.model_validate(payload)

@@ -542,7 +542,7 @@ O conteúdo dos mapas de classificadores depende dos artefatos. O backend retorn
 
 ## Endpoints internos do AI Service
 
-Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas pelo backend na rede Docker. O FastAPI não implementa autenticação própria para elas; o isolamento é de rede.
+Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas pelo backend na rede Docker. Todas as rotas `/internal/v1/*` exigem `Authorization: Bearer <AI_SERVICE_TOKEN>`. Agente e RAG exigem também `X-FinVise-User-Id`, preenchido pelo backend com o UUID extraído do JWT; `user_id` enviado no JSON é rejeitado. `/health` permanece público.
 
 | Método | Endpoint | Contrato resumido |
 | --- | --- | --- |
@@ -551,9 +551,9 @@ Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas
 | `POST` | `/internal/v1/transactions/classify` | `{items:[{description,amount,payment_method,recurrent,channel}]}` |
 | `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e nove indicadores |
 | `POST` | `/internal/v1/profiles/recommendations` | Recomendações do motor Python |
-| `POST` | `/internal/v1/agent/respond` | Resposta completa do agente |
-| `POST` | `/internal/v1/agent/respond/stream` | SSE `tools`, `sources`, `token`, `done` ou `error` |
-| `POST` | `/internal/v1/rag/index` | `{user_id,source_ids,background}`; indexação síncrona ou em background |
+| `POST` | `/internal/v1/agent/respond` | Header de usuário confiável e resposta completa do agente |
+| `POST` | `/internal/v1/agent/respond/stream` | Header de usuário confiável e SSE `tools`, `sources`, `token`, `done` ou `error` |
+| `POST` | `/internal/v1/rag/index` | Header de usuário confiável e `{source_ids,background,max_batches}` |
 
 O worker da fila durável sempre usa `background=false`, pois precisa confirmar sucesso ou falha antes de concluir/reagendar o job. `background=true` permanece disponível apenas para chamadas internas diretas e não oferece a mesma garantia de persistência.
 

@@ -122,7 +122,6 @@ def test_analytical_questions_cross_api_tools_and_prompt(
         "/internal/v1/agent/respond",
         json={
             "conversation_id": "conversation-1",
-            "user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
             "messages": [{"role": "user", "content": question}],
             "context": {
                 "analytical_facts": analytical_facts(),

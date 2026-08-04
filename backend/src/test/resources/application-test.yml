@@ -19,6 +19,8 @@ finance-ai:
   security:
     jwt:
       secret: test-secret-key-min-256-bits-for-jwt-signing-only
+  ai-service:
+    service-token: test-ai-service-token-with-at-least-32-characters
   rag:
     index-queue:
       enabled: false

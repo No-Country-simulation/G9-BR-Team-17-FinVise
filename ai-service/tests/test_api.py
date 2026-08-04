@@ -2,6 +2,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
+TEST_SERVICE_TOKEN = "test-ai-service-token-with-at-least-32-characters"
+
 
 def test_clean_startup_loads_the_application():
     with TestClient(app) as startup_client:
@@ -15,6 +17,50 @@ def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_internal_route_rejects_missing_service_token():
+    with TestClient(app) as unauthenticated_client:
+        response = unauthenticated_client.get("/internal/v1/models/status")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_internal_route_rejects_invalid_service_token():
+    with TestClient(
+        app,
+        headers={"Authorization": "Bearer invalid-service-token"},
+    ) as invalid_client:
+        response = invalid_client.get("/internal/v1/models/status")
+
+    assert response.status_code == 401
+
+
+def test_user_route_rejects_missing_trusted_user_header():
+    with TestClient(
+        app,
+        headers={"Authorization": f"Bearer {TEST_SERVICE_TOKEN}"},
+    ) as service_client:
+        response = service_client.post(
+            "/internal/v1/rag/index",
+            json={"source_ids": []},
+        )
+
+    assert response.status_code == 400
+    assert "X-FinVise-User-Id" in response.json()["detail"]
+
+
+def test_user_route_rejects_user_id_from_payload(client):
+    response = client.post(
+        "/internal/v1/rag/index",
+        json={
+            "user_id": "00000000-0000-0000-0000-000000000000",
+            "source_ids": [],
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_models_status(client):
@@ -137,7 +183,6 @@ def test_rag_index_limits_work_and_reports_remaining_documents(client, monkeypat
     response = client.post(
         "/internal/v1/rag/index",
         json={
-            "user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
             "source_ids": [],
             "max_batches": 1,
         },
@@ -162,16 +207,24 @@ def test_rag_index_returns_conflict_when_user_is_already_being_processed(
 
     response = client.post(
         "/internal/v1/rag/index",
-        json={"user_id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"},
+        json={},
     )
 
     assert response.status_code == 409
 
 
-def test_agent_respond(client):
+def test_agent_respond_uses_authenticated_header_identity(client, monkeypatch):
+    from app.agent.rag_service import rag_service
+
+    received = {}
+
+    def retrieve_context(user_id, *_args):
+        received["user_id"] = user_id
+        return []
+
+    monkeypatch.setattr(rag_service, "retrieve_context", retrieve_context)
     payload = {
         "conversation_id": "conv-1",
-        "user_id": "user-1",
         "messages": [{"role": "user", "content": "Como esta meu perfil financeiro?"}],
         "context": {
             "schema_version": "1.0",
@@ -187,12 +240,12 @@ def test_agent_respond(client):
     assert data["message"]["role"] == "assistant"
     assert "educacional" in data["disclaimer"].lower()
     assert len(data["tool_calls"]) > 0
+    assert received["user_id"] == "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
 
 def test_agent_respond_compares_two_latest_months(client):
     payload = {
         "conversation_id": "conv-comparison",
-        "user_id": "user-1",
         "messages": [
             {"role": "user", "content": "Compare novembro com dezembro"}
         ],
@@ -236,7 +289,6 @@ def test_agent_respond_compares_two_latest_months(client):
 def test_agent_respond_stream_uses_named_sse_events(client):
     payload = {
         "conversation_id": "conv-1",
-        "user_id": "user-1",
         "messages": [{"role": "user", "content": "Como esta meu perfil financeiro?"}],
         "context": {
             "schema_version": "1.0",

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
+    service_token: str = Field(alias="AI_SERVICE_TOKEN", min_length=32)
 
     models_dir: Path = Field(default=Path("models"), alias="MODELS_DIR")
     transaction_model_path: Path = Field(

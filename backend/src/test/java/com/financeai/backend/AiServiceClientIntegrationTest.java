@@ -19,6 +19,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AiServiceClientIntegrationTest {
 
+    private static final String SERVICE_TOKEN =
+        "test-ai-service-token-with-at-least-32-characters";
+    private static final String USER_ID =
+        "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
     @RegisterExtension
     static WireMockExtension wireMock = WireMockExtension.newInstance()
         .options(wireMockConfig().dynamicPort())
@@ -30,6 +35,7 @@ class AiServiceClientIntegrationTest {
     void setUp() {
         AiServiceProperties properties = new AiServiceProperties();
         properties.setUrl(wireMock.baseUrl());
+        properties.setServiceToken(SERVICE_TOKEN);
         aiServiceClient = new AiServiceClient(properties);
     }
 
@@ -67,6 +73,8 @@ class AiServiceClientIntegrationTest {
         assertThat(result.modelVersion()).isEqualTo("v1.0.0");
         assertThat(result.predictions()).hasSize(1);
         assertThat(result.predictions().get(0).category()).isEqualTo("ALIMENTACAO");
+        wireMock.verify(postRequestedFor(urlEqualTo("/internal/v1/transactions/classify"))
+            .withHeader("Authorization", equalTo("Bearer " + SERVICE_TOKEN)));
     }
 
     @Test
@@ -179,6 +187,8 @@ class AiServiceClientIntegrationTest {
     @Test
     void shouldRequestSingleRagBatchAndReturnContinuationState() {
         wireMock.stubFor(post(urlEqualTo("/internal/v1/rag/index"))
+            .withHeader("X-FinVise-User-Id", equalTo(USER_ID))
+            .withRequestBody(notMatching("(?s).*\\\"user_id\\\"\\s*:.*"))
             .withRequestBody(matchingJsonPath("$.max_batches", equalTo("1")))
             .willReturn(okJson("""
                 {
@@ -190,7 +200,7 @@ class AiServiceClientIntegrationTest {
                 """)));
 
         AiServiceClient.RagIndexResponse result = aiServiceClient.indexRagBatchOrThrow(
-            "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", List.of());
+            USER_ID, List.of());
 
         assertThat(result.indexedCount()).isEqualTo(200);
         assertThat(result.hasMore()).isTrue();
@@ -210,12 +220,14 @@ class AiServiceClientIntegrationTest {
 
             """;
         wireMock.stubFor(post(urlEqualTo("/internal/v1/agent/respond/stream"))
+            .withHeader("X-FinVise-User-Id", equalTo(USER_ID))
+            .withRequestBody(notMatching("(?s).*\\\"user_id\\\"\\s*:.*"))
             .willReturn(aResponse()
                 .withHeader("Content-Type", "text/event-stream")
                 .withBody(responseBody)));
         AgentRespondRequest request = new AgentRespondRequest(
             "conversation-1",
-            "user-1",
+            USER_ID,
             List.of(new AgentRespondRequest.MessageDto("user", "Como estou?")),
             new AgentRespondRequest.AgentContextDto()
         );
@@ -227,5 +239,15 @@ class AiServiceClientIntegrationTest {
         assertThat(events.get(0).tools()).containsExactly("get_financial_profile");
         assertThat(events.get(1).token()).isEqualTo("Olá");
         assertThat(events.get(2).type()).isEqualTo("done");
+    }
+
+    @Test
+    void shouldRejectMissingServiceTokenConfiguration() {
+        AiServiceProperties properties = new AiServiceProperties();
+        properties.setUrl(wireMock.baseUrl());
+
+        assertThatThrownBy(() -> new AiServiceClient(properties))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("AI_SERVICE_TOKEN");
     }
 }

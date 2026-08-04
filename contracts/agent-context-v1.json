@@ -1,6 +1,5 @@
 {
   "conversation_id": "conversation-contract-test",
-  "user_id": "user-contract-test",
   "messages": [
     {
       "role": "user",

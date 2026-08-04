@@ -10,6 +10,7 @@ public class AiServiceProperties {
     private String url = "http://localhost:8000";
     private Long connectTimeoutMs = 5000L;
     private Long readTimeoutMs = 30000L;
+    private String serviceToken;
 
     public String getUrl() {
         return url;
@@ -33,5 +34,13 @@ public class AiServiceProperties {
 
     public void setReadTimeoutMs(Long readTimeoutMs) {
         this.readTimeoutMs = readTimeoutMs;
+    }
+
+    public String getServiceToken() {
+        return serviceToken;
+    }
+
+    public void setServiceToken(String serviceToken) {
+        this.serviceToken = serviceToken;
     }
 }

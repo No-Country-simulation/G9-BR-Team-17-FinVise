@@ -6,14 +6,15 @@ import com.financeai.backend.fact.FinancialFactsPayload;
 import com.financeai.backend.rag.RagDocument;
 import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
+import com.financeai.backend.rag.RagIndexQueueRepository;
 import com.financeai.backend.rag.RagIndexStatus;
+import com.financeai.backend.rag.RagIndexStatusCount;
 import com.financeai.backend.rag.RagIndexStatusResponse;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionType;
 import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionCategoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,6 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,7 +54,7 @@ class RagIngestionServiceTest {
     private FinancialFactSnapshotRepository financialFactSnapshotRepository;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private RagIndexQueueRepository ragIndexQueueRepository;
 
     private RagIngestionService ragIngestionService;
 
@@ -67,7 +67,9 @@ class RagIngestionServiceTest {
             categoryRepository,
             financialFactSnapshotRepository,
             new ObjectMapper().findAndRegisterModules(),
-            eventPublisher);
+            ragIndexQueueRepository);
+        lenient().when(ragDocumentRepository.findByUserIdAndSourceTypeAndSourceId(
+            any(UUID.class), anyString(), anyString())).thenReturn(List.of());
     }
 
     @Test
@@ -84,19 +86,14 @@ class RagIngestionServiceTest {
         txn.setTransactionDate(LocalDate.of(2026, 5, 15));
         txn.setType(TransactionType.EXPENSE);
         txn.setPaymentMethod("PIX");
-        when(ragDocumentRepository.findTransactionIdsBySource(userId, sourceType, sourceId))
-            .thenReturn(Set.of());
-
         ragIngestionService.ingestTransactions(userId, sourceType, sourceId, List.of(txn));
 
         verify(ragDocumentRepository, never())
             .deleteByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId);
-        verify(ragDocumentRepository)
-            .deleteDerivedChunks(userId, sourceType, sourceId, "TRANSACTION");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RagDocument>> listCaptor = ArgumentCaptor.forClass(List.class);
-        verify(ragDocumentRepository).saveAll(listCaptor.capture());
+        verify(ragDocumentRepository).saveAllAndFlush(listCaptor.capture());
 
         RagDocument savedDoc = listCaptor.getValue().get(0);
         assertThat(listCaptor.getValue())
@@ -107,6 +104,8 @@ class RagIngestionServiceTest {
         assertThat(savedDoc.getSourceType()).isEqualTo(sourceType);
         assertThat(savedDoc.getSourceId()).isEqualTo(sourceId);
         assertThat(savedDoc.getTransactionId()).isEqualTo(txn.getId());
+        assertThat(savedDoc.getChunkKey()).isEqualTo("transaction:" + txn.getId());
+        assertThat(savedDoc.getSchemaVersion()).isEqualTo("2.0");
         assertThat(savedDoc.getDocumentChunk())
                 .contains("Transação financeira")
                 .contains("Tipo: despesa")
@@ -115,25 +114,68 @@ class RagIngestionServiceTest {
                 .contains("PIX");
 
         assertThat(savedDoc.getDocumentChunk().contains("150.75") || savedDoc.getDocumentChunk().contains("150,75")).isTrue();
-        verify(eventPublisher).publishEvent(any(com.financeai.backend.rag.RagIndexRequestedEvent.class));
+        verify(ragIndexQueueRepository).enqueue(userId);
     }
 
     @Test
-    void shouldNotDuplicateTransactionsAlreadyIndexedForTheSource() {
+    void shouldLimitManualIndexStepToOneBatch() {
+        UUID userId = UUID.randomUUID();
+        when(aiServiceClient.indexRagBatchOrThrow(userId.toString(), List.of("fonte-123")))
+            .thenReturn(new AiServiceClient.RagIndexResponse(200, userId.toString(), true));
+
+        int indexed = ragIngestionService.indexStep(userId, List.of("fonte-123"));
+
+        assertThat(indexed).isEqualTo(200);
+        verify(aiServiceClient).indexRagBatchOrThrow(
+            userId.toString(), List.of("fonte-123"));
+    }
+
+    @Test
+    void shouldUpdateChangedTransactionAndInvalidateItsEmbedding() {
         UUID userId = UUID.randomUUID();
         UUID transactionId = UUID.randomUUID();
         String sourceType = "OPEN_FINANCE";
         String sourceId = "connection-123";
         Transaction transaction = new Transaction();
         transaction.setId(transactionId);
+        transaction.setDescription("Compra atualizada");
+        transaction.setAmount(new BigDecimal("75.00"));
+        transaction.setTransactionDate(LocalDate.of(2026, 7, 30));
+        transaction.setType(TransactionType.EXPENSE);
 
-        when(ragDocumentRepository.findTransactionIdsBySource(userId, sourceType, sourceId))
-            .thenReturn(Set.of(transactionId));
+        RagDocument existing = new RagDocument();
+        existing.setUserId(userId);
+        existing.setSourceType(sourceType);
+        existing.setSourceId(sourceId);
+        existing.setTransactionId(transactionId);
+        existing.setChunkType("TRANSACTION");
+        existing.setChunkKey("transaction:" + transactionId);
+        existing.setSchemaVersion("2.0");
+        existing.setContentHash("conteudo-antigo");
+        existing.setDocumentChunk("Conteúdo antigo");
+        existing.setMetadata("{}");
+        existing.setEmbeddingModel("text-embedding-3-small");
+        existing.setIndexStatus(RagIndexStatus.INDEXED);
+        when(ragDocumentRepository.findByUserIdAndSourceTypeAndSourceId(
+            userId, sourceType, sourceId)).thenReturn(List.of(existing));
 
         ragIngestionService.ingestTransactions(
             userId, sourceType, sourceId, List.of(transaction));
 
-        verify(ragDocumentRepository, never()).saveAll(any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RagDocument>> documents = ArgumentCaptor.forClass(List.class);
+        verify(ragDocumentRepository).saveAllAndFlush(documents.capture());
+        assertThat(documents.getValue())
+            .filteredOn(document -> ("transaction:" + transactionId)
+                .equals(document.getChunkKey()))
+            .singleElement()
+            .satisfies(document -> {
+                assertThat(document.getId()).isEqualTo(existing.getId());
+                assertThat(document.getDocumentChunk()).contains("Compra atualizada");
+                assertThat(document.getEmbeddingModel()).isNull();
+                assertThat(document.getIndexStatus()).isEqualTo(RagIndexStatus.PENDING);
+            });
+        verify(ragIndexQueueRepository).enqueue(userId);
     }
 
     @Test
@@ -205,8 +247,6 @@ class RagIngestionServiceTest {
         snapshot.setPeriodEnd(LocalDate.of(2024, 12, 31));
         snapshot.setFacts(facts);
 
-        when(ragDocumentRepository.findTransactionIdsBySource(
-            userId, "CSV_IMPORT", sourceId.toString())).thenReturn(Set.of());
         when(financialFactSnapshotRepository.findByUserIdAndSourceId(userId, sourceId))
             .thenReturn(Optional.of(snapshot));
 
@@ -220,7 +260,7 @@ class RagIngestionServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<RagDocument>> documents = ArgumentCaptor.forClass(List.class);
-        verify(ragDocumentRepository).saveAll(documents.capture());
+        verify(ragDocumentRepository).saveAllAndFlush(documents.capture());
 
         assertThat(documents.getValue())
             .extracting(RagDocument::getChunkType)
@@ -243,16 +283,12 @@ class RagIngestionServiceTest {
     void shouldReportProcessingWhileDocumentsArePending() {
         UUID userId = UUID.randomUUID();
         List<String> sourceIds = List.of("arquivo-1");
-        when(ragDocumentRepository.countByUserIdAndSourceIdIn(userId, sourceIds))
-            .thenReturn(5L);
-        when(ragDocumentRepository.countByUserIdAndSourceIdInAndIndexStatus(
-            eq(userId), eq(sourceIds), any(RagIndexStatus.class)))
-            .thenAnswer(invocation -> switch (
-                invocation.getArgument(2, RagIndexStatus.class)) {
-                case PENDING, PROCESSING -> 1L;
-                case INDEXED -> 3L;
-                case FAILED -> 0L;
-            });
+        when(ragDocumentRepository.summarizeIndexStatusByUserIdAndSourceIdIn(
+            userId, sourceIds)).thenReturn(List.of(
+                new RagIndexStatusCount(RagIndexStatus.PENDING, 1L),
+                new RagIndexStatusCount(RagIndexStatus.PROCESSING, 1L),
+                new RagIndexStatusCount(RagIndexStatus.INDEXED, 3L)
+            ));
 
         RagIndexStatusResponse response =
             ragIngestionService.indexStatus(userId, sourceIds);
@@ -263,26 +299,25 @@ class RagIngestionServiceTest {
         assertThat(response.processingDocuments()).isEqualTo(1);
         assertThat(response.indexedDocuments()).isEqualTo(3);
         assertThat(response.failedDocuments()).isZero();
+        verify(ragDocumentRepository, times(1))
+            .summarizeIndexStatusByUserIdAndSourceIdIn(userId, sourceIds);
     }
 
     @Test
     void shouldNotReportCompleteWhenIndexingFailed() {
         UUID userId = UUID.randomUUID();
-        when(ragDocumentRepository.countByUserId(userId)).thenReturn(4L);
-        when(ragDocumentRepository.countByUserIdAndIndexStatus(
-            eq(userId), any(RagIndexStatus.class)))
-            .thenAnswer(invocation -> switch (
-                invocation.getArgument(1, RagIndexStatus.class)) {
-                case INDEXED -> 3L;
-                case FAILED -> 1L;
-                case PENDING, PROCESSING -> 0L;
-            });
+        when(ragDocumentRepository.summarizeIndexStatusByUserId(userId))
+            .thenReturn(List.of(
+                new RagIndexStatusCount(RagIndexStatus.INDEXED, 3L),
+                new RagIndexStatusCount(RagIndexStatus.FAILED, 1L)
+            ));
 
         RagIndexStatusResponse response =
             ragIngestionService.indexStatus(userId, List.of());
 
         assertThat(response.status()).isEqualTo("FAILED");
         assertThat(response.failedDocuments()).isEqualTo(1);
+        verify(ragDocumentRepository, times(1)).summarizeIndexStatusByUserId(userId);
     }
 
     @Test
@@ -294,9 +329,6 @@ class RagIngestionServiceTest {
         Transaction second = transaction(
             "Compra incremental", "75.00", LocalDate.of(2026, 7, 30));
 
-        when(ragDocumentRepository.findTransactionIdsBySource(
-            userId, "OPEN_FINANCE", sourceId.toString()))
-            .thenReturn(Set.of(), Set.of(first.getId()));
         when(transactionRepository
             .findByUserIdAndImportSourceIdOrderByTransactionDateDesc(userId, sourceId))
             .thenReturn(List.of(first), List.of(second, first));
@@ -308,6 +340,15 @@ class RagIngestionServiceTest {
             "Conta principal",
             List.of(first)
         );
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RagDocument>> batches = ArgumentCaptor.forClass(List.class);
+        verify(ragDocumentRepository).saveAllAndFlush(batches.capture());
+        List<RagDocument> firstBatch = batches.getValue();
+        when(ragDocumentRepository.findByUserIdAndSourceTypeAndSourceId(
+            userId, "OPEN_FINANCE", sourceId.toString())).thenReturn(firstBatch);
+        clearInvocations(ragDocumentRepository);
+
         ragIngestionService.ingestTransactions(
             userId,
             "OPEN_FINANCE",
@@ -316,11 +357,8 @@ class RagIngestionServiceTest {
             List.of(second)
         );
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<RagDocument>> batches = ArgumentCaptor.forClass(List.class);
-        verify(ragDocumentRepository, times(2)).saveAll(batches.capture());
-        List<RagDocument> firstBatch = batches.getAllValues().get(0);
-        List<RagDocument> incrementalBatch = batches.getAllValues().get(1);
+        verify(ragDocumentRepository).saveAllAndFlush(batches.capture());
+        List<RagDocument> incrementalBatch = batches.getValue();
 
         assertThat(firstBatch)
             .filteredOn(document -> "TRANSACTION".equals(document.getChunkType()))
@@ -338,10 +376,56 @@ class RagIngestionServiceTest {
                     .contains("Quantidade de transações: 2");
                 assertThat(document.getIndexStatus()).isEqualTo(RagIndexStatus.PENDING);
             });
-        verify(ragDocumentRepository, times(2)).deleteDerivedChunks(
-            userId, "OPEN_FINANCE", sourceId.toString(), "TRANSACTION");
-        verify(eventPublisher, times(2)).publishEvent(
-            any(com.financeai.backend.rag.RagIndexRequestedEvent.class));
+        verify(ragIndexQueueRepository, times(2)).enqueue(userId);
+    }
+
+    @Test
+    void shouldPreserveUnchangedChunksWithoutCreatingAnotherJob() {
+        UUID userId = UUID.randomUUID();
+        String sourceId = "fonte-legada";
+        Transaction transaction = transaction(
+            "Compra estável", "50.00", LocalDate.of(2026, 7, 10));
+
+        ragIngestionService.ingestTransactions(
+            userId, "CSV_IMPORT", sourceId, "extrato.csv", List.of(transaction));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<RagDocument>> documents = ArgumentCaptor.forClass(List.class);
+        verify(ragDocumentRepository).saveAllAndFlush(documents.capture());
+        when(ragDocumentRepository.findByUserIdAndSourceTypeAndSourceId(
+            userId, "CSV_IMPORT", sourceId)).thenReturn(documents.getValue());
+        clearInvocations(ragDocumentRepository, ragIndexQueueRepository);
+
+        ragIngestionService.ingestTransactions(
+            userId, "CSV_IMPORT", sourceId, "extrato.csv", List.of(transaction));
+
+        verify(ragDocumentRepository, never()).saveAllAndFlush(any());
+        verify(ragDocumentRepository, never()).deleteAll(anyCollection());
+        verifyNoInteractions(ragIndexQueueRepository);
+    }
+
+    @Test
+    void shouldDeleteOnlyChunksThatAreNoLongerPartOfTheSource() {
+        UUID userId = UUID.randomUUID();
+        String sourceId = "fonte-atualizada";
+        Transaction transaction = transaction(
+            "Compra nova", "90.00", LocalDate.of(2026, 8, 10));
+        RagDocument stale = new RagDocument();
+        stale.setChunkKey("monthly-summary:2026-07");
+        stale.setSchemaVersion("2.0");
+        stale.setContentHash("antigo");
+        when(ragDocumentRepository.findByUserIdAndSourceTypeAndSourceId(
+            userId, "CSV_IMPORT", sourceId)).thenReturn(List.of(stale));
+
+        ragIngestionService.ingestTransactions(
+            userId, "CSV_IMPORT", sourceId, "extrato.csv", List.of(transaction));
+
+        var ordered = inOrder(ragDocumentRepository, ragIndexQueueRepository);
+        ordered.verify(ragDocumentRepository).saveAllAndFlush(anyList());
+        ordered.verify(ragDocumentRepository).deleteAll(anyCollection());
+        ordered.verify(ragIndexQueueRepository).enqueue(userId);
+        verify(ragDocumentRepository).deleteAll(argThat(documents ->
+            documents.iterator().next() == stale));
     }
 
     private Transaction transaction(String description,

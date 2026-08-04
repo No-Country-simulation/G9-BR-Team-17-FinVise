@@ -111,6 +111,7 @@ Obrigatórias para o Compose:
 POSTGRES_PASSWORD=<senha-forte>
 SPRING_DATASOURCE_PASSWORD=<a-mesma-senha-forte>
 JWT_SECRET=<segredo-hmac-aleatorio-com-32-ou-mais-bytes>
+AI_SERVICE_TOKEN=<segredo-aleatorio-com-32-ou-mais-caracteres>
 ```
 
 No perfil de produção, a senha da datasource precisa ter pelo menos 16 caracteres e não pode ser um placeholder conhecido. Mantenha `POSTGRES_PASSWORD` e `SPRING_DATASOURCE_PASSWORD` iguais na topologia padrão.
@@ -140,6 +141,11 @@ ENABLE_LLM=false
 LLM_API_KEY=
 LLM_MODEL=gpt-4o-mini
 RAG_ENABLE_REMOTE_EMBEDDINGS=true
+RAG_EMBEDDING_MODEL=text-embedding-3-small
+RAG_HYBRID_RRF_K=60
+RAG_VECTOR_WEIGHT=1.0
+RAG_TEXT_WEIGHT=1.0
+RAG_CANDIDATE_MULTIPLIER=4
 
 # E-mail de redefinição
 RESEND_API_KEY=
@@ -369,7 +375,9 @@ O cliente usa `ConfigFileAuthenticationDetailsProvider("DEFAULT")` e procura cre
 - memória (`free -h` e `docker stats`);
 - logs de falha de indexação RAG, Resend, Pluggy e AI Service;
 - `GET /api/v1/rag/status` por usuário/fonte durante diagnóstico autenticado;
+- `GET /api/v1/rag/queue` para tentativas, heartbeat, erro e dead-letter do usuário;
+- métricas autenticadas `finvise.rag.queue.*` em `/actuator/metrics`;
 - validade do certificado no terminador TLS;
 - idade e restauração periódica dos backups.
 
-Prometheus, Grafana, alertas, tracing distribuído e coleta centralizada de logs não estão implementados no repositório.
+O Actuator publica as métricas internas da fila, mas exportação Prometheus, Grafana, alertas, tracing distribuído e coleta centralizada de logs não estão implementados no repositório.

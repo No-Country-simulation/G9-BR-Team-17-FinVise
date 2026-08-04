@@ -15,6 +15,17 @@ import { rememberTransactionSource } from '@/hooks/useTransactionSource';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const CSV_CONTENT_TYPES = ['text/csv', 'application/csv', 'application/vnd.ms-excel'];
+const RAG_STATUS_POLL_INTERVAL_MS = 1000;
+const INDEXING_PROGRESS_START = 20;
+const INDEXING_PROGRESS_RANGE = 60;
+
+type ImportPhase = 'IDLE' | 'UPLOADING' | 'INDEXING' | 'ANALYZING' | 'COMPLETED';
+
+class RagIndexingFailedError extends Error {}
+
+const wait = (milliseconds: number) => new Promise((resolve) => {
+  window.setTimeout(resolve, milliseconds);
+});
 
 export function ImportCsvPage() {
   const queryClient = useQueryClient();
@@ -26,7 +37,89 @@ export function ImportCsvPage() {
   const [batchInfo, setBatchInfo] = useState<string>('');
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const [model, setModel] = useState<ProfileAnalysisModel>('MACHINE_LEARNING');
+  const [phase, setPhase] = useState<ImportPhase>('IDLE');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const updateIndexingProgress = (
+    indexedDocuments: number,
+    totalDocuments: number,
+    remainingDocuments: number,
+  ) => {
+    const indexingRatio = totalDocuments > 0
+      ? Math.min(1, indexedDocuments / totalDocuments)
+      : 0;
+    setProgress(Math.min(
+      INDEXING_PROGRESS_START + INDEXING_PROGRESS_RANGE,
+      INDEXING_PROGRESS_START + Math.floor(indexingRatio * INDEXING_PROGRESS_RANGE),
+    ));
+    setBatchInfo(
+      `${indexedDocuments.toLocaleString('pt-BR')} de ${totalDocuments.toLocaleString('pt-BR')} documentos vetorizados`
+      + (remainingDocuments > 0
+        ? `; ${remainingDocuments.toLocaleString('pt-BR')} restantes.`
+        : '.'),
+    );
+  };
+
+  const waitForRagIndexing = async (sourceId: string) => {
+    let consecutiveReadFailures = 0;
+    let indexingFinished = false;
+
+    while (!indexingFinished) {
+      try {
+        const status = await transactionService.getRagIndexStatus(sourceId);
+        const remainingDocuments = status.pendingDocuments
+          + status.processingDocuments
+          + status.failedDocuments;
+
+        updateIndexingProgress(
+          status.indexedDocuments,
+          status.totalDocuments,
+          remainingDocuments,
+        );
+        consecutiveReadFailures = 0;
+
+        if (status.status === 'COMPLETE' || status.status === 'EMPTY') {
+          setProgress(INDEXING_PROGRESS_START + INDEXING_PROGRESS_RANGE);
+          setStatusStep('2/4 Indexação vetorial concluída.');
+          if (status.status === 'EMPTY') {
+            setBatchInfo('Nenhum documento precisava ser vetorizado.');
+          }
+          indexingFinished = true;
+          break;
+        }
+
+        if (status.failedDocuments > 0) {
+          const queue = await transactionService.getRagIndexQueueStatus();
+          if (queue.status === 'DEAD_LETTER') {
+            throw new RagIndexingFailedError(
+              'A indexação vetorial falhou após esgotar as tentativas. Tente reprocessar a fonte em instantes.',
+            );
+          }
+          if (queue.status === 'COMPLETED' || queue.status === 'EMPTY') {
+            throw new RagIndexingFailedError(
+              'A fila foi concluída, mas ainda existem documentos sem vetor. Solicite o reprocessamento da fonte.',
+            );
+          }
+          setStatusStep(`2/4 Reprocessando indexação vetorial (tentativa ${queue.attempts + 1})...`);
+        } else if (status.status === 'PROCESSING') {
+          setStatusStep('2/4 Indexando e vetorizando documentos...');
+        } else {
+          setStatusStep('2/4 Aguardando processamento da fila de indexação...');
+        }
+      } catch (error) {
+        if (error instanceof RagIndexingFailedError) {
+          throw error;
+        }
+        consecutiveReadFailures += 1;
+        setStatusStep('2/4 Reconectando ao acompanhamento da indexação...');
+        setBatchInfo(
+          `Não foi possível consultar o progresso (${consecutiveReadFailures} tentativa${consecutiveReadFailures === 1 ? '' : 's'}). Tentando novamente...`,
+        );
+      }
+
+      await wait(RAG_STATUS_POLL_INTERVAL_MS);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -57,6 +150,7 @@ export function ImportCsvPage() {
     e.preventDefault();
     if (!file) return;
     setIsLoading(true);
+    setPhase('UPLOADING');
     setResult(null);
     setProgress(10);
     setStatusStep('1/4 Lendo arquivo e importando transações...');
@@ -66,28 +160,17 @@ export function ImportCsvPage() {
       // 1. Upload CSV
       const { sourceId, importedCount, categorizedCount } = await transactionService.importCsv(file);
 
-      setProgress(30);
-      setStatusStep('2/4 Vetorizando em lotes no PostgreSQL (pgvector)...');
+      setPhase('INDEXING');
+      setProgress(INDEXING_PROGRESS_START);
+      setStatusStep('2/4 Aguardando processamento da fila de indexação...');
+      setBatchInfo('Consultando documentos pendentes desta importação...');
 
-      // 2. Real-Time Progressive Batch Vector Indexing (Stay on page & count batches)
-      let totalIndexed = 0;
-      let batchNumber = 1;
-      let hasMoreChunks = true;
-      while (hasMoreChunks) {
-        setBatchInfo(`Indexando lote ${batchNumber} (${totalIndexed} vetores RAG criados)...`);
-        const { indexedCount } = await transactionService.triggerRagIndexStep();
-        if (indexedCount <= 0) {
-          hasMoreChunks = false;
-        } else {
-          totalIndexed += indexedCount;
-          batchNumber++;
-          setProgress((prev) => Math.min(prev + 15, 80));
-        }
-      }
+      await waitForRagIndexing(sourceId);
 
+      setPhase('ANALYZING');
       setProgress(85);
       setStatusStep('3/4 Gerando diagnóstico financeiro e perfil IA...');
-      setBatchInfo(`Vetorização RAG concluída: ${importedCount} transações salvas.`);
+      setBatchInfo(`${importedCount} transações salvas e vetorizadas; preparando o perfil financeiro.`);
 
       // 3. Generate Analysis
       const analysis = await analysisService.analyzeStoredTransactions(
@@ -98,6 +181,7 @@ export function ImportCsvPage() {
       );
 
       setProgress(100);
+      setPhase('COMPLETED');
       setStatusStep('4/4 Sucesso! Redirecionando para o painel de análise...');
       rememberTransactionSource('CSV_IMPORT');
 
@@ -109,7 +193,7 @@ export function ImportCsvPage() {
 
       setResult({
         success: true,
-        message: `${importedCount} transações importadas; ${categorizedCount} categorizadas e vetorizadas com sucesso.`,
+        message: `${importedCount} transações importadas, ${categorizedCount} categorizadas e a indexação vetorial foi concluída.`,
       });
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
@@ -119,6 +203,7 @@ export function ImportCsvPage() {
       }, 700);
     } catch (err) {
       setProgress(0);
+      setPhase('IDLE');
       setStatusStep('');
       setBatchInfo('');
       setResult({ success: false, message: extractErrorMessage(err) });
@@ -197,6 +282,11 @@ export function ImportCsvPage() {
                 {/* Progress bar line */}
                 <div className="h-3 w-full overflow-hidden rounded-full bg-primary-200/80 p-0.5">
                   <div
+                    role="progressbar"
+                    aria-label="Progresso da importação e indexação"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progress}
                     className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-700 transition-all duration-300 ease-out"
                     style={{ width: `${progress}%` }}
                   />
@@ -225,7 +315,15 @@ export function ImportCsvPage() {
 
             <Button type="submit" className="w-full" disabled={!file || isLoading} isLoading={isLoading}>
               {isLoading ? <Spinner size="sm" className="mr-2" /> : <Upload className="mr-2 h-4 w-4" />}
-              {isLoading ? 'Indexando e vetorizando no pgvector...' : 'Importar e analisar'}
+              {isLoading
+                ? {
+                    UPLOADING: 'Importando transações...',
+                    INDEXING: 'Indexando e vetorizando no pgvector...',
+                    ANALYZING: 'Gerando análise financeira...',
+                    COMPLETED: 'Finalizando...',
+                    IDLE: 'Importar e analisar',
+                  }[phase]
+                : 'Importar e analisar'}
             </Button>
           </form>
         </CardContent>

@@ -13,6 +13,27 @@ export interface TransactionFilters {
   importSourceId?: string;
 }
 
+export interface RagIndexStatus {
+  status: 'EMPTY' | 'PENDING' | 'PROCESSING' | 'COMPLETE' | 'FAILED';
+  totalDocuments: number;
+  pendingDocuments: number;
+  processingDocuments: number;
+  indexedDocuments: number;
+  failedDocuments: number;
+}
+
+export interface RagIndexQueueStatus {
+  status: 'EMPTY' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'DEAD_LETTER';
+  attempts: number;
+  rerunRequested: boolean;
+  nextAttemptAt: string | null;
+  heartbeatAt: string | null;
+  deadLetteredAt: string | null;
+  lastError: string | null;
+  manualReprocessCount: number;
+  updatedAt: string | null;
+}
+
 export const transactionService = {
   async getAll(filters: TransactionFilters = {}): Promise<PaginatedResponse<Transaction>> {
     const params = Object.fromEntries(
@@ -73,8 +94,15 @@ export const transactionService = {
     };
   },
 
-  async triggerRagIndexStep(): Promise<{ indexedCount: number; status: string }> {
-    const { data } = await api.post<{ indexedCount: number; status: string }>('/rag/index-step');
+  async getRagIndexStatus(sourceId: string): Promise<RagIndexStatus> {
+    const { data } = await api.get<RagIndexStatus>('/rag/status', {
+      params: { sourceIds: sourceId },
+    });
+    return data;
+  },
+
+  async getRagIndexQueueStatus(): Promise<RagIndexQueueStatus> {
+    const { data } = await api.get<RagIndexQueueStatus>('/rag/queue');
     return data;
   },
 };

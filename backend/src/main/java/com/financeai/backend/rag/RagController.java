@@ -12,11 +12,14 @@ import java.util.Map;
 public class RagController {
 
     private final RagIngestionService ragIngestionService;
+    private final RagIndexQueueOperationsService queueOperationsService;
     private final AuthenticatedUserProvider authenticatedUserProvider;
 
     public RagController(RagIngestionService ragIngestionService,
+                         RagIndexQueueOperationsService queueOperationsService,
                          AuthenticatedUserProvider authenticatedUserProvider) {
         this.ragIngestionService = ragIngestionService;
+        this.queueOperationsService = queueOperationsService;
         this.authenticatedUserProvider = authenticatedUserProvider;
     }
 
@@ -44,5 +47,23 @@ public class RagController {
     ) {
         return ResponseEntity.ok(ragIngestionService.indexStatus(
             authenticatedUserProvider.getUserId(), sourceIds));
+    }
+
+    @GetMapping("/queue")
+    public ResponseEntity<RagIndexQueueStatusResponse> queueStatus() {
+        return ResponseEntity.ok(queueOperationsService.status(
+            authenticatedUserProvider.getUserId()));
+    }
+
+    @PostMapping("/reprocess")
+    public ResponseEntity<RagReprocessResponse> reprocess(
+        @RequestBody(required = false) RagReprocessRequest request
+    ) {
+        boolean force = request != null && request.force();
+        RagReprocessResponse response = queueOperationsService.reprocess(
+            authenticatedUserProvider.getUserId(), force);
+        return response.queued()
+            ? ResponseEntity.accepted().body(response)
+            : ResponseEntity.ok(response);
     }
 }

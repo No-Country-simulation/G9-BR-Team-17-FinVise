@@ -2,19 +2,31 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Callable
+from threading import Lock
+from time import perf_counter
 from typing import Any
 
-import httpx
 import psycopg
+from psycopg_pool import ConnectionPool
 
+from app.agent.rag_metrics import rag_retrieval_metrics
 from app.core.config import settings
+from app.core.http_client import get_http_client
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+class RAGIndexBusyError(RuntimeError):
+    """Raised when another worker already owns the per-user indexing lock."""
+
+
 class RAGService:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        pool_factory: Callable[..., ConnectionPool] = ConnectionPool,
+    ) -> None:
         raw_url = os.getenv(
             "SPRING_DATASOURCE_URL",
             os.getenv("DATABASE_URL", "jdbc:postgresql://postgres:5432/finvise"),
@@ -37,18 +49,53 @@ class RAGService:
             "SPRING_DATASOURCE_PASSWORD", os.getenv("POSTGRES_PASSWORD", "")
         )
         self.dimension = 1536
+        self._pool_factory = pool_factory
+        self._pool: ConnectionPool | None = None
+        self._pool_lock = Lock()
+
+    def open(self) -> None:
+        """Creates the pool without forcing a database connection at startup."""
+        with self._pool_lock:
+            if self._pool is not None:
+                return
+            if settings.rag_db_pool_min_size > settings.rag_db_pool_max_size:
+                raise ValueError(
+                    "RAG_DB_POOL_MIN_SIZE must not exceed RAG_DB_POOL_MAX_SIZE"
+                )
+            pool = self._pool_factory(
+                "",
+                kwargs={
+                    "host": self.db_host,
+                    "port": self.db_port,
+                    "dbname": self.db_name,
+                    "user": self.db_user,
+                    "password": self.db_pass,
+                },
+                min_size=settings.rag_db_pool_min_size,
+                max_size=settings.rag_db_pool_max_size,
+                timeout=settings.rag_db_pool_timeout_seconds,
+                open=False,
+                name="rag-postgresql",
+            )
+            pool.open(wait=False)
+            self._pool = pool
+
+    def close(self) -> None:
+        with self._pool_lock:
+            if self._pool is None:
+                return
+            self._pool.close()
+            self._pool = None
 
     def _get_connection(self):
-        return psycopg.connect(
-            host=self.db_host,
-            port=self.db_port,
-            dbname=self.db_name,
-            user=self.db_user,
-            password=self.db_pass,
-        )
+        self.open()
+        pool = self._pool
+        if pool is None:  # pragma: no cover - protected by open()
+            raise RuntimeError("RAG PostgreSQL pool is not available")
+        return pool.connection(timeout=settings.rag_db_pool_timeout_seconds)
 
     def _ensure_embedding_column(self, conn: psycopg.Connection) -> bool:
-        """Read-only capability check. Schema changes belong exclusively to Flyway."""
+        """Checks the model-isolated vector store created exclusively by Flyway."""
         try:
             with conn.cursor() as cur:
                 cur.execute(
@@ -57,7 +104,7 @@ class RAGService:
                         SELECT 1
                         FROM information_schema.columns
                         WHERE table_schema = current_schema()
-                          AND table_name = 'rag_documents'
+                          AND table_name = 'rag_document_embeddings'
                           AND column_name = 'embedding'
                     );
                     """
@@ -108,7 +155,7 @@ class RAGService:
         if not self._uses_remote_embeddings():
             return [self._generate_local_embedding(text) for text in texts]
 
-        response = httpx.post(
+        response = get_http_client().post(
             f"{settings.llm_base_url.rstrip('/')}/embeddings",
             headers={
                 "Authorization": f"Bearer {settings.llm_api_key}",
@@ -130,15 +177,23 @@ class RAGService:
         self,
         user_id: str,
         source_ids: list[str] | None = None,
+        requested_max_batches: int | None = None,
     ) -> int:
         if not user_id:
             return 0
 
         normalized_sources = self._normalize_source_ids(source_ids)
-        source_clause = " AND source_id = ANY(%s)" if normalized_sources else ""
+        source_clause = (
+            " AND documents.source_id = ANY(%s)" if normalized_sources else ""
+        )
         model_name = self._embedding_model_name()
         batch_size = max(1, min(settings.rag_embedding_batch_size, 500))
-        max_batches = max(1, min(settings.rag_index_max_batches, 100))
+        configured_max_batches = max(1, min(settings.rag_index_max_batches, 100))
+        max_batches = (
+            configured_max_batches
+            if requested_max_batches is None
+            else max(1, min(requested_max_batches, configured_max_batches))
+        )
         total_updated = 0
 
         try:
@@ -152,20 +207,24 @@ class RAGService:
                     )
                     lock = cur.fetchone()
                     if not lock or not lock[0]:
-                        logger.info("RAG indexing already running for user_id=%s", user_id)
-                        return 0
+                        raise RAGIndexBusyError(
+                            f"RAG indexing already running for user_id={user_id}"
+                        )
 
                 for _ in range(max_batches):
                     with conn.cursor() as cur:
                         query = f"""
-                            SELECT id, document_chunk
-                            FROM rag_documents
-                            WHERE user_id = %s::uuid{source_clause}
-                              AND (
-                                  embedding IS NULL
-                                  OR embedding_model IS DISTINCT FROM %s
+                            SELECT documents.id, documents.document_chunk
+                            FROM rag_documents documents
+                            WHERE documents.user_id = %s::uuid{source_clause}
+                              AND NOT EXISTS (
+                                  SELECT 1
+                                  FROM rag_document_embeddings embeddings
+                                  WHERE embeddings.document_id = documents.id
+                                    AND embeddings.embedding_model = %s
+                                    AND embeddings.embedding IS NOT NULL
                               )
-                            ORDER BY created_at, id
+                            ORDER BY documents.created_at, documents.id
                             LIMIT %s
                             FOR UPDATE SKIP LOCKED;
                         """
@@ -199,9 +258,27 @@ class RAGService:
                             user_id,
                             exc,
                         )
-                        break
+                        raise
 
                     with conn.cursor() as cur:
+                        cur.executemany(
+                            """
+                            INSERT INTO rag_document_embeddings (
+                                document_id, embedding_model, dimensions, embedding, created_at
+                            )
+                            VALUES (%s::uuid, %s, %s, %s::vector, CURRENT_TIMESTAMP)
+                            ON CONFLICT (document_id, embedding_model) DO UPDATE
+                            SET dimensions = EXCLUDED.dimensions,
+                                embedding = EXCLUDED.embedding,
+                                created_at = EXCLUDED.created_at;
+                            """,
+                            [
+                                (document_id, model_name, self.dimension, json.dumps(vector))
+                                for (document_id, _), vector in zip(
+                                    rows, vectors, strict=True
+                                )
+                            ],
+                        )
                         cur.executemany(
                             """
                             UPDATE rag_documents
@@ -226,7 +303,7 @@ class RAGService:
                         break
         except Exception as exc:  # noqa: BLE001
             logger.error("RAG indexing failed for user_id=%s: %s", user_id, exc)
-            return total_updated
+            raise
 
         if total_updated:
             logger.info(
@@ -236,6 +313,47 @@ class RAGService:
                 user_id,
             )
         return total_updated
+
+    def has_unembedded_chunks(
+        self,
+        user_id: str,
+        source_ids: list[str] | None = None,
+    ) -> bool:
+        if not user_id:
+            return False
+
+        normalized_sources = self._normalize_source_ids(source_ids)
+        source_clause = (
+            " AND documents.source_id = ANY(%s)" if normalized_sources else ""
+        )
+        params: list[Any] = [user_id]
+        if normalized_sources:
+            params.append(normalized_sources)
+        params.append(self._embedding_model_name())
+
+        with self._get_connection() as conn:
+            if not self._ensure_embedding_column(conn):
+                return False
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM rag_documents documents
+                        WHERE documents.user_id = %s::uuid{source_clause}
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM rag_document_embeddings embeddings
+                              WHERE embeddings.document_id = documents.id
+                                AND embeddings.embedding_model = %s
+                                AND embeddings.embedding IS NOT NULL
+                          )
+                    );
+                    """,
+                    tuple(params),
+                )
+                row = cur.fetchone()
+                return bool(row and row[0])
 
     def _mark_index_status(
         self,
@@ -270,7 +388,12 @@ class RAGService:
             logger.warning("RAG search called without user_id")
             return []
 
+        started_at = perf_counter()
         top_k = max(1, min(limit, 20))
+        candidate_limit = min(
+            top_k * settings.rag_candidate_multiplier,
+            200,
+        )
         normalized_source = (
             source_type.strip().upper()
             if source_type and source_type.strip()
@@ -278,36 +401,55 @@ class RAGService:
         )
         normalized_sources = self._normalize_source_ids(source_ids)
         filter_sql, filter_params = self._filters(normalized_source, normalized_sources)
+        vector_results: list[dict[str, Any]] = []
+        text_results: list[dict[str, Any]] = []
+        vector_failed = False
+        text_failed = False
+        results: list[dict[str, Any]] = []
 
         try:
             with self._get_connection() as conn:
                 has_vector = self._ensure_embedding_column(conn)
                 if has_vector and query.strip():
-                    vector_results = self._vector_search(
+                    vector_results, vector_failed = self._vector_search(
                         conn,
                         user_id,
                         query,
-                        top_k,
+                        candidate_limit,
                         filter_sql,
                         filter_params,
                     )
-                    if vector_results:
-                        return self._diversify(vector_results, top_k, normalized_sources)
 
-                keyword_results = self._keyword_search(
-                    conn,
-                    user_id,
-                    query,
-                    top_k,
-                    filter_sql,
-                    filter_params,
-                )
-                return self._diversify(
-                    keyword_results, top_k, normalized_sources
+                try:
+                    text_results = self._keyword_search(
+                        conn,
+                        user_id,
+                        query,
+                        candidate_limit,
+                        filter_sql,
+                        filter_params,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    conn.rollback()
+                    text_failed = True
+                    logger.warning("Portuguese full-text retrieval failed: %s", exc)
+                fused = self._fuse_rankings(vector_results, text_results)
+                results = self._diversify(
+                    fused, top_k, normalized_sources
                 )
         except Exception as exc:  # noqa: BLE001
             logger.error("RAG retrieval failed: %s", exc)
-            return []
+            results = []
+        finally:
+            rag_retrieval_metrics.record(
+                duration_ms=(perf_counter() - started_at) * 1000,
+                vector_results=len(vector_results),
+                text_results=len(text_results),
+                result_count=len(results),
+                vector_failed=vector_failed,
+                text_failed=text_failed,
+            )
+        return results
 
     def _vector_search(
         self,
@@ -317,54 +459,52 @@ class RAGService:
         limit: int,
         filter_sql: str,
         filter_params: list[Any],
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], bool]:
         try:
             query_vector = json.dumps(self.generate_embedding(query))
-            candidate_limit = min(limit * 4, 80)
             with conn.cursor() as cur:
                 cur.execute(
                     f"""
-                    SELECT id, source_type, source_id, chunk_type, document_chunk,
-                           metadata, created_at,
-                           (embedding <=> %s::vector) AS distance,
-                           ts_rank_cd(
-                               to_tsvector('simple', document_chunk),
-                               plainto_tsquery('simple', %s)
-                           ) AS keyword_rank
-                    FROM rag_documents
-                    WHERE user_id = %s::uuid{filter_sql}
-                      AND embedding IS NOT NULL
-                    ORDER BY embedding <=> %s::vector ASC
+                    SELECT documents.id, documents.source_type, documents.source_id,
+                           documents.chunk_type, documents.document_chunk,
+                           documents.metadata, documents.created_at,
+                           (embeddings.embedding <=> %s::vector) AS distance
+                    FROM rag_document_embeddings embeddings
+                    JOIN rag_documents documents ON documents.id = embeddings.document_id
+                    WHERE documents.user_id = %s::uuid{filter_sql}
+                      AND embeddings.embedding_model = %s
+                      AND embeddings.embedding IS NOT NULL
+                    ORDER BY embeddings.embedding <=> %s::vector ASC
                     LIMIT %s;
                     """,
                     (
                         query_vector,
-                        query,
                         user_id,
                         *filter_params,
+                        self._embedding_model_name(),
                         query_vector,
-                        candidate_limit,
+                        limit,
                     ),
                 )
                 rows = cur.fetchall()
         except Exception as exc:  # noqa: BLE001
             conn.rollback()
             logger.warning("Vector retrieval failed; using keyword search: %s", exc)
-            return []
+            return [], True
 
         results = []
         for row in rows:
             similarity = max(0.0, 1.0 - float(row[7]))
-            keyword_rank = float(row[8] or 0.0)
-            if similarity < settings.rag_min_relevance and keyword_rank <= 0:
+            if similarity < settings.rag_min_relevance:
                 continue
             results.append(
                 self._result(
                     row[:7],
-                    score=min(1.0, similarity + min(keyword_rank, 1.0) * 0.1),
+                    score=similarity,
+                    vector_score=similarity,
                 )
             )
-        return results
+        return results, False
 
     def _keyword_search(
         self,
@@ -382,13 +522,13 @@ class RAGService:
                     SELECT id, source_type, source_id, chunk_type, document_chunk,
                            metadata, created_at,
                            ts_rank_cd(
-                               to_tsvector('simple', document_chunk),
-                               plainto_tsquery('simple', %s)
+                               search_vector,
+                               websearch_to_tsquery('portuguese', %s)
                            ) AS keyword_rank
                     FROM rag_documents
                     WHERE user_id = %s::uuid{filter_sql}
-                      AND to_tsvector('simple', document_chunk)
-                          @@ plainto_tsquery('simple', %s)
+                      AND search_vector
+                          @@ websearch_to_tsquery('portuguese', %s)
                     ORDER BY keyword_rank DESC, created_at DESC
                     LIMIT %s;
                     """,
@@ -407,11 +547,22 @@ class RAGService:
                     (user_id, *filter_params, limit),
                 )
             return [
-                self._result(row[:7], score=float(row[7] or 0.0))
+                self._result(
+                    row[:7],
+                    score=float(row[7] or 0.0),
+                    text_score=float(row[7] or 0.0),
+                )
                 for row in cur.fetchall()
             ]
 
-    def _result(self, row: tuple[Any, ...], score: float) -> dict[str, Any]:
+    def _result(
+        self,
+        row: tuple[Any, ...],
+        score: float,
+        *,
+        vector_score: float = 0.0,
+        text_score: float = 0.0,
+    ) -> dict[str, Any]:
         metadata = row[5]
         if isinstance(metadata, str):
             try:
@@ -429,7 +580,56 @@ class RAGService:
             "source_name": metadata.get("sourceName") or row[2],
             "created_at": str(row[6]),
             "score": round(score, 4),
+            "vector_score": round(vector_score, 4),
+            "text_score": round(text_score, 4),
         }
+
+    def _fuse_rankings(
+        self,
+        vector_results: list[dict[str, Any]],
+        text_results: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Fuses independent vector and Portuguese FTS rankings with weighted RRF."""
+        fused: dict[str, dict[str, Any]] = {}
+        rrf_k = settings.rag_hybrid_rrf_k
+        channels = (
+            ("vector", vector_results, settings.rag_vector_weight),
+            ("text", text_results, settings.rag_text_weight),
+        )
+        for channel, results, weight in channels:
+            for rank, result in enumerate(results, start=1):
+                document_id = result["id"]
+                item = fused.setdefault(
+                    document_id,
+                    {
+                        **result,
+                        "vector_score": 0.0,
+                        "text_score": 0.0,
+                        "retrieval_channels": [],
+                        "_rrf_score": 0.0,
+                    },
+                )
+                item["_rrf_score"] += weight / (rrf_k + rank)
+                item[f"{channel}_rank"] = rank
+                item[f"{channel}_score"] = result[f"{channel}_score"]
+                item["retrieval_channels"].append(channel)
+
+        maximum_rrf = (
+            settings.rag_vector_weight + settings.rag_text_weight
+        ) / (rrf_k + 1)
+        ordered = sorted(
+            fused.values(),
+            key=lambda item: (
+                item["_rrf_score"],
+                max(item["vector_score"], item["text_score"]),
+                item["created_at"],
+            ),
+            reverse=True,
+        )
+        for item in ordered:
+            item["score"] = round(item["_rrf_score"] / maximum_rrf, 4)
+            item.pop("_rrf_score", None)
+        return ordered
 
     def _filters(
         self,

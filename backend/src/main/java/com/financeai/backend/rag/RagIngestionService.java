@@ -13,7 +13,6 @@ import com.financeai.backend.transaction.TransactionRepository;
 import com.financeai.backend.transaction.TransactionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +32,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class RagIngestionService {
+
+    static final String CHUNK_SCHEMA_VERSION = "2.0";
 
     static final String TRANSACTION_CHUNK = "TRANSACTION";
     static final String MONTHLY_SUMMARY_CHUNK = "MONTHLY_SUMMARY";
@@ -57,7 +58,7 @@ public class RagIngestionService {
     private final TransactionCategoryRepository categoryRepository;
     private final FinancialFactSnapshotRepository financialFactSnapshotRepository;
     private final ObjectMapper objectMapper;
-    private final ApplicationEventPublisher eventPublisher;
+    private final RagIndexQueueRepository ragIndexQueueRepository;
 
     public RagIngestionService(RagDocumentRepository ragDocumentRepository,
                                AiServiceClient aiServiceClient,
@@ -65,14 +66,14 @@ public class RagIngestionService {
                                TransactionCategoryRepository categoryRepository,
                                FinancialFactSnapshotRepository financialFactSnapshotRepository,
                                ObjectMapper objectMapper,
-                               ApplicationEventPublisher eventPublisher) {
+                               RagIndexQueueRepository ragIndexQueueRepository) {
         this.ragDocumentRepository = ragDocumentRepository;
         this.aiServiceClient = aiServiceClient;
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.financialFactSnapshotRepository = financialFactSnapshotRepository;
         this.objectMapper = objectMapper;
-        this.eventPublisher = eventPublisher;
+        this.ragIndexQueueRepository = ragIndexQueueRepository;
     }
 
     @Transactional
@@ -89,51 +90,84 @@ public class RagIngestionService {
                                    String sourceId,
                                    String sourceName,
                                    List<Transaction> transactions) {
-        if (transactions == null || transactions.isEmpty()) {
-            return;
-        }
+        List<Transaction> receivedTransactions = transactions != null ? transactions : List.of();
 
         log.info("Ingestando {} transações no RAG do usuário {} (origem: {}, id: {})",
-            transactions.size(), userId, sourceType, sourceId);
+            receivedTransactions.size(), userId, sourceType, sourceId);
 
-        Set<UUID> indexedTransactionIds = sourceId != null && !sourceId.isBlank()
-            ? ragDocumentRepository.findTransactionIdsBySource(userId, sourceType, sourceId)
-            : Set.of();
         Map<UUID, String> categories = categoryNames();
         List<RagDocument> documents = new ArrayList<>();
         String effectiveSourceName = valueOrDefault(
             sourceName, valueOrDefault(sourceId, "Fonte importada"));
 
-        for (Transaction transaction : transactions) {
-            if (transaction.getId() != null && indexedTransactionIds.contains(transaction.getId())) {
-                continue;
-            }
-            documents.add(transactionChunk(
-                userId, sourceType, sourceId, effectiveSourceName, transaction, categories));
-        }
-
         List<Transaction> sourceTransactions = loadSourceTransactions(
-            userId, sourceType, sourceId, transactions);
-        if (sourceId != null && !sourceId.isBlank()) {
-            ragDocumentRepository.deleteDerivedChunks(
-                userId, sourceType, sourceId, TRANSACTION_CHUNK);
-        }
+            userId, sourceType, sourceId, receivedTransactions);
+        sourceTransactions.forEach(transaction -> documents.add(transactionChunk(
+            userId, sourceType, sourceId, effectiveSourceName, transaction, categories)));
         documents.addAll(summaryChunks(
             userId, sourceType, sourceId, effectiveSourceName, sourceTransactions, categories));
         documents.addAll(financialFactChunks(
             userId, sourceType, sourceId, effectiveSourceName));
 
-        if (!documents.isEmpty()) {
-            ragDocumentRepository.saveAll(documents);
+        boolean changed = reconcileDocuments(userId, sourceType, sourceId, documents);
+        if (changed) {
+            ragIndexQueueRepository.enqueue(userId);
+        }
+        log.info("ETL RAG reconciliado com {} chunks para o usuário {} (alterado: {})",
+            documents.size(), userId, changed);
+    }
+
+    private boolean reconcileDocuments(UUID userId,
+                                       String sourceType,
+                                       String sourceId,
+                                       List<RagDocument> desiredDocuments) {
+        Map<String, RagDocument> existingByKey = ragDocumentRepository
+            .findByUserIdAndSourceTypeAndSourceId(userId, sourceType, sourceId)
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(
+                RagDocument::getChunkKey,
+                document -> document,
+                (first, ignored) -> first));
+
+        List<RagDocument> documentsToSave = new ArrayList<>();
+        for (RagDocument desired : desiredDocuments) {
+            RagDocument existing = existingByKey.remove(desired.getChunkKey());
+            if (existing == null) {
+                documentsToSave.add(desired);
+                continue;
+            }
+
+            boolean contentChanged = !Objects.equals(
+                existing.getContentHash(), desired.getContentHash())
+                || !Objects.equals(existing.getSchemaVersion(), desired.getSchemaVersion());
+            boolean metadataChanged = !Objects.equals(existing.getMetadata(), desired.getMetadata());
+            if (!contentChanged && !metadataChanged) {
+                continue;
+            }
+
+            existing.setTransactionId(desired.getTransactionId());
+            existing.setChunkType(desired.getChunkType());
+            existing.setDocumentChunk(desired.getDocumentChunk());
+            existing.setContentHash(desired.getContentHash());
+            existing.setSchemaVersion(desired.getSchemaVersion());
+            existing.setMetadata(desired.getMetadata());
+            if (contentChanged) {
+                existing.setEmbeddingModel(null);
+                existing.setEmbeddingCreatedAt(null);
+                existing.setIndexStatus(RagIndexStatus.PENDING);
+                existing.setIndexError(null);
+                existing.setIndexAttemptedAt(null);
+            }
+            documentsToSave.add(existing);
         }
 
-        if (!documents.isEmpty()) {
-            List<String> sourceIds = sourceId == null || sourceId.isBlank()
-                ? List.of()
-                : List.of(sourceId);
-            eventPublisher.publishEvent(new RagIndexRequestedEvent(userId, sourceIds));
+        if (!documentsToSave.isEmpty()) {
+            ragDocumentRepository.saveAllAndFlush(documentsToSave);
         }
-        log.info("ETL RAG concluído com {} chunks para o usuário {}", documents.size(), userId);
+        if (!existingByKey.isEmpty()) {
+            ragDocumentRepository.deleteAll(existingByKey.values());
+        }
+        return !documentsToSave.isEmpty() || !existingByKey.isEmpty();
     }
 
     private List<RagDocument> financialFactChunks(UUID userId,
@@ -224,7 +258,7 @@ public class RagIngestionService {
         metadata.put("totalExpenses", overview.totalExpenses());
         metadata.put("balance", overview.balance());
         return document(userId, sourceType, sourceId, null,
-            FINANCIAL_OVERVIEW_CHUNK, content, metadata);
+            FINANCIAL_OVERVIEW_CHUNK, "financial-overview", content, metadata);
     }
 
     private RagDocument monthlyFactChunk(UUID userId,
@@ -256,7 +290,7 @@ public class RagIngestionService {
         metadata.put("totalExpenses", month.totalExpenses());
         metadata.put("balance", month.balance());
         return document(userId, sourceType, sourceId, null,
-            MONTHLY_FACT_CHUNK, content, metadata);
+            MONTHLY_FACT_CHUNK, "monthly-fact:" + month.period(), content, metadata);
     }
 
     private RagDocument categoryFactChunk(UUID userId,
@@ -287,7 +321,7 @@ public class RagIngestionService {
         metadata.put("totalExpenses", category.totalExpenses());
         metadata.put("percentage", category.percentage());
         return document(userId, sourceType, sourceId, null,
-            CATEGORY_FACT_CHUNK, content, metadata);
+            CATEGORY_FACT_CHUNK, "category-fact:" + category.code(), content, metadata);
     }
 
     private RagDocument financialRankingChunk(UUID userId,
@@ -320,7 +354,7 @@ public class RagIngestionService {
         metadata.put("highestExpensePeriod", rankingPeriod(rankings.highestExpenseMonth()));
         metadata.put("lowestExpensePeriod", rankingPeriod(rankings.lowestExpenseMonth()));
         return document(userId, sourceType, sourceId, null,
-            FINANCIAL_RANKING_CHUNK, content, metadata);
+            FINANCIAL_RANKING_CHUNK, "financial-ranking", content, metadata);
     }
 
     private Map<String, Object> factMetadata(String sourceType,
@@ -374,8 +408,8 @@ public class RagIngestionService {
             return 0;
         }
         try {
-            int count = aiServiceClient.indexRagDocuments(
-                userId.toString(), normalizedSourceIds(sourceIds));
+            int count = aiServiceClient.indexRagBatchOrThrow(
+                userId.toString(), normalizedSourceIds(sourceIds)).indexedCount();
             log.info("Indexação RAG concluída com {} vetores para o usuário {}", count, userId);
             return count;
         } catch (Exception exception) {
@@ -386,15 +420,21 @@ public class RagIngestionService {
 
     public RagIndexStatusResponse indexStatus(UUID userId, List<String> sourceIds) {
         List<String> normalizedSources = normalizedSourceIds(sourceIds);
-        long total = countDocuments(userId, normalizedSources, null);
-        long pending = countDocuments(
-            userId, normalizedSources, RagIndexStatus.PENDING);
-        long processing = countDocuments(
-            userId, normalizedSources, RagIndexStatus.PROCESSING);
-        long indexed = countDocuments(
-            userId, normalizedSources, RagIndexStatus.INDEXED);
-        long failed = countDocuments(
-            userId, normalizedSources, RagIndexStatus.FAILED);
+        List<RagIndexStatusCount> counts = normalizedSources.isEmpty()
+            ? ragDocumentRepository.summarizeIndexStatusByUserId(userId)
+            : ragDocumentRepository.summarizeIndexStatusByUserIdAndSourceIdIn(
+                userId, normalizedSources);
+        java.util.EnumMap<RagIndexStatus, Long> totals = new java.util.EnumMap<>(
+            RagIndexStatus.class);
+        for (RagIndexStatusCount count : counts) {
+            totals.put(count.status(), count.total());
+        }
+
+        long pending = totals.getOrDefault(RagIndexStatus.PENDING, 0L);
+        long processing = totals.getOrDefault(RagIndexStatus.PROCESSING, 0L);
+        long indexed = totals.getOrDefault(RagIndexStatus.INDEXED, 0L);
+        long failed = totals.getOrDefault(RagIndexStatus.FAILED, 0L);
+        long total = pending + processing + indexed + failed;
 
         String status;
         if (total == 0) {
@@ -412,20 +452,6 @@ public class RagIngestionService {
         }
         return new RagIndexStatusResponse(
             status, total, pending, processing, indexed, failed);
-    }
-
-    private long countDocuments(UUID userId,
-                                List<String> sourceIds,
-                                RagIndexStatus status) {
-        if (sourceIds.isEmpty()) {
-            return status == null
-                ? ragDocumentRepository.countByUserId(userId)
-                : ragDocumentRepository.countByUserIdAndIndexStatus(userId, status);
-        }
-        return status == null
-            ? ragDocumentRepository.countByUserIdAndSourceIdIn(userId, sourceIds)
-            : ragDocumentRepository.countByUserIdAndSourceIdInAndIndexStatus(
-                userId, sourceIds, status);
     }
 
     private List<String> normalizedSourceIds(List<String> sourceIds) {
@@ -487,7 +513,7 @@ public class RagIngestionService {
         metadata.put("description", description);
 
         return document(userId, sourceType, sourceId, transaction.getId(),
-            TRANSACTION_CHUNK, content, metadata);
+            TRANSACTION_CHUNK, "transaction:" + transaction.getId(), content, metadata);
     }
 
     private List<RagDocument> summaryChunks(UUID userId,
@@ -546,7 +572,7 @@ public class RagIngestionService {
         metadata.put("balance", balance);
         metadata.put("transactionCount", transactions.size());
         return document(userId, sourceType, sourceId, null,
-            MONTHLY_SUMMARY_CHUNK, content, metadata);
+            MONTHLY_SUMMARY_CHUNK, "monthly-summary:" + month, content, metadata);
     }
 
     private RagDocument categorySummary(UUID userId,
@@ -573,7 +599,10 @@ public class RagIngestionService {
         metadata.put("expenses", expenses);
         metadata.put("transactionCount", transactions.size());
         return document(userId, sourceType, sourceId, null,
-            CATEGORY_SUMMARY_CHUNK, content, metadata);
+            CATEGORY_SUMMARY_CHUNK,
+            "category-summary:" + month + ":" + sha256(category).substring(0, 32),
+            content,
+            metadata);
     }
 
     private RagDocument document(UUID userId,
@@ -581,6 +610,7 @@ public class RagIngestionService {
                                  String sourceId,
                                  UUID transactionId,
                                  String chunkType,
+                                 String chunkKey,
                                  String content,
                                  Map<String, Object> metadata) {
         RagDocument document = new RagDocument();
@@ -589,6 +619,8 @@ public class RagIngestionService {
         document.setSourceId(sourceId);
         document.setTransactionId(transactionId);
         document.setChunkType(chunkType);
+        document.setChunkKey(chunkKey);
+        document.setSchemaVersion(CHUNK_SCHEMA_VERSION);
         document.setDocumentChunk(content);
         document.setContentHash(sha256(content));
         document.setMetadata(json(metadata));
@@ -602,6 +634,7 @@ public class RagIngestionService {
         metadata.put("source", sourceType);
         metadata.put("sourceId", sourceId);
         metadata.put("sourceName", valueOrDefault(sourceName, sourceId));
+        metadata.put("chunkSchemaVersion", CHUNK_SCHEMA_VERSION);
         return metadata;
     }
 

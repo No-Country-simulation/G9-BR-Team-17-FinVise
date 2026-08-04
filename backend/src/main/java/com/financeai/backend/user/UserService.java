@@ -16,6 +16,8 @@ import com.financeai.backend.recommendation.RecommendationRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -108,11 +110,18 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<FinancialAnalysisHistoryDto> getHistory(UUID userId) {
+    public FinancialAnalysisHistoryPageResponse getHistory(UUID userId, int page, int size) {
         findUser(userId);
-        return analysisRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-            .map(FinancialAnalysisHistoryDto::from)
-            .toList();
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 50));
+        Page<FinancialAnalysis> result = analysisRepository.findPageByUserAndSource(
+            userId, null, PageRequest.of(safePage, safeSize));
+        return new FinancialAnalysisHistoryPageResponse(
+            result.getContent().stream().map(FinancialAnalysisHistoryDto::from).toList(),
+            result.getTotalElements(),
+            result.getTotalPages(),
+            result.getSize(),
+            result.getNumber());
     }
 
     @Transactional(readOnly = true)

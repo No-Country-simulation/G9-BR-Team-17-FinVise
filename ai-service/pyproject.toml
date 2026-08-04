@@ -18,6 +18,7 @@ dependencies = [
     "python-dotenv==1.0.1",
     "httpx==0.28.1",
     "psycopg[binary]==3.2.3",
+    "psycopg-pool==3.3.1",
 ]
 
 [project.optional-dependencies]
@@ -30,7 +31,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*", "training*"]
+include = ["app*", "training*", "evaluation*"]
 exclude = ["tests*", "data*", "models*"]
 
 [tool.pytest.ini_options]
@@ -51,3 +52,4 @@ prepare-dataset = "training.prepare_dataset:main"
 train-transaction = "training.train_transaction_classifier:main"
 train-profile = "training.train_profile_classifier:main"
 evaluate-models = "training.evaluate_models:main"
+evaluate-rag = "evaluation.evaluate_rag:main"

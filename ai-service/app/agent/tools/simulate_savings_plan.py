@@ -6,10 +6,8 @@ def simulate_savings_plan(
     target_amount: float,
     months: int = 12,
 ) -> dict:
-    profile = context.financial_profile
-    income = profile.get("monthlyIncome", 0.0) or 0.0
-    indicators = context.indicators
-    current_rate = indicators.get("savingsRatePercentage", 0.0) or 0.0
+    income = context.financial_profile.monthly_income
+    current_rate = context.indicators.savings_rate_pct or 0.0
 
     if income <= 0 or target_amount <= 0 or months <= 0:
         return {

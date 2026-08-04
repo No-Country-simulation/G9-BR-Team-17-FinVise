@@ -99,8 +99,8 @@ O schema efetivo é a composição das migrações `V1`–`V21`:
 | Identidade | `users`, `password_reset_codes` | conta e recuperação de senha |
 | Transações | `transactions`, `transaction_categories`, `imported_files`, `open_finance_connections` | movimentações e suas fontes |
 | Análises | `financial_analyses`, `financial_indicators`, `spending_summaries`, `recommendations` | diagnósticos persistidos |
-| Agente | `agent_conversations`, `agent_messages` | origem, opções RAG, histórico, tools e fontes citadas |
-| RAG/fatos | `rag_documents`, `financial_fact_snapshots` | chunks, vetores, full-text, status de índice e snapshots JSONB |
+| Agente | `agent_conversations`, `agent_messages`, `agent_message_requests` | origem, opções RAG, histórico resumido, idempotência, concorrência, tools e fontes citadas |
+| RAG/fatos | `rag_documents`, `rag_document_embeddings`, `rag_index_jobs`, `financial_fact_snapshots` | chunks, vetores isolados por modelo, fila durável, status e snapshots JSONB |
 | Modelos | `model_versions` | tabela criada no schema inicial; o status HTTP atual vem do registry em memória do AI Service |
 
 Relações e isolamento principais:
@@ -112,7 +112,7 @@ Relações e isolamento principais:
 - chunks RAG mantêm `user_id`, `source_type`, `source_id`, `chunk_type` e `transaction_id` quando aplicável;
 - `financial_fact_snapshots` é único por `(user_id, source_type, source_id)`.
 
-O `pgvector` é habilitado de forma tolerante: em ambientes sem a extensão, Flyway mantém o restante do schema e o RAG pode usar busca full-text por palavras-chave. Quando disponível, `embedding vector(1536)` possui índice HNSW com distância de cosseno.
+O `pgvector` é habilitado de forma tolerante: em ambientes sem a extensão, Flyway mantém o restante do schema e o RAG usa full-text configurado para português. Quando disponível, `rag_document_embeddings` preserva um vetor por documento e modelo com índice HNSW. Os rankings vetorial e textual são independentes e fundidos por Reciprocal Rank Fusion.
 
 ### Infraestrutura
 
@@ -150,27 +150,33 @@ sequenceDiagram
     F->>B: POST /api/v1/imports/transactions/csv
     B->>B: Valida tipo, tamanho e SHA-256
     B->>S: Armazena o arquivo
-    B->>B: Parseia linhas e categoriza
-    B->>DB: Persiste arquivo e transações
-    B->>DB: Reconstrói fatos e chunks RAG
-    B->>B: Tenta gerar análise automática
+    B->>B: Parseia o conteúdo fora de transação de banco
+    B->>AI: Classifica transações em lotes fora de transação de banco
+    B->>DB: Em transação curta, persiste arquivo e transações
+    B->>DB: Reconstrói fatos/chunks e enfileira job RAG no mesmo commit
+    alt Persistência falha
+        B->>S: Remove o arquivo armazenado
+    end
     B-->>F: ImportResultResponse
-    B-)AI: Enfileira /internal/v1/rag/index após commit
+    B->>DB: Worker reivindica job com SKIP LOCKED
+    B->>AI: POST /internal/v1/rag/index síncrono
     AI->>DB: Gera e persiste embeddings
+    B->>DB: Conclui ou reagenda job com backoff
 ```
 
-O processamento do upload é transacional no backend, mas a indexação de embeddings ocorre depois do commit em uma tarefa de background do FastAPI.
+O armazenamento, o parsing e a classificação não mantêm uma transação PostgreSQL aberta. O job RAG é persistido na mesma transação dos chunks. A indexação ocorre depois do commit por um worker do backend, que renova o heartbeat e drena lotes pendentes. Falhas são reagendadas com backoff exponencial; jobs interrompidos podem ser retomados após o timeout do heartbeat e, ao esgotar as tentativas, exigem recuperação manual do estado `DEAD_LETTER`.
 
 ### Sincronização Open Finance
 
 1. Frontend consulta o status e solicita um Connect Token ao backend.
 2. Backend autentica na Pluggy e vincula `clientUserId` ao UUID do usuário.
 3. Após o widget devolver `itemId`, o frontend chama `/items/{itemId}/sync`.
-4. Backend verifica o proprietário, busca contas e até 100 páginas de transações por conta.
-5. Apenas registros `POSTED` válidos são mapeados; duplicatas são ignoradas.
-6. Backend persiste, recalcula fatos, cria chunks, gera análise e solicita embeddings.
+4. Backend verifica o proprietário e busca contas e até 100 páginas de transações por conta sem manter transação de banco aberta.
+5. Apenas registros `POSTED` válidos são mapeados; IDs externos existentes são carregados em uma única consulta e somente os candidatos novos são classificados.
+6. Uma transação curta, serializada por conexão com advisory lock, grava os registros em lotes com `ON CONFLICT DO NOTHING`, recalcula fatos, cria chunks e registra o job RAG.
+7. Depois do commit, o backend calcula o perfil no AI Service e abre outra transação curta apenas para persistir a análise.
 
-Não existe consumidor de webhook no código atual; a sincronização é acionada pelo endpoint.
+Não existe consumidor de webhook no código atual; a sincronização é acionada pelo endpoint. Chamadas à Pluggy e ao AI Service nunca são executadas dentro da transação que persiste a sincronização.
 
 ### Análise financeira
 
@@ -208,8 +214,9 @@ sequenceDiagram
     participant L as API LLM opcional
 
     F->>B: POST .../messages/stream + JWT
-    B->>DB: Persiste mensagem USER
-    B->>B: Calcula contexto e fatos analíticos
+    B->>DB: Registra idempotência e adquire a conversa
+    B->>DB: Persiste USER e consulta agregações SQL limitadas
+    B->>B: Resume mensagens antigas e aplica orçamento de tokens
     B->>AI: POST /internal/v1/agent/respond/stream
     par Ferramentas
         AI->>AI: Executa ferramentas sobre AgentContext
@@ -223,15 +230,19 @@ sequenceDiagram
     AI-->>B: SSE tools, sources e token
     B-->>F: SSE conversation, tools, sources e token
     B->>DB: Persiste mensagem ASSISTANT concluída
+    B->>DB: Conclui requisição e libera a conversa
     B-->>F: SSE done
 ```
 
 Ferramentas e recuperação rodam em paralelo no AI Service. O LLM recebe apenas o prompt, o histórico, os resultados das ferramentas e as evidências recuperadas. Sem LLM, um provider de template determinístico gera a resposta; se o stream interno falhar antes de produzir texto, o backend usa uma resposta segura baseada nos totais da origem.
 
+O histórico público é paginado. Para inferência, somente a janela recente e um resumo incremental das mensagens antigas são enviados. A exclusão mútua por conversa e a idempotência ficam no PostgreSQL, portanto não dependem da memória de uma réplica. Ao desconectar o SSE, o backend cancela a chamada interna e o AI Service fecha o stream do provider.
+
 ## Segurança e limites de confiança
 
 - Nginx é o único serviço publicado no override de produção.
-- `/internal/` recebe `403` no Nginx, mas o FastAPI não autentica chamadas internas; a rede Docker é o limite de confiança atual.
+- `/internal/` recebe `403` no Nginx e o FastAPI exige um Bearer token de serviço em todas as rotas internas.
+- Agente e RAG recebem o UUID em `X-FinVise-User-Id` somente após autenticar o backend; `user_id` no corpo é rejeitado.
 - O backend aplica JWT e extrai o usuário do principal autenticado.
 - Consultas RAG sempre filtram `user_id` e opcionalmente origem/fontes.
 - Credenciais Pluggy e chaves de LLM ficam no servidor.
@@ -245,7 +256,11 @@ As decisões e seus ajustes estão em `docs/adr/`. Em especial:
 
 - ADR 003 documenta o acesso SQL restrito do AI Service para RAG;
 - ADR 006 descreve ferramentas, RAG e fallbacks do agente;
-- ADR 007 limita o Object Storage implementado aos arquivos CSV importados.
+- ADR 007 limita o Object Storage implementado aos arquivos CSV importados;
+- ADR 008 define a fila PostgreSQL durável para indexação RAG.
+- ADR 011 define a autenticação e a propagação confiável de identidade entre backend e AI Service.
+- ADR 012 define limites de contexto, idempotência, concorrência e cancelamento do SSE.
+- ADR 013 define rankings vetorial/textual independentes, isolamento por modelo e fusão RRF.
 
 ## Escopo implementado
 
@@ -256,7 +271,7 @@ Fora do escopo comprovado no repositório:
 - webhook receptor de Open Finance;
 - exportação real de relatório em PDF/Excel;
 - terminação TLS pronta no Nginx versionado;
-- fila externa para jobs;
+- fila externa dedicada; a fila RAG implementada usa o próprio PostgreSQL;
 - revogação de JWTs de login após redefinição de senha;
 - montagem de credenciais OCI no Compose;
 - escalabilidade horizontal ou Kubernetes.

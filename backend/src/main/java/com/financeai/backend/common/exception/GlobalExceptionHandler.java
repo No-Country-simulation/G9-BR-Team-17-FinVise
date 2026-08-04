@@ -1,5 +1,8 @@
 package com.financeai.backend.common.exception;
 
+import com.financeai.backend.rag.RagQueueOperationConflictException;
+import com.financeai.backend.agent.AgentConversationBusyException;
+import com.financeai.backend.agent.AgentIdempotencyConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -119,6 +122,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleEmailAlreadyExists(EmailAlreadyExistsException ex,
                                                              HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(RagQueueOperationConflictException.class)
+    public ResponseEntity<ApiError> handleRagQueueConflict(RagQueueOperationConflictException ex,
+                                                            HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "RAG_QUEUE_CONFLICT", ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(AgentConversationBusyException.class)
+    public ResponseEntity<ApiError> handleAgentConversationBusy(AgentConversationBusyException ex,
+                                                                 HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "AGENT_CONVERSATION_BUSY", ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(AgentIdempotencyConflictException.class)
+    public ResponseEntity<ApiError> handleAgentIdempotencyConflict(
+        AgentIdempotencyConflictException ex, HttpServletRequest request
+    ) {
+        return buildResponse(HttpStatus.CONFLICT, "AGENT_IDEMPOTENCY_CONFLICT",
+            ex.getMessage(), request, null);
     }
 
     private ResponseEntity<ApiError> buildResponse(HttpStatus status, String code, String message,

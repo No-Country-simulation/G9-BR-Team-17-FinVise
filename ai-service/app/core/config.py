@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
+    service_token: str = Field(alias="AI_SERVICE_TOKEN", min_length=32)
 
     models_dir: Path = Field(default=Path("models"), alias="MODELS_DIR")
     transaction_model_path: Path = Field(
@@ -50,17 +51,41 @@ class Settings(BaseSettings):
         default=True, alias="RAG_ENABLE_REMOTE_EMBEDDINGS"
     )
     rag_embedding_model: str = Field(
-        default="text-embedding-3-small", alias="RAG_EMBEDDING_MODEL"
+        default="text-embedding-3-small",
+        min_length=1,
+        max_length=120,
+        alias="RAG_EMBEDDING_MODEL",
     )
     rag_embedding_batch_size: int = Field(default=200, alias="RAG_EMBEDDING_BATCH_SIZE")
     rag_index_max_batches: int = Field(default=100, alias="RAG_INDEX_MAX_BATCHES")
     rag_min_relevance: float = Field(default=0.18, alias="RAG_MIN_RELEVANCE")
+    rag_hybrid_rrf_k: int = Field(default=60, ge=1, alias="RAG_HYBRID_RRF_K")
+    rag_vector_weight: float = Field(default=1.0, gt=0, alias="RAG_VECTOR_WEIGHT")
+    rag_text_weight: float = Field(default=1.0, gt=0, alias="RAG_TEXT_WEIGHT")
+    rag_candidate_multiplier: int = Field(
+        default=4, ge=1, le=20, alias="RAG_CANDIDATE_MULTIPLIER"
+    )
+    rag_retrieval_metrics_window: int = Field(
+        default=1000, ge=10, le=10000, alias="RAG_RETRIEVAL_METRICS_WINDOW"
+    )
+    rag_db_pool_min_size: int = Field(
+        default=0, ge=0, alias="RAG_DB_POOL_MIN_SIZE"
+    )
+    rag_db_pool_max_size: int = Field(
+        default=10, ge=1, alias="RAG_DB_POOL_MAX_SIZE"
+    )
+    rag_db_pool_timeout_seconds: float = Field(
+        default=10.0, gt=0, alias="RAG_DB_POOL_TIMEOUT_SECONDS"
+    )
 
     agent_system_prompt_path: Path = Field(
         default=Path("app/agent/prompts/system_prompt.txt"), alias="AGENT_SYSTEM_PROMPT_PATH"
     )
     agent_enable_recommendations: bool = Field(default=True, alias="AGENT_ENABLE_RECOMMENDATIONS")
     agent_enable_simulations: bool = Field(default=True, alias="AGENT_ENABLE_SIMULATIONS")
+    agent_input_token_budget: int = Field(
+        default=8000, ge=1000, alias="AGENT_INPUT_TOKEN_BUDGET"
+    )
 
     dataset_raw_dir: Path = Field(
         default=Path("../finance_ai_dataset"), alias="DATASET_RAW_DIR"

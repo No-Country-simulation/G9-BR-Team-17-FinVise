@@ -1,6 +1,8 @@
 package com.financeai.backend.transaction;
 
 import com.financeai.backend.common.exception.ResourceNotFoundException;
+import com.financeai.backend.fact.FinancialSourceConsistencyService;
+import com.financeai.backend.importation.ImportedFileRepository;
 import com.financeai.backend.integration.ai.*;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
@@ -31,17 +33,23 @@ public class TransactionService {
     private final UserRepository userRepository;
     private final AiServiceClient aiServiceClient;
     private final TransactionCategorizationService categorizationService;
+    private final ImportedFileRepository importedFileRepository;
+    private final FinancialSourceConsistencyService sourceConsistencyService;
 
     public TransactionService(TransactionRepository transactionRepository,
                               TransactionCategoryRepository categoryRepository,
                               UserRepository userRepository,
                               AiServiceClient aiServiceClient,
-                              TransactionCategorizationService categorizationService) {
+                              TransactionCategorizationService categorizationService,
+                              ImportedFileRepository importedFileRepository,
+                              FinancialSourceConsistencyService sourceConsistencyService) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.aiServiceClient = aiServiceClient;
         this.categorizationService = categorizationService;
+        this.importedFileRepository = importedFileRepository;
+        this.sourceConsistencyService = sourceConsistencyService;
     }
 
     @Transactional
@@ -202,9 +210,20 @@ public class TransactionService {
 
         List<Transaction> transactions = transactionRepository
             .findByUserIdAndSourceAndCategoryId(userId, "CSV_IMPORT", othersCategoryId);
+        Set<UUID> affectedSourceIds = transactions.stream()
+            .map(Transaction::getImportSourceId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         TransactionCategorizationService.CategorizationResult result =
             categorizationService.categorize(transactions);
-        transactionRepository.saveAll(transactions);
+        transactionRepository.saveAllAndFlush(transactions);
+        affectedSourceIds.forEach(sourceId -> sourceConsistencyService.refresh(
+            userId,
+            TransactionSource.CSV_IMPORT,
+            sourceId,
+            importedFileRepository.findByIdAndUserId(sourceId, userId)
+                .map(file -> file.getOriginalName())
+                .orElse(sourceId.toString())));
         return new TransactionReclassificationResponse(
             result.processedCount(), result.categorizedCount(), result.modelVersion());
     }
@@ -213,15 +232,10 @@ public class TransactionService {
     public TransactionSummaryResponse getSummary(UUID userId,
                                                  TransactionSource source,
                                                  UUID importSourceId) {
-        List<Transaction> transactions = sourceTransactions(userId, source, importSourceId);
-        BigDecimal income = transactions.stream()
-            .filter(t -> t.getType() == TransactionType.INCOME)
-            .map(Transaction::getAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal expense = transactions.stream()
-            .filter(t -> t.getType() == TransactionType.EXPENSE)
-            .map(Transaction::getAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        TransactionRepository.TotalsProjection totals = transactionRepository.summarize(
+            userId, sourceName(source), sourceId(importSourceId));
+        BigDecimal income = defaultAmount(totals.getTotalIncome());
+        BigDecimal expense = defaultAmount(totals.getTotalExpense());
         return new TransactionSummaryResponse(income, expense, income.subtract(expense));
     }
 
@@ -229,30 +243,23 @@ public class TransactionService {
     public List<MonthlyTransactionSummaryResponse> getMonthlySummary(UUID userId,
                                                                      TransactionSource source,
                                                                      UUID importSourceId) {
-        List<Transaction> transactions = sourceTransactions(userId, source, importSourceId);
-        if (transactions.isEmpty()) {
+        List<TransactionRepository.MonthlyTotalsProjection> rows =
+            transactionRepository.summarizeByMonth(
+                userId, sourceName(source), sourceId(importSourceId));
+        if (rows.isEmpty()) {
             return List.of();
         }
-
-        Map<YearMonth, BigDecimal> incomeByMonth = new TreeMap<>();
-        Map<YearMonth, BigDecimal> expenseByMonth = new TreeMap<>();
-        for (Transaction transaction : transactions) {
-            YearMonth month = YearMonth.from(transaction.getTransactionDate());
-            if (transaction.getType() == TransactionType.INCOME) {
-                incomeByMonth.merge(month, transaction.getAmount(), BigDecimal::add);
-            } else if (transaction.getType() == TransactionType.EXPENSE) {
-                expenseByMonth.merge(month, transaction.getAmount(), BigDecimal::add);
-            }
-        }
-
-        YearMonth first = YearMonth.from(transactions.stream()
-            .map(Transaction::getTransactionDate).min(LocalDate::compareTo).orElseThrow());
-        YearMonth last = YearMonth.from(transactions.stream()
-            .map(Transaction::getTransactionDate).max(LocalDate::compareTo).orElseThrow());
+        Map<YearMonth, TransactionRepository.MonthlyTotalsProjection> totalsByMonth = rows.stream()
+            .collect(Collectors.toMap(
+                row -> YearMonth.parse(row.getMonthValue()),
+                row -> row));
+        YearMonth first = YearMonth.parse(rows.getFirst().getMonthValue());
+        YearMonth last = YearMonth.parse(rows.getLast().getMonthValue());
         List<MonthlyTransactionSummaryResponse> result = new ArrayList<>();
         for (YearMonth month = first; !month.isAfter(last); month = month.plusMonths(1)) {
-            BigDecimal income = incomeByMonth.getOrDefault(month, BigDecimal.ZERO);
-            BigDecimal expense = expenseByMonth.getOrDefault(month, BigDecimal.ZERO);
+            TransactionRepository.MonthlyTotalsProjection row = totalsByMonth.get(month);
+            BigDecimal income = row != null ? defaultAmount(row.getIncome()) : BigDecimal.ZERO;
+            BigDecimal expense = row != null ? defaultAmount(row.getExpense()) : BigDecimal.ZERO;
             result.add(new MonthlyTransactionSummaryResponse(
                 month, income, expense, income.subtract(expense)));
         }
@@ -263,35 +270,23 @@ public class TransactionService {
     public List<CategorySpendingResponse> getCategorySummary(UUID userId,
                                                              TransactionSource source,
                                                              UUID importSourceId) {
-        Map<UUID, String> categoryCodes = categoryRepository.findAll().stream()
-            .collect(Collectors.toMap(TransactionCategory::getId, TransactionCategory::getCode));
-        return sourceTransactions(userId, source, importSourceId).stream()
-            .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
-            .collect(Collectors.groupingBy(
-                transaction -> transaction.getCategoryId() == null
-                    ? "OUTROS"
-                    : categoryCodes.getOrDefault(transaction.getCategoryId(), "OUTROS"),
-                Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
-            ))
-            .entrySet().stream()
-            .map(entry -> new CategorySpendingResponse(entry.getKey(), entry.getValue()))
-            .sorted(Comparator.comparing(CategorySpendingResponse::amount).reversed())
+        return transactionRepository.summarizeExpensesByCategory(
+                userId, sourceName(source), sourceId(importSourceId)).stream()
+            .map(row -> new CategorySpendingResponse(
+                row.getCategoryCode(), defaultAmount(row.getAmount())))
             .toList();
     }
 
-    private List<Transaction> sourceTransactions(UUID userId,
-                                                 TransactionSource source,
-                                                 UUID importSourceId) {
-        if (importSourceId != null) {
-            return transactionRepository
-                .findByUserIdAndImportSourceIdOrderByTransactionDateDesc(userId, importSourceId)
-                .stream()
-                .filter(transaction -> source == null || source.name().equals(transaction.getSource()))
-                .toList();
-        }
-        return source == null
-            ? transactionRepository.findByUserIdOrderByTransactionDateDesc(userId)
-            : transactionRepository.findByUserIdAndSourceOrderByTransactionDateDesc(userId, source.name());
+    private String sourceName(TransactionSource source) {
+        return source != null ? source.name() : null;
+    }
+
+    private String sourceId(UUID importSourceId) {
+        return importSourceId != null ? importSourceId.toString() : null;
+    }
+
+    private BigDecimal defaultAmount(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     private TransactionResponse toResponse(Transaction transaction, Map<UUID, String> categoryCodes) {

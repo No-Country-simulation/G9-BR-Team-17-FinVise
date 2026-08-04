@@ -15,6 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,7 +77,8 @@ class FinancialCalculationTest {
             categoryRepository,
             userRepository,
             aiServiceClient,
-            recommendationEngine
+            recommendationEngine,
+            immediateTransactions()
         );
     }
 
@@ -95,14 +99,17 @@ class FinancialCalculationTest {
         TransactionCategory others = new TransactionCategory();
         others.setId(UUID.randomUUID());
         others.setCode("OUTROS");
-        when(categoryRepository.findByCode("OUTROS")).thenReturn(Optional.of(others));
+        when(categoryRepository.findAll()).thenReturn(List.of(others));
+        when(categoryRepository.findAllById(any())).thenReturn(List.of(others));
 
-        when(transactionRepository.save(any())).thenAnswer(invocation -> {
-            Transaction t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                t.setId(UUID.randomUUID());
-            }
-            return t;
+        when(transactionRepository.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<Transaction> transactionsToSave = invocation.getArgument(0);
+            transactionsToSave.forEach(transaction -> {
+                if (transaction.getId() == null) {
+                    transaction.setId(UUID.randomUUID());
+                }
+            });
+            return transactionsToSave;
         });
         when(analysisRepository.save(any())).thenAnswer(invocation -> {
             FinancialAnalysis a = invocation.getArgument(0);
@@ -150,6 +157,15 @@ class FinancialCalculationTest {
         assertThat(indicators.estimatedSavingsRate()).isEqualByComparingTo(BigDecimal.valueOf(60.00));
     }
 
+    private TransactionOperations immediateTransactions() {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                return action.doInTransaction(org.mockito.Mockito.mock(TransactionStatus.class));
+            }
+        };
+    }
+
     @Test
     void shouldReturnZeroForEmptyIncomeCommitmentWhenNoIncome() {
         // given
@@ -167,14 +183,17 @@ class FinancialCalculationTest {
         TransactionCategory others = new TransactionCategory();
         others.setId(UUID.randomUUID());
         others.setCode("OUTROS");
-        when(categoryRepository.findByCode("OUTROS")).thenReturn(Optional.of(others));
+        when(categoryRepository.findAll()).thenReturn(List.of(others));
+        when(categoryRepository.findAllById(any())).thenReturn(List.of(others));
 
-        when(transactionRepository.save(any())).thenAnswer(invocation -> {
-            Transaction t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                t.setId(UUID.randomUUID());
-            }
-            return t;
+        when(transactionRepository.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<Transaction> transactionsToSave = invocation.getArgument(0);
+            transactionsToSave.forEach(transaction -> {
+                if (transaction.getId() == null) {
+                    transaction.setId(UUID.randomUUID());
+                }
+            });
+            return transactionsToSave;
         });
         when(analysisRepository.save(any())).thenAnswer(invocation -> {
             FinancialAnalysis a = invocation.getArgument(0);

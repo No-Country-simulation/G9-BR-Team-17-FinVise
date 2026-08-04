@@ -4,11 +4,12 @@ import com.financeai.backend.importation.ImportSourceService;
 import com.financeai.backend.importation.ImportSourceType;
 import com.financeai.backend.importation.ImportedFile;
 import com.financeai.backend.importation.ImportedFileRepository;
+import com.financeai.backend.fact.FinancialSourceConsistencyService;
 import com.financeai.backend.integration.objectstorage.ObjectStorageService;
 import com.financeai.backend.openfinance.OpenFinanceConnection;
 import com.financeai.backend.openfinance.OpenFinanceConnectionRepository;
-import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.transaction.TransactionRepository;
+import com.financeai.backend.transaction.TransactionSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,7 +34,7 @@ class ImportSourceServiceTest {
     @Mock
     private TransactionRepository transactionRepository;
     @Mock
-    private RagDocumentRepository ragDocumentRepository;
+    private FinancialSourceConsistencyService sourceConsistencyService;
     @Mock
     private ObjectStorageService objectStorageService;
     @InjectMocks
@@ -67,8 +68,8 @@ class ImportSourceServiceTest {
         service.delete(userId, ImportSourceType.CSV, sourceId);
 
         verify(transactionRepository).deleteByUserIdAndImportSourceId(userId, sourceId);
-        verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(
-            userId, "CSV_IMPORT", sourceId.toString());
+        verify(sourceConsistencyService).removeDerivedData(
+            userId, TransactionSource.CSV_IMPORT, sourceId);
         verify(objectStorageService).delete("stored.csv");
         verify(importedFileRepository).delete(file);
     }
@@ -84,8 +85,8 @@ class ImportSourceServiceTest {
         service.delete(userId, ImportSourceType.OPEN_FINANCE, sourceId);
 
         verify(transactionRepository).deleteByUserIdAndImportSourceId(userId, sourceId);
-        verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(
-            userId, "OPEN_FINANCE", sourceId.toString());
+        verify(sourceConsistencyService).removeDerivedData(
+            userId, TransactionSource.OPEN_FINANCE_PLUGGY, sourceId);
         verify(connectionRepository).delete(connection);
     }
 
@@ -101,6 +102,6 @@ class ImportSourceServiceTest {
             .isInstanceOf(com.financeai.backend.common.exception.ResourceNotFoundException.class);
 
         verifyNoInteractions(
-            transactionRepository, ragDocumentRepository, objectStorageService);
+            transactionRepository, sourceConsistencyService, objectStorageService);
     }
 }

@@ -3,13 +3,11 @@ package com.financeai.backend;
 import com.financeai.backend.analysis.AnalysisService;
 import com.financeai.backend.analysis.ProfileAnalysisModel;
 import com.financeai.backend.config.OpenFinanceProperties;
-import com.financeai.backend.fact.FinancialFactsService;
-import com.financeai.backend.openfinance.OpenFinanceConnection;
 import com.financeai.backend.openfinance.OpenFinanceConnectionRepository;
+import com.financeai.backend.openfinance.OpenFinancePersistenceService;
 import com.financeai.backend.openfinance.OpenFinanceService;
 import com.financeai.backend.openfinance.OpenFinanceSyncResponse;
 import com.financeai.backend.openfinance.PluggyClient;
-import com.financeai.backend.rag.RagIngestionService;
 import com.financeai.backend.transaction.Transaction;
 import com.financeai.backend.transaction.TransactionCategorizationService;
 import com.financeai.backend.transaction.TransactionRepository;
@@ -27,13 +25,17 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class OpenFinanceServiceTest {
@@ -53,9 +55,7 @@ class OpenFinanceServiceTest {
     @Mock
     private AnalysisService analysisService;
     @Mock
-    private RagIngestionService ragIngestionService;
-    @Mock
-    private FinancialFactsService financialFactsService;
+    private OpenFinancePersistenceService persistenceService;
     @InjectMocks
     private OpenFinanceService service;
 
@@ -67,15 +67,10 @@ class OpenFinanceServiceTest {
         String itemId = "item-123";
         User user = new User();
         user.setId(userId);
-        OpenFinanceConnection connection = org.mockito.Mockito.mock(
-            OpenFinanceConnection.class);
-        when(connection.getUser()).thenReturn(user);
-        when(connection.getId()).thenReturn(connectionId);
         when(properties.getProvider()).thenReturn("PLUGGY");
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(connectionRepository.findByProviderAndExternalItemId("PLUGGY", itemId))
-            .thenReturn(Optional.of(connection));
-        when(connectionRepository.save(connection)).thenReturn(connection);
+        when(connectionRepository.findOwnerIdByProviderAndExternalItemId("PLUGGY", itemId))
+            .thenReturn(Optional.of(userId));
 
         PluggyClient.PluggyTransaction existing =
             new PluggyClient.PluggyTransaction(
@@ -88,10 +83,12 @@ class OpenFinanceServiceTest {
         when(pluggyClient.fetchTransactions(itemId, userId.toString()))
             .thenReturn(new PluggyClient.PluggySyncData(
                 List.of(existing, fresh), "Conta principal"));
-        when(transactionRepository.existsByUserIdAndSourceAndExternalId(
-            userId, "OPEN_FINANCE_PLUGGY", itemId + ":old")).thenReturn(true);
-        when(transactionRepository.existsByUserIdAndSourceAndExternalId(
-            userId, "OPEN_FINANCE_PLUGGY", itemId + ":new")).thenReturn(false);
+        when(transactionRepository.findExistingExternalIds(
+            eq(userId), eq("OPEN_FINANCE_PLUGGY"), any()))
+            .thenReturn(Set.of(itemId + ":old"));
+        when(persistenceService.persist(
+            eq(userId), eq("PLUGGY"), eq(itemId), eq("Conta principal"), any()))
+            .thenReturn(new OpenFinancePersistenceService.PersistResult(connectionId, 1));
 
         OpenFinanceSyncResponse response = service.synchronize(
             userId, itemId, ProfileAnalysisModel.FINANCIAL_RULES);
@@ -105,17 +102,30 @@ class OpenFinanceServiceTest {
             .satisfies(transaction -> {
                 assertThat(transaction.getExternalId()).isEqualTo(itemId + ":new");
                 assertThat(transaction.getAmount()).isEqualByComparingTo("75");
-                assertThat(transaction.getImportSourceId()).isEqualTo(connectionId);
+                assertThat(transaction.getImportSourceId()).isNull();
             });
-        verify(transactionRepository).saveAll(transactions.getValue());
-        verify(financialFactsService).rebuild(
-            userId, com.financeai.backend.transaction.TransactionSource.OPEN_FINANCE_PLUGGY,
-            connectionId);
-        verify(ragIngestionService).ingestTransactions(
-            userId, "OPEN_FINANCE", connectionId.toString(), null, transactions.getValue());
-        verify(connection).setLastSyncAt(any(Instant.class));
+        verify(persistenceService).persist(
+            userId, "PLUGGY", itemId, "Conta principal", transactions.getValue());
         verify(analysisService).analyzeStoredTransactions(
             eq(userId), eq(ProfileAnalysisModel.FINANCIAL_RULES),
             any(), eq(connectionId), eq(null), eq(null));
+    }
+
+    @Test
+    void shouldRejectAnotherUsersConnectionBeforeCallingPluggy() {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        when(properties.getProvider()).thenReturn("PLUGGY");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(connectionRepository.findOwnerIdByProviderAndExternalItemId(
+            "PLUGGY", "item-private"))
+            .thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThatThrownBy(() -> service.synchronize(
+            userId, "item-private", ProfileAnalysisModel.FINANCIAL_RULES))
+            .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(pluggyClient, categorizationService, persistenceService, analysisService);
     }
 }

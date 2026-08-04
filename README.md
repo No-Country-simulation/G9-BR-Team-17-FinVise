@@ -25,9 +25,10 @@ O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastr
 - Classificação de transações por modelo Scikit-learn ou fallback por palavras-chave.
 - Classificação de perfil por modelo Scikit-learn, regras financeiras selecionáveis ou fallback.
 - Indicadores, resumos mensais e por categoria, recomendações determinísticas e simulação de poupança.
-- Agente com ferramentas analíticas, recuperação híbrida vetorial/full-text e respostas síncronas ou por SSE.
+- Agente com ferramentas analíticas, rankings vetorial e full-text em português independentes, fusão RRF e respostas síncronas ou por SSE.
+- Contexto do agente com agregações SQL, histórico paginado/resumido, orçamento de tokens, idempotência e cancelamento ponta a ponta.
 - Seleção de origem e de fontes específicas (`sourceIds`) para isolar o contexto do agente.
-- Indexação RAG assíncrona após importação, com status consultável e reprocessamento manual.
+- Indexação RAG assíncrona por fila durável no PostgreSQL, com retry, status consultável e reprocessamento manual.
 - Interface React responsiva, PWA, rotas privadas e consumo do backend por `/api/v1`.
 
 ## 🏗️ Arquitetura
@@ -88,7 +89,7 @@ git clone https://github.com/No-Country-simulation/G9-BR-Team-17-FinVise.git
 cd G9-BR-Team-17-FinVise
 
 cp .env.example .env
-# Defina ao menos POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD e JWT_SECRET.
+# Defina POSTGRES_PASSWORD, SPRING_DATASOURCE_PASSWORD, JWT_SECRET e AI_SERVICE_TOKEN.
 # As duas senhas do banco devem ser iguais.
 
 docker compose up -d --build
@@ -99,6 +100,7 @@ A aplicação fica disponível em `http://localhost:8080`. No Compose versionado
 Requisitos dos segredos:
 
 - `JWT_SECRET`: pelo menos 32 bytes para a chave HMAC.
+- `AI_SERVICE_TOKEN`: pelo menos 32 caracteres aleatórios; o mesmo valor autentica o backend no AI Service.
 - `POSTGRES_PASSWORD` e `SPRING_DATASOURCE_PASSWORD`: mesmo valor; no perfil `production`, o backend exige pelo menos 16 caracteres e rejeita placeholders conhecidos.
 - `RESEND_API_KEY`: necessária para a entrega efetiva de e-mails de redefinição de senha. A ausência da chave não impede o backend de iniciar, mas o envio falhará de forma assíncrona.
 
@@ -176,6 +178,8 @@ Todas as rotas abaixo, exceto autenticação e health check, exigem JWT.
 | `POST` | `/api/v1/agent/conversations/{id}/messages/stream` | Resposta do agente por SSE |
 | `GET` | `/api/v1/rag/status` | Contadores da indexação RAG |
 | `POST` | `/api/v1/rag/index-step` | Etapa manual de indexação |
+| `GET` | `/api/v1/rag/queue` | Estado do job durável de indexação |
+| `POST` | `/api/v1/rag/reprocess` | Recuperação manual e reprocessamento controlado |
 | `GET` | `/api/v1/model-status` | Estado dos modelos e do provedor LLM |
 | `GET` | `/actuator/health` | Health check público do backend |
 
@@ -212,9 +216,9 @@ O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-serv
 | Grupo | Variáveis relevantes |
 | --- | --- |
 | Banco/segurança | `POSTGRES_*`, `SPRING_DATASOURCE_*`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS` |
-| AI Service | `AI_SERVICE_URL`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
+| AI Service | `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
 | LLM | `ENABLE_LLM`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT` |
-| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE` |
+| RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE`, `RAG_HYBRID_RRF_K`, `RAG_VECTOR_WEIGHT`, `RAG_TEXT_WEIGHT`, `RAG_CANDIDATE_MULTIPLIER`, `RAG_INDEX_QUEUE_*` |
 | Open Finance | `OPEN_FINANCE_*`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` |
 | Arquivos/OCI | `STORAGE_TYPE`, `STORAGE_LOCAL_BASE_PATH`, `OCI_NAMESPACE`, `OCI_BUCKET_NAME`, `OCI_REGION` |
 | E-mail | `RESEND_API_KEY`, `RESEND_FROM_ADDRESS` |

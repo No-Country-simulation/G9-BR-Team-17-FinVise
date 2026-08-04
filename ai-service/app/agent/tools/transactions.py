@@ -6,5 +6,8 @@ def get_transactions(context: AgentContext, limit: int = 10) -> dict:
     return {
         "tool": "get_transactions",
         "arguments": {"limit": limit},
-        "result": {"count": len(transactions), "items": transactions},
+        "result": {
+            "count": len(transactions),
+            "items": [item.model_dump(mode="json") for item in transactions],
+        },
     }

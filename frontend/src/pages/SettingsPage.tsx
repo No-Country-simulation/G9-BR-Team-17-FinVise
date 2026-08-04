@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
+import { useTheme } from '@/components/auth/ThemeProvider';
 
 const languageOptions = [
   { value: 'pt-BR', label: 'Português (Brasil)' },
@@ -12,6 +13,7 @@ const languageOptions = [
 
 export function SettingsPage() {
   const [saved, setSaved] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const handleSave = () => {
     setSaved(true);
@@ -68,12 +70,21 @@ export function SettingsPage() {
             <label className="mb-1 block text-sm font-medium text-slate-700">Idioma</label>
             <Select options={languageOptions} defaultValue="pt-BR" />
           </div>
-          <label className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
-            <span className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="block space-y-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Moon className="h-4 w-4" />
-              Modo escuro
+              Tema da aplicação
             </span>
-            <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-primary-600" />
+            <Select
+              aria-label="Tema da aplicação"
+              value={theme}
+              onChange={(event) => setTheme(event.target.value as 'dark' | 'light' | 'system')}
+              options={[
+                { value: 'dark', label: 'Escuro' },
+                { value: 'light', label: 'Claro' },
+                { value: 'system', label: 'Sistema' },
+              ]}
+            />
           </label>
         </CardContent>
       </Card>

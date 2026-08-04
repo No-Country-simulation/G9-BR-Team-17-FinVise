@@ -429,11 +429,12 @@ Não há geração de PDF ou Excel implementada.
 | Método | Endpoint | Descrição |
 | --- | --- | --- |
 | `POST` | `/api/v1/agent/conversations` | Cria uma conversa |
-| `GET` | `/api/v1/agent/conversations/{conversationId}` | Retorna conversa e mensagens |
-| `POST` | `/api/v1/agent/conversations/{conversationId}/messages` | Persiste a mensagem e retorna a conversa completa |
+| `GET` | `/api/v1/agent/conversations?page=0&size=20` | Lista conversas de forma paginada |
+| `GET` | `/api/v1/agent/conversations/{conversationId}?page=0&size=50` | Retorna uma página do histórico; cada página vem em ordem cronológica |
+| `POST` | `/api/v1/agent/conversations/{conversationId}/messages` | Processa a mensagem e retorna a página mais recente da conversa |
 | `POST` | `/api/v1/agent/conversations/{conversationId}/messages/stream` | Persiste e transmite a resposta por SSE |
 
-Não existe endpoint para listar todas as conversas.
+`page` começa em zero. O tamanho máximo do histórico é 100; a resposta inclui `totalMessages`, `messagePage`, `messageSize` e `hasOlderMessages`. A listagem de conversas aceita no máximo 50 itens por página.
 
 Criação:
 
@@ -451,8 +452,13 @@ Criação:
 Mensagem:
 
 ```json
-{"content":"Qual foi meu pior mês de despesas?"}
+{
+  "content": "Qual foi meu pior mês de despesas?",
+  "clientMessageId": "80d03f32-bc0a-4f70-851b-a03276eb9432"
+}
 ```
+
+`clientMessageId` identifica a tentativa de forma idempotente. Repetir o mesmo UUID e o mesmo conteúdo não cria mensagens duplicadas; se a resposta já terminou, o stream reproduz a mensagem persistida. Reutilizar o UUID com outro conteúdo recebe `409 AGENT_IDEMPOTENCY_CONFLICT`. Uma segunda mensagem diferente durante o processamento da conversa recebe `409 AGENT_CONVERSATION_BUSY`.
 
 No modo não streaming, `data.messages[].toolCalls` e `ragSources` são strings contendo JSON serializado, pois correspondem a colunas JSONB representadas como `String` no DTO atual.
 
@@ -476,6 +482,8 @@ data: {"conversationId":"<uuid>","message":{"id":"<uuid>","role":"assistant","co
 ```
 
 Também pode ocorrer `event: error` com `{"message":"..."}`. Se a chamada ao AI Service falhar antes de produzir texto, o backend emite uma resposta segura como eventos `tools`, `token` e `done`. Se a falha ocorrer depois de texto parcial, emite `error` e não persiste uma resposta concluída.
+
+Quando o cliente fecha ou cancela o `fetch`, a gravação no SSE falha imediatamente, o backend fecha a resposta HTTP interna e o AI Service encerra o gerador do provider. A requisição fica `CANCELLED`, libera a conversa e pode ser refeita com o mesmo `clientMessageId`.
 
 Ferramentas implementadas: `get_financial_profile`, `get_financial_indicators`, `get_spending_summary`, `get_monthly_rankings`, `get_transaction_rankings`, `get_transactions`, `get_recommendations`, `compare_periods`, `get_recurring_expenses` e `simulate_savings_plan`.
 

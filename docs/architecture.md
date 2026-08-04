@@ -99,7 +99,7 @@ O schema efetivo é a composição das migrações `V1`–`V21`:
 | Identidade | `users`, `password_reset_codes` | conta e recuperação de senha |
 | Transações | `transactions`, `transaction_categories`, `imported_files`, `open_finance_connections` | movimentações e suas fontes |
 | Análises | `financial_analyses`, `financial_indicators`, `spending_summaries`, `recommendations` | diagnósticos persistidos |
-| Agente | `agent_conversations`, `agent_messages` | origem, opções RAG, histórico, tools e fontes citadas |
+| Agente | `agent_conversations`, `agent_messages`, `agent_message_requests` | origem, opções RAG, histórico resumido, idempotência, concorrência, tools e fontes citadas |
 | RAG/fatos | `rag_documents`, `rag_index_jobs`, `financial_fact_snapshots` | chunks, vetores, fila durável, status de índice e snapshots JSONB |
 | Modelos | `model_versions` | tabela criada no schema inicial; o status HTTP atual vem do registry em memória do AI Service |
 
@@ -214,8 +214,9 @@ sequenceDiagram
     participant L as API LLM opcional
 
     F->>B: POST .../messages/stream + JWT
-    B->>DB: Persiste mensagem USER
-    B->>B: Calcula contexto e fatos analíticos
+    B->>DB: Registra idempotência e adquire a conversa
+    B->>DB: Persiste USER e consulta agregações SQL limitadas
+    B->>B: Resume mensagens antigas e aplica orçamento de tokens
     B->>AI: POST /internal/v1/agent/respond/stream
     par Ferramentas
         AI->>AI: Executa ferramentas sobre AgentContext
@@ -229,10 +230,13 @@ sequenceDiagram
     AI-->>B: SSE tools, sources e token
     B-->>F: SSE conversation, tools, sources e token
     B->>DB: Persiste mensagem ASSISTANT concluída
+    B->>DB: Conclui requisição e libera a conversa
     B-->>F: SSE done
 ```
 
 Ferramentas e recuperação rodam em paralelo no AI Service. O LLM recebe apenas o prompt, o histórico, os resultados das ferramentas e as evidências recuperadas. Sem LLM, um provider de template determinístico gera a resposta; se o stream interno falhar antes de produzir texto, o backend usa uma resposta segura baseada nos totais da origem.
+
+O histórico público é paginado. Para inferência, somente a janela recente e um resumo incremental das mensagens antigas são enviados. A exclusão mútua por conversa e a idempotência ficam no PostgreSQL, portanto não dependem da memória de uma réplica. Ao desconectar o SSE, o backend cancela a chamada interna e o AI Service fecha o stream do provider.
 
 ## Segurança e limites de confiança
 
@@ -255,6 +259,7 @@ As decisões e seus ajustes estão em `docs/adr/`. Em especial:
 - ADR 007 limita o Object Storage implementado aos arquivos CSV importados;
 - ADR 008 define a fila PostgreSQL durável para indexação RAG.
 - ADR 011 define a autenticação e a propagação confiável de identidade entre backend e AI Service.
+- ADR 012 define limites de contexto, idempotência, concorrência e cancelamento do SSE.
 
 ## Escopo implementado
 

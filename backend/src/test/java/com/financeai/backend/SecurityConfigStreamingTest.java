@@ -79,7 +79,9 @@ class SecurityConfigStreamingTest {
     void shouldKeepSseAuthorizedDuringAsyncDispatch() throws Exception {
         UUID conversationId = UUID.randomUUID();
         when(agentService.streamMessage(
-            userId, conversationId, new SendMessageRequest("Como estou?")))
+            org.mockito.ArgumentMatchers.eq(userId),
+            org.mockito.ArgumentMatchers.eq(conversationId),
+            org.mockito.ArgumentMatchers.any(SendMessageRequest.class)))
             .thenReturn(output -> output.write(
                 "event: done\ndata: {}\n\n".getBytes(StandardCharsets.UTF_8)));
 
@@ -89,7 +91,8 @@ class SecurityConfigStreamingTest {
                 .header("Authorization", "Bearer " + TOKEN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
-                .content("{\"content\":\"Como estou?\"}"))
+                .content("{\"content\":\"Como estou?\",\"clientMessageId\":\""
+                    + UUID.randomUUID() + "\"}"))
             .andExpect(request().asyncStarted())
             .andReturn();
 

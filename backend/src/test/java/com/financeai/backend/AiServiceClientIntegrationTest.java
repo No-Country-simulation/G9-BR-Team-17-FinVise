@@ -242,6 +242,30 @@ class AiServiceClientIntegrationTest {
     }
 
     @Test
+    void shouldAbortInternalStreamWhenConsumerDisconnects() {
+        wireMock.stubFor(post(urlEqualTo("/internal/v1/agent/respond/stream"))
+            .willReturn(aResponse()
+                .withHeader("Content-Type", "text/event-stream")
+                .withBody("""
+                    event: token
+                    data: {"type":"token","token":"primeiro"}
+
+                    event: token
+                    data: {"type":"token","token":"segundo"}
+
+                    """)));
+        AgentRespondRequest request = new AgentRespondRequest(
+            "conversation-1", USER_ID,
+            List.of(new AgentRespondRequest.MessageDto("user", "pare")),
+            "", new AgentRespondRequest.AgentContextDto());
+
+        assertThatThrownBy(() -> aiServiceClient.agentRespondStream(request, event -> {
+            throw new IllegalStateException("cliente desconectado");
+        })).isInstanceOf(IllegalStateException.class)
+            .hasMessage("cliente desconectado");
+    }
+
+    @Test
     void shouldRejectMissingServiceTokenConfiguration() {
         AiServiceProperties properties = new AiServiceProperties();
         properties.setUrl(wireMock.baseUrl());

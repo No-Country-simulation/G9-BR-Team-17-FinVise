@@ -171,7 +171,12 @@ class FinancialAgent:
             self._has_tool_evidence(tool_calls),
         )
 
-        effective_system_prompt = self.system_prompt + tool_text + rag_text
+        effective_system_prompt = self._effective_prompt(
+            request, tool_text, rag_text
+        )
+        effective_system_prompt, messages = self._apply_token_budget(
+            effective_system_prompt, messages
+        )
 
         try:
             completion = self.llm.complete(
@@ -244,20 +249,78 @@ class FinancialAgent:
             self._has_tool_evidence(tool_calls),
         )
 
-        effective_system_prompt = self.system_prompt + tool_text + rag_text
+        effective_system_prompt = self._effective_prompt(
+            request, tool_text, rag_text
+        )
+        effective_system_prompt, messages = self._apply_token_budget(
+            effective_system_prompt, messages
+        )
 
         generated_text = False
-        for chunk in self.llm.stream_complete(
+        completion_stream = self.llm.stream_complete(
             system_prompt=effective_system_prompt,
             messages=messages,
             tools=None,
-        ):
-            if chunk and chunk.strip():
-                generated_text = True
-            yield {"type": "token", "token": chunk}
+        )
+        try:
+            for chunk in completion_stream:
+                if chunk and chunk.strip():
+                    generated_text = True
+                yield {"type": "token", "token": chunk}
+        finally:
+            close = getattr(completion_stream, "close", None)
+            if callable(close):
+                close()
 
         if not generated_text:
             raise RuntimeError("O provedor de IA concluiu sem gerar texto")
+
+    def _effective_prompt(
+        self,
+        request: AgentRequest,
+        tool_text: str,
+        rag_text: str,
+    ) -> str:
+        summary_text = ""
+        if request.history_summary.strip():
+            summary_text = (
+                "\n\n[RESUMO DE MENSAGENS ANTIGAS]\n"
+                + request.history_summary.strip()
+                + "\nUse o resumo apenas como contexto conversacional; dados financeiros "
+                "devem vir das ferramentas ou evidencias atuais."
+            )
+        return self.system_prompt + summary_text + tool_text + rag_text
+
+    @staticmethod
+    def _truncate_prompt(prompt: str, maximum: int) -> str:
+        if len(prompt) <= maximum:
+            return prompt
+        head = min(len(prompt), max(1000, maximum // 3))
+        tail = max(0, maximum - head - 80)
+        return (
+            prompt[:head]
+            + "\n\n[CONTEXTO INTERMEDIARIO REDUZIDO PELO ORCAMENTO DE TOKENS]\n\n"
+            + prompt[-tail:]
+        )
+
+    def _apply_token_budget(
+        self,
+        prompt: str,
+        messages: list[dict[str, str]],
+    ) -> tuple[str, list[dict[str, str]]]:
+        maximum_chars = settings.agent_input_token_budget * 4
+        message_budget = max(512, maximum_chars // 3)
+        selected: list[dict[str, str]] = []
+        used = 0
+        for message in reversed(messages):
+            cost = len(message.get("content", "")) + 24
+            if selected and used + cost > message_budget:
+                break
+            selected.append(message)
+            used += cost
+        selected.reverse()
+        prompt_budget = max(1000, maximum_chars - used - 256)
+        return self._truncate_prompt(prompt, prompt_budget), selected
 
     @staticmethod
     def _format_rag_context(

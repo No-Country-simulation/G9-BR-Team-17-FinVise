@@ -173,7 +173,7 @@ export function AgentPage() {
     }
 
     const userMessage: AgentMessage = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       role: 'user',
       content: text,
       timestamp: new Date().toISOString(),
@@ -217,6 +217,7 @@ export function AgentPage() {
           source,
           sourceIds: selectedSourceIds,
           topK,
+          clientMessageId: userMessage.id,
         },
         {
           onConversation: setConversationId,

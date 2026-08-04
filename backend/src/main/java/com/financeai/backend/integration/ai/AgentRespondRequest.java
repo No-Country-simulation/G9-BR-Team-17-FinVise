@@ -10,9 +10,15 @@ public record AgentRespondRequest(
     @JsonProperty("conversation_id") String conversationId,
     @JsonIgnore String userId,
     @JsonProperty("messages") List<MessageDto> messages,
+    @JsonProperty("history_summary") String historySummary,
     @JsonProperty("context") AgentContextDto context
 ) {
     public static final String CONTEXT_SCHEMA_VERSION = "1.0";
+
+    public AgentRespondRequest(String conversationId, String userId,
+                               List<MessageDto> messages, AgentContextDto context) {
+        this(conversationId, userId, messages, "", context);
+    }
 
     public record MessageDto(
         @JsonProperty("role") String role,

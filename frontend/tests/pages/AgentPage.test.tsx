@@ -127,6 +127,7 @@ describe('AgentPage streaming feedback', () => {
       expect.objectContaining({
         sourceIds: ['arquivo-1'],
         topK: 5,
+        clientMessageId: expect.any(String),
       }),
       expect.any(Object),
       expect.any(AbortSignal)

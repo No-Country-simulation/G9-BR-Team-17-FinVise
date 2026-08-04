@@ -64,14 +64,15 @@ class ResourceOwnershipTest {
             conversationRepository,
             mock(AgentMessageRepository.class),
             mock(UserRepository.class),
-            mock(TransactionRepository.class),
-            mock(TransactionCategoryRepository.class),
+            mock(com.financeai.backend.agent.AgentFinancialContextRepository.class),
+            mock(com.financeai.backend.agent.AgentRequestCoordinator.class),
+            new com.financeai.backend.agent.AgentContextProperties(),
             mock(com.financeai.backend.integration.ai.AiServiceClient.class),
             new com.fasterxml.jackson.databind.ObjectMapper()
         );
 
         assertThatThrownBy(() -> service.sendMessage(
-            userId, conversationId, new SendMessageRequest("teste")))
+            userId, conversationId, new SendMessageRequest("teste", UUID.randomUUID())))
             .isInstanceOf(ResourceNotFoundException.class);
         verify(conversationRepository).findByIdAndUserId(conversationId, userId);
     }

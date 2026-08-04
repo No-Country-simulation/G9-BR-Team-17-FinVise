@@ -44,6 +44,18 @@ public class AgentConversation {
     @Column(name = "rag_top_k", nullable = false)
     private Integer ragTopK = 5;
 
+    @Column(name = "history_summary", nullable = false)
+    private String historySummary = "";
+
+    @Column(name = "summarized_through_created_at")
+    private Instant summarizedThroughCreatedAt;
+
+    @Column(name = "summarized_through_message_id")
+    private UUID summarizedThroughMessageId;
+
+    @Column(name = "summarized_message_count", nullable = false)
+    private Long summarizedMessageCount = 0L;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -107,6 +119,15 @@ public class AgentConversation {
     public void setRagTopK(Integer ragTopK) {
         this.ragTopK = ragTopK;
     }
+
+    public String getHistorySummary() { return historySummary; }
+    public void setHistorySummary(String value) { historySummary = value; }
+    public Instant getSummarizedThroughCreatedAt() { return summarizedThroughCreatedAt; }
+    public void setSummarizedThroughCreatedAt(Instant value) { summarizedThroughCreatedAt = value; }
+    public UUID getSummarizedThroughMessageId() { return summarizedThroughMessageId; }
+    public void setSummarizedThroughMessageId(UUID value) { summarizedThroughMessageId = value; }
+    public Long getSummarizedMessageCount() { return summarizedMessageCount; }
+    public void setSummarizedMessageCount(Long value) { summarizedMessageCount = value; }
 
     public Instant getCreatedAt() {
         return createdAt;

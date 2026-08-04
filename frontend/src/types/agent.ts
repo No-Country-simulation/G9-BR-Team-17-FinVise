@@ -25,6 +25,10 @@ export interface AgentConversation {
   source: TransactionSource;
   sourceIds: string[];
   topK: number;
+  totalMessages: number;
+  messagePage: number;
+  messageSize: number;
+  hasOlderMessages: boolean;
 }
 
 export interface AgentRequest {
@@ -33,6 +37,7 @@ export interface AgentRequest {
   conversationId?: string;
   sourceIds?: string[];
   topK?: number;
+  clientMessageId?: string;
   context?: Record<string, unknown>;
 }
 

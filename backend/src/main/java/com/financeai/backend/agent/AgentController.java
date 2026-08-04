@@ -58,9 +58,11 @@ public class AgentController {
 
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ApiResponse<ConversationResponse>> getConversation(
-        @PathVariable UUID conversationId) {
+        @PathVariable UUID conversationId,
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @RequestParam(name = "size", defaultValue = "50") int size) {
         return ResponseEntity.ok(ApiResponse.success(agentService.getConversation(
-            authenticatedUserProvider.getUserId(), conversationId)));
+            authenticatedUserProvider.getUserId(), conversationId, page, size)));
     }
 
     @GetMapping("/conversations")

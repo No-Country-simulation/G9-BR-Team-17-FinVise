@@ -26,6 +26,7 @@ O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastr
 - Classificação de perfil por modelo Scikit-learn, regras financeiras selecionáveis ou fallback.
 - Indicadores, resumos mensais e por categoria, recomendações determinísticas e simulação de poupança.
 - Agente com ferramentas analíticas, recuperação híbrida vetorial/full-text e respostas síncronas ou por SSE.
+- Contexto do agente com agregações SQL, histórico paginado/resumido, orçamento de tokens, idempotência e cancelamento ponta a ponta.
 - Seleção de origem e de fontes específicas (`sourceIds`) para isolar o contexto do agente.
 - Indexação RAG assíncrona por fila durável no PostgreSQL, com retry, status consultável e reprocessamento manual.
 - Interface React responsiva, PWA, rotas privadas e consumo do backend por `/api/v1`.

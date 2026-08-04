@@ -30,9 +30,13 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/history")
-    public ResponseEntity<ApiResponse<List<FinancialAnalysisHistoryDto>>> getHistory(@PathVariable UUID userId) {
+    public ResponseEntity<ApiResponse<FinancialAnalysisHistoryPageResponse>> getHistory(
+        @PathVariable UUID userId,
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @RequestParam(name = "size", defaultValue = "20") int size) {
         return ResponseEntity.ok(ApiResponse.success(
-            userService.getHistory(authenticatedUserProvider.requireCurrentUser(userId))));
+            userService.getHistory(
+                authenticatedUserProvider.requireCurrentUser(userId), page, size)));
     }
 
     @GetMapping("/{userId}/recommendations")

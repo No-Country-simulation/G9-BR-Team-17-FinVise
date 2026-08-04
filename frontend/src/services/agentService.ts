@@ -6,7 +6,7 @@ import {
   AgentMessage,
   RagSource,
 } from '@/types/agent';
-import { ApiResponse } from '@/types/common';
+import { ApiResponse, PaginatedResponse } from '@/types/common';
 
 interface BackendMessage {
   id: string;
@@ -235,5 +235,15 @@ export const agentService = {
       `/agent/conversations/${id}`
     );
     return mapConversation(response.data);
+  },
+
+  async getConversations(page = 0, size = 20): Promise<PaginatedResponse<AgentConversation>> {
+    const { data: response } = await api.get<
+      ApiResponse<PaginatedResponse<BackendConversation>>
+    >('/agent/conversations', { params: { page, size } });
+    return {
+      ...response.data,
+      content: response.data.content.map(mapConversation),
+    };
   },
 };

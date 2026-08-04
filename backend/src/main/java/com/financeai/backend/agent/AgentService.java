@@ -15,6 +15,9 @@ import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -185,6 +188,23 @@ public class AgentService {
             .orElseThrow(() -> new ResourceNotFoundException("Conversa", conversationId));
         List<AgentMessage> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
         return toResponse(conversation, messages);
+    }
+
+    @Transactional(readOnly = true)
+    public ConversationPageResponse getConversations(UUID userId, int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 50));
+        Page<AgentConversation> result = conversationRepository.findByUserId(
+            userId,
+            PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return new ConversationPageResponse(
+            result.getContent().stream()
+                .map(conversation -> toResponse(conversation, List.of()))
+                .toList(),
+            result.getTotalElements(),
+            result.getTotalPages(),
+            result.getSize(),
+            result.getNumber());
     }
 
     private AgentRespondRequest.AgentContextDto buildAgentContext(UUID userId, AgentConversation conversation) {

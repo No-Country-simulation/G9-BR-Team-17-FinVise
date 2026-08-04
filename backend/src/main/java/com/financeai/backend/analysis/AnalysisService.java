@@ -4,18 +4,23 @@ import com.financeai.backend.common.exception.ResourceNotFoundException;
 import com.financeai.backend.common.exception.BusinessException;
 import com.financeai.backend.indicator.FinancialIndicator;
 import com.financeai.backend.indicator.FinancialIndicatorRepository;
+import com.financeai.backend.indicator.FinancialIndicatorView;
 import com.financeai.backend.indicator.SpendingSummary;
 import com.financeai.backend.indicator.SpendingSummaryRepository;
+import com.financeai.backend.indicator.SpendingSummaryView;
 import com.financeai.backend.integration.ai.*;
 import com.financeai.backend.recommendation.Recommendation;
 import com.financeai.backend.recommendation.RecommendationDto;
 import com.financeai.backend.recommendation.RecommendationEngine;
 import com.financeai.backend.recommendation.RecommendationRepository;
+import com.financeai.backend.recommendation.RecommendationView;
 import com.financeai.backend.transaction.*;
 import com.financeai.backend.user.User;
 import com.financeai.backend.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
@@ -76,7 +81,9 @@ public class AnalysisService {
 
         List<Transaction> classifiedTransactions = classifyTransactions(user, request.transactions());
 
-        Map<String, BigDecimal> spendingByCategory = calculateSpendingByCategory(classifiedTransactions);
+        Map<UUID, TransactionCategory> categories = categoriesFor(classifiedTransactions);
+        Map<String, BigDecimal> spendingByCategory =
+            calculateSpendingByCategory(classifiedTransactions, categories);
         BigDecimal totalExpenses = spendingByCategory.values().stream()
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal monthlyIncome = request.monthlyIncome();
@@ -99,21 +106,28 @@ public class AnalysisService {
 
         Map<String, String> modelVersions = buildModelVersions(profileResult);
 
-        return Objects.requireNonNull(transactionOperations.execute(status -> {
-            User managedUser = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
-            classifiedTransactions.forEach(transaction -> transaction.setUser(managedUser));
-            transactionRepository.saveAll(classifiedTransactions);
-            return persistAnalysis(
-                managedUser,
-                currentPeriod(),
-                profileResult,
-                indicator,
-                totalExpenses,
-                spendingByCategory,
-                toClassifiedDtos(classifiedTransactions, spendingByCategory),
-                modelVersions);
-        }));
+        FinancialAnalysis analysis = new FinancialAnalysis();
+        analysis.setUser(user);
+        analysis.setAnalysisPeriod(currentPeriod());
+        analysis.setProfileClassification(profileResult.classification());
+        analysis.setScore(profileResult.score());
+        analysis.setConfidence(profileResult.confidence());
+        analysis.setModelVersions(modelVersions);
+
+        analysis = analysisRepository.save(analysis);
+
+        indicator.setAnalysis(analysis);
+        indicatorRepository.save(indicator);
+
+        List<SpendingSummary> summaries = buildSpendingSummaries(analysis, totalExpenses, spendingByCategory);
+        spendingSummaryRepository.saveAll(summaries);
+
+        List<Recommendation> recommendations = recommendationEngine.generateRecommendations(analysis, indicator);
+        recommendationRepository.saveAll(recommendations);
+
+        return buildResponse(analysis, indicator, spendingByCategory,
+            toClassifiedDtos(classifiedTransactions, categories),
+            recommendations, modelVersions);
     }
 
     public AnalysisResponse analyzeStoredTransactions(UUID userId,
@@ -180,7 +194,8 @@ public class AnalysisService {
                 "Não há transações de receita suficientes para calcular o perfil financeiro");
         }
 
-        Map<String, BigDecimal> spendingByCategory = calculateSpendingByCategory(transactions)
+        Map<UUID, TransactionCategory> categories = categoriesFor(transactions);
+        Map<String, BigDecimal> spendingByCategory = calculateSpendingByCategory(transactions, categories)
             .entrySet().stream()
             .collect(Collectors.toMap(
                 Map.Entry::getKey,
@@ -247,53 +262,38 @@ public class AnalysisService {
     public AnalysisResponse getAnalysis(UUID userId, UUID analysisId) {
         FinancialAnalysis analysis = analysisRepository.findByIdAndUserId(analysisId, userId)
             .orElseThrow(() -> new ResourceNotFoundException("Análise", analysisId));
-
-        FinancialIndicator indicator = indicatorRepository.findByAnalysisId(analysisId)
-            .orElseThrow(() -> new ResourceNotFoundException("Indicadores", analysisId));
-
-        List<SpendingSummary> summaries = spendingSummaryRepository.findByAnalysisId(analysisId);
-        Map<String, BigDecimal> spendingByCategory = summaries.stream()
-            .collect(Collectors.toMap(SpendingSummary::getCategoryCode, SpendingSummary::getAmount));
-
-        List<Recommendation> recommendations = recommendationRepository.findByAnalysisIdOrderByPriorityDesc(analysisId);
-
-        Map<String, String> modelVersions = analysis.getModelVersions() != null
-            ? new HashMap<>(analysis.getModelVersions())
-            : Collections.emptyMap();
-
-        return buildResponse(analysis, indicator, spendingByCategory,
-            Collections.emptyList(), recommendations, modelVersions);
+        return loadResponses(List.of(analysis)).getFirst();
     }
 
     @Transactional(readOnly = true)
     public AnalysisResponse getLatestAnalysis(UUID userId,
                                               TransactionSource source,
                                               UUID importSourceId) {
-        return analysisRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-            .filter(analysis -> source == null || hasSource(analysis, source))
-            .filter(analysis -> importSourceId == null || hasImportSource(analysis, importSourceId))
-            .findFirst()
-            .map(analysis -> getAnalysis(userId, analysis.getId()))
+        return analysisRepository.findLatestByUserAndSource(
+                userId,
+                source != null ? source.name() : null,
+                importSourceId != null ? importSourceId.toString() : null)
+            .map(analysis -> loadResponses(List.of(analysis)).getFirst())
             .orElse(null);
     }
 
     @Transactional(readOnly = true)
-    public List<AnalysisResponse> getAnalyses(UUID userId, TransactionSource source) {
-        return analysisRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-            .filter(analysis -> source == null || hasSource(analysis, source))
-            .map(analysis -> getAnalysis(userId, analysis.getId()))
-            .toList();
-    }
-
-    private boolean hasSource(FinancialAnalysis analysis, TransactionSource source) {
-        return analysis.getModelVersions() != null
-            && source.name().equals(analysis.getModelVersions().get("transactionSource"));
-    }
-
-    private boolean hasImportSource(FinancialAnalysis analysis, UUID importSourceId) {
-        return analysis.getModelVersions() != null
-            && importSourceId.toString().equals(
-                analysis.getModelVersions().get("importSourceId"));
+    public AnalysisPageResponse getAnalyses(UUID userId,
+                                            TransactionSource source,
+                                            int page,
+                                            int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 50));
+        Page<FinancialAnalysis> result = analysisRepository.findPageByUserAndSource(
+            userId,
+            source != null ? source.name() : null,
+            PageRequest.of(safePage, safeSize));
+        return new AnalysisPageResponse(
+            loadResponses(result.getContent()),
+            result.getTotalElements(),
+            result.getTotalPages(),
+            result.getSize(),
+            result.getNumber());
     }
 
     private List<Transaction> classifyTransactions(User user, List<TransactionDto> transactionDtos) {
@@ -305,6 +305,8 @@ public class AnalysisService {
         TransactionClassificationResult classificationResult = aiServiceClient.classifyTransactions(
             new TransactionClassificationRequest(payload));
 
+        Map<String, TransactionCategory> categoriesByCode = categoryRepository.findAll().stream()
+            .collect(Collectors.toMap(TransactionCategory::getCode, category -> category));
         List<Transaction> transactions = new ArrayList<>();
         for (int i = 0; i < transactionDtos.size(); i++) {
             TransactionDto dto = transactionDtos.get(i);
@@ -319,12 +321,14 @@ public class AnalysisService {
             transaction.setSource("ANALYSIS");
 
             String categoryCode = resolveCategoryCode(classificationResult, i, dto);
-            categoryRepository.findByCode(categoryCode)
-                .ifPresent(cat -> transaction.setCategoryId(cat.getId()));
+            TransactionCategory category = categoriesByCode.get(categoryCode);
+            if (category != null) {
+                transaction.setCategoryId(category.getId());
+            }
 
             transactions.add(transaction);
         }
-        return transactions;
+        return transactionRepository.saveAllAndFlush(transactions);
     }
 
     private AnalysisResponse persistAnalysis(User user,
@@ -386,22 +390,36 @@ public class AnalysisService {
         return "OUTROS";
     }
 
-    private Map<String, BigDecimal> calculateSpendingByCategory(List<Transaction> transactions) {
+    private Map<String, BigDecimal> calculateSpendingByCategory(
+        List<Transaction> transactions,
+        Map<UUID, TransactionCategory> categories) {
         return transactions.stream()
             .filter(t -> t.getType() == TransactionType.EXPENSE)
             .collect(Collectors.groupingBy(
-                this::categoryCodeOf,
+                transaction -> categoryCodeOf(transaction, categories),
                 Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
             ));
     }
 
-    private String categoryCodeOf(Transaction transaction) {
+    private String categoryCodeOf(Transaction transaction,
+                                  Map<UUID, TransactionCategory> categories) {
         if (transaction.getCategoryId() == null) {
             return "OUTROS";
         }
-        return categoryRepository.findById(transaction.getCategoryId())
-            .map(TransactionCategory::getCode)
-            .orElse("OUTROS");
+        TransactionCategory category = categories.get(transaction.getCategoryId());
+        return category != null ? category.getCode() : "OUTROS";
+    }
+
+    private Map<UUID, TransactionCategory> categoriesFor(List<Transaction> transactions) {
+        Set<UUID> categoryIds = transactions.stream()
+            .map(Transaction::getCategoryId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        if (categoryIds.isEmpty()) {
+            return Map.of();
+        }
+        return categoryRepository.findAllById(categoryIds).stream()
+            .collect(Collectors.toMap(TransactionCategory::getId, category -> category));
     }
 
     private FinancialIndicator calculateIndicators(BigDecimal monthlyIncome,
@@ -577,21 +595,117 @@ public class AnalysisService {
         );
     }
 
+    private List<AnalysisResponse> loadResponses(List<FinancialAnalysis> analyses) {
+        if (analyses.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> analysisIds = analyses.stream().map(FinancialAnalysis::getId).toList();
+        Map<UUID, FinancialIndicatorView> indicators = indicatorRepository
+            .findViewsByAnalysisIds(analysisIds).stream()
+            .collect(Collectors.toMap(FinancialIndicatorView::getAnalysisId, view -> view));
+        Map<UUID, List<SpendingSummaryView>> summaries = spendingSummaryRepository
+            .findViewsByAnalysisIds(analysisIds).stream()
+            .collect(Collectors.groupingBy(SpendingSummaryView::getAnalysisId));
+        Map<UUID, List<RecommendationView>> recommendations = recommendationRepository
+            .findViewsByAnalysisIds(analysisIds).stream()
+            .collect(Collectors.groupingBy(RecommendationView::getAnalysisId));
+
+        return analyses.stream()
+            .map(analysis -> buildStoredResponse(
+                analysis,
+                Optional.ofNullable(indicators.get(analysis.getId()))
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                        "Indicadores", analysis.getId())),
+                summaries.getOrDefault(analysis.getId(), List.of()),
+                recommendations.getOrDefault(analysis.getId(), List.of())))
+            .toList();
+    }
+
+    private AnalysisResponse buildStoredResponse(FinancialAnalysis analysis,
+                                                 FinancialIndicatorView indicator,
+                                                 List<SpendingSummaryView> summaries,
+                                                 List<RecommendationView> recommendations) {
+        Map<String, AnalysisResponse.CategorySummaryDto> summaryDto = summaries.stream()
+            .collect(Collectors.toMap(
+                SpendingSummaryView::getCategoryCode,
+                summary -> new AnalysisResponse.CategorySummaryDto(
+                    summary.getAmount(), summary.getPercentage()),
+                (first, ignored) -> first,
+                LinkedHashMap::new));
+        FinancialProfileDto profile = new FinancialProfileDto(
+            analysis.getProfileClassification(),
+            analysis.getScore(),
+            analysis.getConfidence(),
+            Collections.emptyList());
+        IndicatorDto indicators = new IndicatorDto(
+            indicator.getMonthlyIncome(),
+            indicator.getTotalExpenses(),
+            indicator.getIncomeCommitmentPercentage(),
+            indicator.getDebtLevelPercentage(),
+            indicator.getSavingsRatePercentage(),
+            indicator.getRecurringExpensesCount(),
+            indicator.getFixedExpensesPercentage(),
+            indicator.getNonEssentialExpensesPercentage(),
+            indicator.getReserveInMonths());
+        List<RecommendationDto> recommendationDtos = recommendations.stream()
+            .sorted(Comparator.comparingInt(this::priorityRank).reversed())
+            .map(recommendation -> new RecommendationDto(
+                recommendation.getId(),
+                recommendation.getTitle(),
+                recommendation.getDescription(),
+                recommendation.getReason(),
+                recommendation.getPriority(),
+                recommendation.getCategory(),
+                recommendation.getExpectedImpact(),
+                recommendation.getSuggestedAmount(),
+                recommendation.getRelatedIndicator(),
+                recommendation.getCreatedAt()))
+            .toList();
+        Map<String, String> modelVersions = analysis.getModelVersions() != null
+            ? new HashMap<>(analysis.getModelVersions())
+            : Map.of();
+        return new AnalysisResponse(
+            analysis.getId(),
+            analysis.getUser().getId(),
+            profile,
+            indicators,
+            summaryDto,
+            List.of(),
+            recommendationDtos,
+            modelVersions,
+            analysis.getCreatedAt());
+    }
+
+    private int priorityRank(RecommendationView recommendation) {
+        if (recommendation.getPriority() == null) {
+            return 0;
+        }
+        return switch (recommendation.getPriority()) {
+            case CRITICAL -> 4;
+            case HIGH -> 3;
+            case MEDIUM -> 2;
+            case LOW -> 1;
+        };
+    }
+
     private List<ClassifiedTransactionDto> toClassifiedDtos(List<Transaction> transactions,
-                                                            Map<String, BigDecimal> spendingByCategory) {
+                                                            Map<UUID, TransactionCategory> categories) {
         return transactions.stream()
-            .map(t -> new ClassifiedTransactionDto(
-                t.getId(),
-                t.getDescription(),
-                t.getAmount(),
-                t.getTransactionDate(),
-                t.getType(),
-                categoryCodeOf(t),
-                t.getCategoryId() != null
-                    ? categoryRepository.findById(t.getCategoryId()).map(TransactionCategory::getName).orElse(null)
-                    : null,
-                null
-            ))
+            .map(transaction -> {
+                TransactionCategory category = transaction.getCategoryId() != null
+                    ? categories.get(transaction.getCategoryId())
+                    : null;
+                return new ClassifiedTransactionDto(
+                    transaction.getId(),
+                    transaction.getDescription(),
+                    transaction.getAmount(),
+                    transaction.getTransactionDate(),
+                    transaction.getType(),
+                    category != null ? category.getCode() : "OUTROS",
+                    category != null ? category.getName() : null,
+                    null
+                );
+            })
             .toList();
     }
 

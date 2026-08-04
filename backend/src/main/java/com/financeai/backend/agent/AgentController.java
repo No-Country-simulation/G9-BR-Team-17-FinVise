@@ -62,4 +62,12 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.success(agentService.getConversation(
             authenticatedUserProvider.getUserId(), conversationId)));
     }
+
+    @GetMapping("/conversations")
+    public ResponseEntity<ApiResponse<ConversationPageResponse>> getConversations(
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(agentService.getConversations(
+            authenticatedUserProvider.getUserId(), page, size)));
+    }
 }

@@ -27,7 +27,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantPr
 
 export function PrimaryButton({ className, isLoading, leadingIcon, children, disabled, ...props }: ButtonProps) {
   return (
-    <button className={cn(authButtonVariants({ variant: 'primary' }), className)} disabled={disabled || isLoading} {...props}>
+    <button className={cn(authButtonVariants({ variant: 'primary' }), className)} disabled={disabled || isLoading} aria-busy={isLoading ? 'true' : 'false'} {...props}>
       {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : leadingIcon ? <span className="mr-2 inline-flex">{leadingIcon}</span> : null}
       {children}
     </button>
@@ -36,7 +36,7 @@ export function PrimaryButton({ className, isLoading, leadingIcon, children, dis
 
 export function SecondaryButton({ className, isLoading, leadingIcon, children, disabled, ...props }: ButtonProps) {
   return (
-    <button className={cn(authButtonVariants({ variant: 'secondary' }), className)} disabled={disabled || isLoading} {...props}>
+    <button className={cn(authButtonVariants({ variant: 'secondary' }), className)} disabled={disabled || isLoading} aria-busy={isLoading ? 'true' : 'false'} {...props}>
       {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : leadingIcon ? <span className="mr-2 inline-flex">{leadingIcon}</span> : null}
       {children}
     </button>

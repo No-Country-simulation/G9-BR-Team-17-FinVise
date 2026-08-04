@@ -14,10 +14,12 @@ import { ApiResponse } from '@/types/common';
 
 export const TOKEN_KEY = 'finance_ai_token';
 export const USER_ID_KEY = 'finance_ai_user_id';
+export const USER_EMAIL_KEY = 'finance_ai_user_email';
 
 function storeSession(response: AuthResponse) {
   localStorage.setItem(TOKEN_KEY, response.token);
   localStorage.setItem(USER_ID_KEY, response.userId);
+  localStorage.setItem(USER_EMAIL_KEY, response.email);
 }
 
 export const authService = {
@@ -83,6 +85,7 @@ export const authService = {
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_ID_KEY);
+    localStorage.removeItem(USER_EMAIL_KEY);
   },
 
   getToken(): string | null {
@@ -91,6 +94,10 @@ export const authService = {
 
   getUserId(): string | null {
     return localStorage.getItem(USER_ID_KEY);
+  },
+
+  getUserEmail(): string | null {
+    return localStorage.getItem(USER_EMAIL_KEY);
   },
 
   isAuthenticated(): boolean {

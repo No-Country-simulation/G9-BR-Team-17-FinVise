@@ -1,16 +1,17 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/auth/ThemeProvider';
 
 const alertVariants = cva(
-  'relative w-full rounded-lg border p-4 [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:h-5 [&>svg]:w-5 [&>svg+div]:translate-y-[-3px] [&:has(svg)]:pl-11',
+  'relative w-full rounded-[24px] border p-4 backdrop-blur-xl [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:h-5 [&>svg]:w-5 [&>svg+div]:translate-y-[-3px] [&:has(svg)]:pl-11',
   {
     variants: {
       variant: {
-        default: 'bg-slate-50 text-slate-900 border-slate-200',
-        info: 'bg-blue-50 text-blue-900 border-blue-200 [&>svg]:text-blue-600',
-        success: 'bg-emerald-50 text-emerald-900 border-emerald-200 [&>svg]:text-emerald-600',
-        warning: 'bg-amber-50 text-amber-900 border-amber-200 [&>svg]:text-amber-600',
-        danger: 'bg-red-50 text-red-900 border-red-200 [&>svg]:text-red-600',
+        default: 'bg-[rgba(255,255,255,0.72)] text-slate-900 border-slate-200/80',
+        info: 'bg-[rgba(219,234,254,0.72)] text-blue-950 border-blue-200/70 [&>svg]:text-blue-500',
+        success: 'bg-[rgba(209,250,229,0.72)] text-emerald-950 border-emerald-200/70 [&>svg]:text-emerald-500',
+        warning: 'bg-[rgba(254,243,199,0.72)] text-amber-950 border-amber-200/70 [&>svg]:text-amber-500',
+        danger: 'bg-[rgba(254,226,226,0.72)] text-red-950 border-red-200/70 [&>svg]:text-red-500',
       },
     },
     defaultVariants: {
@@ -24,7 +25,9 @@ export interface AlertProps
     VariantProps<typeof alertVariants> {}
 
 function Alert({ className, variant, ...props }: AlertProps) {
-  return <div role="alert" className={cn(alertVariants({ variant }), className)} {...props} />;
+  const { resolvedTheme } = useTheme();
+
+  return <div role="alert" className={cn(alertVariants({ variant }), resolvedTheme === 'dark' && 'shadow-[0_20px_60px_rgba(2,8,23,0.18)]', className)} {...props} />;
 }
 
 const AlertTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (

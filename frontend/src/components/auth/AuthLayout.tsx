@@ -5,6 +5,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { PageContainer } from './PageContainer';
 import { GlassCard } from './GlassCard';
 import { cn } from '@/lib/utils';
+import { useTheme } from './ThemeProvider';
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -13,8 +14,10 @@ interface AuthLayoutProps {
 }
 
 export function AuthLayout({ children, theme = 'dark', onThemeToggle }: AuthLayoutProps) {
+  const { resolvedTheme } = useTheme();
+
   return (
-    <PageContainer className={theme === 'dark' ? 'dark' : 'light'}>
+    <PageContainer className={resolvedTheme === 'dark' ? 'dark' : 'light'}>
       <AuthBackground />
       <div className="relative z-10 mx-auto w-full max-w-[1920px]">
         <header className="relative mx-auto mb-2 w-full max-w-lg sm:mb-3">

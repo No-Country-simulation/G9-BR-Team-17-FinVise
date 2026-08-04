@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/auth/ThemeProvider';
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -19,6 +20,8 @@ export function EmptyState({
   className,
   compact = false,
 }: EmptyStateProps) {
+  const { resolvedTheme } = useTheme();
+
   return (
     <section
       className={cn(
@@ -30,12 +33,12 @@ export function EmptyState({
       )}
       aria-live="polite"
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+      <div className={cn('flex h-14 w-14 items-center justify-center rounded-2xl', resolvedTheme === 'dark' ? 'bg-white/6 text-slate-300' : 'bg-slate-100 text-slate-500')}>
         <Icon className="h-7 w-7" aria-hidden="true" />
       </div>
-      <h2 className="mt-4 text-lg font-semibold text-slate-900">{title}</h2>
+      <h2 className={cn('mt-4 text-lg font-semibold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{title}</h2>
       {description && (
-        <p className="mt-1 max-w-md text-sm leading-6 text-slate-500">{description}</p>
+        <p className={cn('mt-1 max-w-md text-sm leading-6', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-500')}>{description}</p>
       )}
       {action && <div className="mt-6 w-full max-w-lg">{action}</div>}
     </section>

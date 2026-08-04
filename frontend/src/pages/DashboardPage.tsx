@@ -242,13 +242,13 @@ export function DashboardPage() {
 
       <Link
         to="/agent"
-        className="flex min-h-20 items-center justify-between gap-3 rounded-xl bg-primary-600 p-4 text-white shadow-md transition-colors hover:bg-primary-700 active:bg-primary-800"
+        className="flex min-h-20 items-center justify-between gap-3 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] p-4 text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)]"
       >
         <div className="flex items-center gap-3">
           <Bot className="h-6 w-6" />
           <div className="min-w-0">
             <p className="font-semibold">Falar com o Assistente Financeiro</p>
-            <p className="mt-0.5 text-xs text-primary-100">Tire dúvidas e receba dicas personalizadas</p>
+            <p className="mt-0.5 text-xs text-slate-900/70">Tire dúvidas e receba dicas personalizadas</p>
           </div>
         </div>
         <ArrowRight className="h-5 w-5" />

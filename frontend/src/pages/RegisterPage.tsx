@@ -19,13 +19,18 @@ import { extractErrorMessage } from '@/lib/api';
 
 const registerSchema = z
   .object({
-    fullName: z.string().trim().min(2, 'Informe seu nome completo').max(150, 'Nome é muito longo'),
-    email: z.string().min(1, 'Informe seu e-mail').email('Informe um e-mail válido'),
-    password: z.string().min(8, 'A senha deve ter pelo menos 8 caracteres').max(100, 'Senha é muito longa'),
-    confirmPassword: z.string().min(1, 'Confirme sua senha'),
+    fullName: z.string().trim().min(2, 'Digite seu nome e sobrenome').max(150, 'Seu nome está longo demais para este campo'),
+    email: z.string().trim().min(1, 'Digite seu e-mail para criar a conta').email('Digite um e-mail válido, como nome@exemplo.com'),
+    confirmEmail: z.string().trim().min(1, 'Repita seu e-mail para confirmação').email('Digite um e-mail válido, como nome@exemplo.com'),
+    password: z.string().min(8, 'Crie uma senha com pelo menos 8 caracteres').max(100, 'Sua senha ultrapassou o limite de 100 caracteres'),
+    confirmPassword: z.string().min(1, 'Repita a senha para confirmar'),
+  })
+  .refine((data) => data.email === data.confirmEmail, {
+    message: 'Os e-mails digitados precisam ser iguais',
+    path: ['confirmEmail'],
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'As senhas não conferem',
+    message: 'As senhas digitadas precisam ser iguais',
     path: ['confirmPassword'],
   });
 
@@ -48,6 +53,7 @@ export function RegisterPage() {
     defaultValues: {
       fullName: '',
       email: '',
+      confirmEmail: '',
       password: '',
       confirmPassword: '',
     },
@@ -57,6 +63,7 @@ export function RegisterPage() {
   const canSubmit =
     watch('fullName').trim().length > 1
     && watch('email').length > 0
+    && watch('confirmEmail').length > 0
     && watch('password').length > 0
     && watch('confirmPassword').length > 0;
 
@@ -91,7 +98,7 @@ export function RegisterPage() {
         <AuthLayoutCard>
           <div className="mb-5 text-center md:mb-6">
             <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Criar conta</h1>
-            <p className="mt-2 text-base text-slate-300 sm:text-lg">Comece a organizar seu futuro financeiro</p>
+            <p className="mt-2 text-base text-slate-300 sm:text-lg">Configure seu acesso e comece a organizar sua vida financeira com clareza.</p>
           </div>
 
           {error && (
@@ -101,12 +108,16 @@ export function RegisterPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 md:space-y-4" noValidate>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 md:space-y-4" noValidate aria-describedby="register-form-tip">
+            <p id="register-form-tip" className="text-sm leading-6 text-slate-400">
+              Use dados reais para facilitar sua identificação e recuperação de acesso depois.
+            </p>
             <AuthInput
               label="Nome completo"
               placeholder="Seu nome completo"
               autoComplete="name"
               icon={<User className="h-4 w-4" />}
+              helperText="Informe pelo menos nome e sobrenome." 
               error={errors.fullName?.message}
               {...register('fullName')}
             />
@@ -115,15 +126,33 @@ export function RegisterPage() {
               label="E-mail"
               placeholder="voce@email.com"
               autoComplete="email"
+              inputMode="email"
+              spellCheck={false}
+              autoCapitalize="none"
               icon={<Mail className="h-4 w-4" />}
+              helperText="Esse e-mail será usado para login e recuperação de senha."
               error={errors.email?.message}
               {...register('email')}
+            />
+
+            <AuthInput
+              label="Confirmar e-mail"
+              placeholder="Repita seu e-mail"
+              autoComplete="email"
+              inputMode="email"
+              spellCheck={false}
+              autoCapitalize="none"
+              icon={<Mail className="h-4 w-4" />}
+              helperText="Digite novamente o e-mail para evitar erro de cadastro."
+              error={errors.confirmEmail?.message}
+              {...register('confirmEmail')}
             />
 
             <PasswordInput
               label="Senha"
               placeholder="Crie uma senha segura"
               autoComplete="new-password"
+              helperText="Use letras, números e símbolo. Espaços não contam como caractere especial."
               error={errors.password?.message}
               {...register('password')}
             />
@@ -134,6 +163,7 @@ export function RegisterPage() {
               label="Confirmar senha"
               placeholder="Confirme sua senha"
               autoComplete="new-password"
+              helperText="Repita exatamente a mesma senha digitada acima."
               error={errors.confirmPassword?.message}
               {...register('confirmPassword')}
             />

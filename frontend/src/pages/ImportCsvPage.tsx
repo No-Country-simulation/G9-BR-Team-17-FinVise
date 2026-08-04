@@ -12,6 +12,8 @@ import { analysisService } from '@/services/analysisService';
 import { extractErrorMessage } from '@/lib/api';
 import { ProfileAnalysisModel } from '@/types/analysis';
 import { rememberTransactionSource } from '@/hooks/useTransactionSource';
+import { useTheme } from '@/components/auth/ThemeProvider';
+import { cn } from '@/lib/utils';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const CSV_CONTENT_TYPES = ['text/csv', 'application/csv', 'application/vnd.ms-excel'];
@@ -19,6 +21,7 @@ const CSV_CONTENT_TYPES = ['text/csv', 'application/csv', 'application/vnd.ms-ex
 export function ImportCsvPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -170,17 +173,26 @@ export function ImportCsvPage() {
             </div>
             <div
               onClick={() => !isLoading && inputRef.current?.click()}
-              className={`flex min-h-44 flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition-colors sm:p-8 ${
+              className={cn(
+                'flex min-h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-colors sm:p-8',
                 isLoading
-                  ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
-                  : 'cursor-pointer border-slate-300 bg-slate-50 hover:border-primary-400 hover:bg-primary-50 active:bg-primary-50'
-              }`}
+                  ? resolvedTheme === 'dark'
+                    ? 'cursor-not-allowed border-white/10 bg-white/5 opacity-60'
+                    : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
+                  : resolvedTheme === 'dark'
+                    ? 'cursor-pointer border-cyan-300/20 bg-[rgba(255,255,255,0.04)] hover:border-cyan-300/40 hover:bg-[rgba(34,211,238,0.08)] active:bg-[rgba(34,211,238,0.12)]'
+                    : 'cursor-pointer border-slate-300 bg-slate-50 hover:border-primary-400 hover:bg-primary-50 active:bg-primary-50'
+              )}
             >
-              {file ? <FileCheck className="h-10 w-10 text-primary-600" /> : <Upload className="h-10 w-10 text-slate-400" />}
-              <p className="mt-3 text-sm font-medium text-slate-700">
+              {file ? (
+                <FileCheck className={cn('h-10 w-10', resolvedTheme === 'dark' ? 'text-cyan-200' : 'text-primary-600')} />
+              ) : (
+                <Upload className={cn('h-10 w-10', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-400')} />
+              )}
+              <p className={cn('mt-3 text-sm font-medium', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-700')}>
                 {file ? file.name : 'Clique para selecionar o arquivo CSV'}
               </p>
-              <p className="text-xs text-slate-500">Arquivos .csv de até 5 MB</p>
+              <p className={cn('text-xs', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-500')}>Arquivos .csv de até 5 MB</p>
               <input ref={inputRef} type="file" accept=".csv" disabled={isLoading} className="hidden" onChange={handleFileChange} />
             </div>
 

@@ -15,7 +15,7 @@ const rules: Rule[] = [
   { label: 'Letra maiúscula', test: (value) => /[A-Z]/.test(value) },
   { label: 'Letra minúscula', test: (value) => /[a-z]/.test(value) },
   { label: 'Número', test: (value) => /\d/.test(value) },
-  { label: 'Caractere especial', test: (value) => /[^A-Za-z0-9]/.test(value) },
+  { label: 'Caractere especial', test: (value) => /[^A-Za-z0-9\s]/.test(value) },
 ];
 
 const scoreLabels = ['Muito fraca', 'Fraca', 'Regular', 'Boa', 'Forte'] as const;
@@ -41,9 +41,10 @@ export function PasswordStrength({ password }: PasswordStrengthProps) {
   const allPassed = passedCount === rules.length;
   const progress = password.length === 0 ? 0 : (passedCount / rules.length) * 100;
   const scoreLabel = password.length === 0 ? 'Muito fraca' : scoreLabels[score];
+  const progressValue = Math.round(progress);
 
   return (
-    <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/5 p-3.5">
+    <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/5 p-3.5" aria-live="polite">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium text-slate-200">Força da senha</p>
         <p className={`text-sm font-semibold ${allPassed ? 'text-emerald-300' : 'text-slate-300'}`}>
@@ -51,7 +52,15 @@ export function PasswordStrength({ password }: PasswordStrengthProps) {
         </p>
       </div>
 
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+      <div
+        className="h-2 overflow-hidden rounded-full bg-white/10"
+        role="progressbar"
+        aria-label="Nível de força da senha"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progressValue}
+        aria-valuetext={`${scoreLabel}. ${passedCount} de ${rules.length} critérios atendidos.`}
+      >
         <motion.div
           className={`h-full rounded-full ${getBarClass(score, allPassed)}`}
           animate={{ width: `${progress}%` }}

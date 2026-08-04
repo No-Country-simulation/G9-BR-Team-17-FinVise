@@ -51,6 +51,13 @@ def models_status() -> ModelStatusResponse:
     )
 
 
+@internal_router.get("/rag/retrieval/metrics")
+def rag_retrieval_metrics_status() -> dict:
+    from app.agent.rag_metrics import rag_retrieval_metrics
+
+    return rag_retrieval_metrics.snapshot()
+
+
 @internal_router.post("/transactions/classify", response_model=TransactionClassifyResponse)
 def classify_transactions(request: TransactionClassifyRequest) -> TransactionClassifyResponse:
     registry = get_registry()

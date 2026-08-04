@@ -546,7 +546,7 @@ Content-Type: application/json
 }
 ```
 
-O corpo é opcional e equivale a `force=false`. O modo normal reinicia documentos sem embedding ou em `PENDING`, `PROCESSING` ou `FAILED`; `force=true` invalida todos os embeddings do usuário. A API retorna `202` ao enfileirar, `200` com `queued=false` quando não há documentos e `409 RAG_QUEUE_CONFLICT` se o job já está em processamento.
+O corpo é opcional e equivale a `force=false`. O modo normal reinicia documentos sem embedding ativo ou em `PENDING`, `PROCESSING` ou `FAILED`; `force=true` invalida todos os embeddings, inclusive os preservados de outros modelos. A API retorna `202` ao enfileirar, `200` com `queued=false` quando não há documentos e `409 RAG_QUEUE_CONFLICT` se o job já está em processamento.
 
 ### Sistema
 
@@ -595,6 +595,7 @@ Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas
 | --- | --- | --- |
 | `GET` | `/health` | `status`, `version`, `environment` |
 | `GET` | `/internal/v1/models/status` | Registry, artefatos e LLM |
+| `GET` | `/internal/v1/rag/retrieval/metrics` | Uso dos canais, falhas vetoriais e latências da recuperação |
 | `POST` | `/internal/v1/transactions/classify` | `{items:[{description,amount,payment_method,recurrent,channel}]}` |
 | `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e nove indicadores |
 | `POST` | `/internal/v1/profiles/recommendations` | Recomendações do motor Python |

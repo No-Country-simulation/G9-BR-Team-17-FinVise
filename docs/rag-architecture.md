@@ -22,7 +22,7 @@ O RAG é isolado por `user_id`, `source_type` e, quando selecionados na conversa
 | PostgreSQL | Persiste chunks, jobs, metadados, vetores, status e snapshots financeiros |
 | Frontend | Define origem, `sourceIds` e profundidade (`topK`); exibe tools, fontes e tokens SSE |
 
-O AI Service possui acesso SQL direto a `rag_documents`. Ele não cria schema: `_ensure_embedding_column` é somente uma verificação de capacidade, e alterações pertencem às migrações Flyway.
+O AI Service possui acesso SQL direto a `rag_documents` e `rag_document_embeddings`. Ele não cria schema: `_ensure_embedding_column` é somente uma verificação de capacidade, e alterações pertencem às migrações Flyway.
 
 ## Fluxo de ingestão e indexação
 
@@ -59,15 +59,15 @@ A fila mantém no máximo um job por usuário e agrupa novas solicitações. Um 
 - Transações são deduplicadas no RAG pelo índice parcial único `(user_id, source_type, source_id, transaction_id)`.
 - Todo chunk possui `chunk_key` estável e `schema_version`; a unicidade é garantida por `(user_id, source_type, source_id, chunk_key)`.
 - O backend reconcilia o conjunto desejado com o persistido: mantém chunks idênticos, atualiza os alterados e remove somente os que deixaram de existir.
-- Uma alteração de conteúdo invalida `embedding_model`, muda o status para `PENDING` e reenfileira o usuário. Alterações somente de metadados preservam o embedding.
+- Uma alteração de conteúdo aciona um trigger que remove todos os embeddings daquele documento, muda o status para `PENDING` e reenfileira o usuário. Alterações somente de metadados preservam os vetores.
 - Importação CSV, sincronização Open Finance e reclassificação passam por `FinancialSourceConsistencyService`, que reconstrói o snapshot antes de reconciliar os chunks na mesma transação.
 - A exclusão de uma fonte remove transações, snapshot e documentos RAG. As análises históricas são preservadas como registros do resultado produzido no momento da análise.
-- A indexação recalcula documentos quando `embedding` é nulo ou `embedding_model` difere do modelo efetivo.
+- A indexação recalcula documentos quando não existe uma linha em `rag_document_embeddings` para o modelo efetivo. Trocar o modelo não sobrescreve vetores anteriores.
 - `SKIP LOCKED` distribui jobs entre réplicas e um advisory lock por `user_id` protege a etapa no AI Service.
 
 ## Schema RAG
 
-As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21`, `V22`, `V23`, `V24` e `V26`.
+As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21`, `V22`, `V23`, `V24`, `V26` e `V28`.
 
 ### `rag_index_jobs`
 
@@ -98,17 +98,28 @@ Padrões operacionais: polling a cada `1000 ms`, heartbeat a cada `30000 ms`, lo
 | `chunk_key VARCHAR(200)` | identidade estável usada na reconciliação incremental |
 | `schema_version VARCHAR(20)` | versão do contrato de construção do chunk |
 | `document_chunk TEXT` | conteúdo textual pesquisável |
+| `search_vector TSVECTOR` | vetor textual gerado com a configuração `portuguese` |
 | `metadata JSONB` | origem, datas, valores, categoria e metadados de fatos |
 | `content_hash VARCHAR(64)` | idempotência dos chunks derivados |
-| `embedding vector(1536)` | vetor opcional, criado quando `pgvector` está disponível |
-| `embedding_model VARCHAR(120)` | modelo remoto ou `local-hash-v2` |
-| `embedding_created_at TIMESTAMPTZ` | criação do vetor atual |
+| `embedding`, `embedding_model`, `embedding_created_at` | cache legado do modelo ativo, mantido durante a transição para a store por modelo |
 | `index_status VARCHAR(20)` | `PENDING`, `PROCESSING`, `INDEXED` ou `FAILED` |
 | `index_error TEXT` | último erro de lote, truncado a 1.000 caracteres na aplicação |
 | `index_attempted_at TIMESTAMPTZ` | última tentativa |
 | `created_at TIMESTAMPTZ` | criação do chunk |
 
-Índices incluem filtros por usuário/origem/status, GIN full-text em `to_tsvector('simple', document_chunk)` e HNSW com `vector_cosine_ops`, `m=16` e `ef_construction=64`.
+O índice textual GIN usa a coluna `search_vector`, calculada por `to_tsvector('portuguese', document_chunk)`. Assim, flexões da língua portuguesa compartilham lexemas e a expressão da consulta não precisa recalcular o vetor de cada linha.
+
+### `rag_document_embeddings`
+
+| Coluna | Uso |
+| --- | --- |
+| `document_id UUID` | documento proprietário; removido por cascata |
+| `embedding_model VARCHAR(120)` | modelo remoto ou `local-hash-v2` |
+| `dimensions INTEGER` | dimensões declaradas do vetor |
+| `embedding vector(1536)` | vetor opcional quando pgvector está disponível |
+| `created_at TIMESTAMPTZ` | criação ou atualização do vetor |
+
+A chave primária é `(document_id, embedding_model)`. O mesmo chunk pode manter vetores de modelos diferentes sem colisão. A consulta sempre filtra o modelo efetivo antes de ordenar por distância. O HNSW usa `vector_cosine_ops`, `m=16` e `ef_construction=64`.
 
 As migrações de vetor são tolerantes à ausência da extensão. Nesse caso, a coluna/índice vetorial podem não existir, mas o restante do schema continua e a recuperação por palavras-chave permanece disponível.
 
@@ -194,44 +205,43 @@ Parâmetros:
 - `source_type`: derivado da origem da conversa;
 - `source_ids`: até 100 IDs distintos selecionados.
 
-### Busca vetorial
+Para consultas não vazias, os dois rankings são calculados de forma independente. Encontrar candidatos vetoriais não desativa a busca textual.
 
-Quando a coluna vetorial existe e a consulta não é vazia:
+### Ranking vetorial
 
-1. o serviço gera o embedding da consulta;
-2. busca até `min(top_k * 4, 80)` candidatos por distância de cosseno;
-3. calcula também `ts_rank_cd` com configuração `simple`;
-4. descarta candidatos abaixo de `RAG_MIN_RELEVANCE` (padrão `0.18`) quando não há relevância lexical;
-5. pontua por similaridade, com bônus lexical máximo de `0.1`.
+1. gera o embedding da consulta com o modelo efetivo;
+2. consulta `rag_document_embeddings` filtrando exatamente esse modelo;
+3. une o vetor ao documento e aplica os filtros de usuário e origem;
+4. ordena por distância de cosseno;
+5. remove candidatos com similaridade inferior a `RAG_MIN_RELEVANCE`.
 
-Consulta conceitual simplificada:
+### Ranking textual em português
 
-```sql
-SELECT id,
-       document_chunk,
-       embedding <=> :query_vector AS distance,
-       ts_rank_cd(
-           to_tsvector('simple', document_chunk),
-           plainto_tsquery('simple', :query)
-       ) AS keyword_rank
-FROM rag_documents
-WHERE user_id = :user_id
-  AND source_type = :source_type
-  AND source_id = ANY(:source_ids)
-  AND index_status = 'INDEXED'
-  AND embedding_model = :embedding_model
-  AND embedding IS NOT NULL
-ORDER BY embedding <=> :query_vector
-LIMIT :candidate_limit;
+1. transforma a consulta com `websearch_to_tsquery('portuguese', :query)`;
+2. filtra pela coluna persistida `search_vector`;
+3. ordena de forma independente por `ts_rank_cd`;
+4. permanece disponível enquanto um vetor está pendente, quando pgvector não existe ou quando o provedor de embeddings falha.
+
+Cada canal busca até `min(top_k * RAG_CANDIDATE_MULTIPLIER, 200)` candidatos. Os mesmos filtros de `user_id`, `source_type` e `source_ids` são aplicados aos dois rankings.
+
+### Fusão dos rankings
+
+A fusão usa Reciprocal Rank Fusion ponderado (RRF):
+
+```text
+rrf(documento) = peso_vetor / (k + posição_vetorial)
+               + peso_texto / (k + posição_textual)
 ```
 
-Os filtros de origem/IDs só são incluídos quando fornecidos.
+`RAG_HYBRID_RRF_K` controla a suavização; `RAG_VECTOR_WEIGHT` e `RAG_TEXT_WEIGHT` controlam o peso de cada canal. O score público é normalizado entre zero e um pelo máximo teórico da fusão. Cada resultado informa `vector_score`, `text_score`, posições e `retrieval_channels`, permitindo auditar por que o chunk foi selecionado.
 
-### Fallback full-text
+Para consulta vazia, o serviço retorna os chunks mais recentes. Quando duas ou mais fontes específicas foram selecionadas, o algoritmo tenta incluir primeiro uma evidência de cada fonte e depois completa o resultado até `top_k`.
 
-Se a busca vetorial falha, não há coluna, a consulta está vazia ou nenhum candidato vetorial passa pelo filtro, o serviço usa `to_tsvector('simple') @@ plainto_tsquery('simple')`. Para consulta vazia, retorna os chunks mais recentes.
+### Qualidade e latência
 
-Quando duas ou mais fontes específicas foram selecionadas, o algoritmo tenta incluir primeiro uma evidência de cada fonte e depois completa o resultado até `top_k`.
+`GET /internal/v1/rag/retrieval/metrics` exige token de serviço e retorna contadores de uso híbrido, fallback textual, falha vetorial, ausência de resultado e latências média, p50, p95 e máxima em uma janela limitada.
+
+O comando `evaluate-rag` recebe um conjunto rotulado de consultas e documentos relevantes. Ele calcula Recall@K, Precision@K, MRR@K e latências, falhando com código diferente de zero quando não alcança `--minimum-recall-at-k` ou ultrapassa `--maximum-p95-ms`. Os limites são critérios de implantação configuráveis; não representam uma alegação de desempenho em dados bancários reais.
 
 ## Agente e ferramentas
 

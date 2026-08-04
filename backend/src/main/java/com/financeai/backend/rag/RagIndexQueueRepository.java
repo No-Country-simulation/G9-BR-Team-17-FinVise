@@ -213,6 +213,15 @@ public class RagIndexQueueRepository {
         String condition = force
             ? ""
             : " AND (embedding IS NULL OR index_status IN ('PENDING', 'PROCESSING', 'FAILED'))";
+        String qualifiedCondition = force
+            ? ""
+            : " AND (d.embedding IS NULL OR d.index_status IN ('PENDING', 'PROCESSING', 'FAILED'))";
+        jdbcTemplate.update("""
+            DELETE FROM rag_document_embeddings embeddings
+            USING rag_documents d
+            WHERE embeddings.document_id = d.id
+              AND d.user_id = ?
+            """ + qualifiedCondition, userId);
         return jdbcTemplate.update("""
             UPDATE rag_documents
             SET embedding = NULL,

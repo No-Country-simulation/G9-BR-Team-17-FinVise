@@ -300,6 +300,8 @@ Estados agregados:
 - `FAILED`: não há pendentes/processando e existe falha;
 - `COMPLETE`: todos os chunks estão indexados.
 
+Após uma importação CSV, o frontend consulta esse endpoint a cada segundo, restrito ao `sourceId` recém-criado. A barra usa `indexedDocuments / totalDocuments` para exibir o avanço real da vetorização e só solicita a análise financeira depois de `COMPLETE` ou `EMPTY`. Se os documentos estiverem em `FAILED`, consulta também `/api/v1/rag/queue`: retries permanecem visíveis como processamento e `DEAD_LETTER` interrompe o fluxo com uma mensagem de recuperação.
+
 O job durável possui estado próprio:
 
 ```http

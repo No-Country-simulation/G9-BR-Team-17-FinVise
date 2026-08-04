@@ -370,7 +370,9 @@ O cliente usa `ConfigFileAuthenticationDetailsProvider("DEFAULT")` e procura cre
 - memória (`free -h` e `docker stats`);
 - logs de falha de indexação RAG, Resend, Pluggy e AI Service;
 - `GET /api/v1/rag/status` por usuário/fonte durante diagnóstico autenticado;
+- `GET /api/v1/rag/queue` para tentativas, heartbeat, erro e dead-letter do usuário;
+- métricas autenticadas `finvise.rag.queue.*` em `/actuator/metrics`;
 - validade do certificado no terminador TLS;
 - idade e restauração periódica dos backups.
 
-Prometheus, Grafana, alertas, tracing distribuído e coleta centralizada de logs não estão implementados no repositório.
+O Actuator publica as métricas internas da fila, mas exportação Prometheus, Grafana, alertas, tracing distribuído e coleta centralizada de logs não estão implementados no repositório.

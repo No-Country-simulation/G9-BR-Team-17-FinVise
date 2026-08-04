@@ -22,6 +22,18 @@ export interface RagIndexStatus {
   failedDocuments: number;
 }
 
+export interface RagIndexQueueStatus {
+  status: 'EMPTY' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'DEAD_LETTER';
+  attempts: number;
+  rerunRequested: boolean;
+  nextAttemptAt: string | null;
+  heartbeatAt: string | null;
+  deadLetteredAt: string | null;
+  lastError: string | null;
+  manualReprocessCount: number;
+  updatedAt: string | null;
+}
+
 export const transactionService = {
   async getAll(filters: TransactionFilters = {}): Promise<PaginatedResponse<Transaction>> {
     const params = Object.fromEntries(
@@ -86,6 +98,11 @@ export const transactionService = {
     const { data } = await api.get<RagIndexStatus>('/rag/status', {
       params: { sourceIds: sourceId },
     });
+    return data;
+  },
+
+  async getRagIndexQueueStatus(): Promise<RagIndexQueueStatus> {
+    const { data } = await api.get<RagIndexQueueStatus>('/rag/queue');
     return data;
   },
 };

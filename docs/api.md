@@ -35,7 +35,7 @@ A maior parte da API pública retorna o envelope:
 Exceções que não usam esse envelope:
 
 - `/api/v1/auth/forgot-password`, `/validate-reset-code` e `/reset-password`;
-- `/api/v1/rag/index-step` e `/api/v1/rag/status`;
+- `/api/v1/rag/index-step`, `/api/v1/rag/status`, `/api/v1/rag/queue` e `/api/v1/rag/reprocess`;
 - `/api/v1/model-status`;
 - `/actuator/**`;
 - o stream SSE do agente;
@@ -485,6 +485,8 @@ Ferramentas implementadas: `get_financial_profile`, `get_financial_indicators`, 
 | --- | --- | --- |
 | `GET` | `/api/v1/rag/status?sourceIds=<id>&sourceIds=<id>` | Contadores de documentos do usuário |
 | `POST` | `/api/v1/rag/index-step?sourceIds=<id>&sourceIds=<id>` | Executa uma etapa síncrona de indexação e retorna contadores |
+| `GET` | `/api/v1/rag/queue` | Estado operacional do job durável do usuário |
+| `POST` | `/api/v1/rag/reprocess` | Recupera o job e reenfileira documentos elegíveis |
 
 Status:
 
@@ -500,6 +502,43 @@ Status:
 ```
 
 `status` pode ser `EMPTY`, `PENDING`, `PROCESSING`, `FAILED` ou `COMPLETE`. A resposta de `/index-step` acrescenta `indexedCount`. `sourceIds` é opcional; sem ele, o escopo abrange todos os chunks do usuário.
+
+Exemplo de job em dead-letter:
+
+```json
+{
+  "status": "DEAD_LETTER",
+  "attempts": 5,
+  "rerunRequested": false,
+  "nextAttemptAt": "2026-08-03T12:00:00Z",
+  "heartbeatAt": null,
+  "deadLetteredAt": "2026-08-03T12:00:00Z",
+  "lastError": "Falha ao gerar embeddings",
+  "manualReprocessCount": 0,
+  "updatedAt": "2026-08-03T12:00:00Z"
+}
+```
+
+Reprocessamento normal:
+
+```http
+POST /api/v1/rag/reprocess
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{"force": false}
+```
+
+```json
+{
+  "queued": true,
+  "force": false,
+  "resetDocuments": 18,
+  "queueStatus": "PENDING"
+}
+```
+
+O corpo é opcional e equivale a `force=false`. O modo normal reinicia documentos sem embedding ou em `PENDING`, `PROCESSING` ou `FAILED`; `force=true` invalida todos os embeddings do usuário. A API retorna `202` ao enfileirar, `200` com `queued=false` quando não há documentos e `409 RAG_QUEUE_CONFLICT` se o job já está em processamento.
 
 ### Sistema
 

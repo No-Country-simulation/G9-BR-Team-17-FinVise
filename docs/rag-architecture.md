@@ -35,8 +35,9 @@ O AI Service possui acesso SQL direto a `rag_documents`. Ele não cria schema: `
 
 2. Worker do backend
    ├── reivindica um job elegível com FOR UPDATE SKIP LOCKED
-   ├── atribui lock_token e chama POST /internal/v1/rag/index
-   └── usa background=false para observar sucesso ou falha
+   ├── atribui lock_token e renova heartbeat_at durante o processamento
+   ├── chama POST /internal/v1/rag/index com background=false
+   └── repete os lotes até drenar os pendentes ou alcançar o limite do ciclo
 
 3. AI Service
    ├── obtém advisory lock por user_id
@@ -48,10 +49,10 @@ O AI Service possui acesso SQL direto a `rag_documents`. Ele não cria schema: `
 4. Finalização do job
    ├── sucesso: COMPLETED, ou PENDING se chegou nova ingestão durante o processamento
    ├── falha: PENDING com backoff exponencial
-   └── limite de tentativas: FAILED até uma nova ingestão reenfileirar o usuário
+   └── limite de tentativas: DEAD_LETTER até reprocessamento manual
 ```
 
-A fila mantém no máximo um job por usuário e agrupa novas solicitações. Um job `PROCESSING` recebe `rerun_requested=true` quando chegam novos chunks. Locks expirados podem ser reivindicados por outra réplica; o `lock_token` impede que o resultado atrasado do worker anterior sobrescreva o novo processamento. A contagem dos chunks deve ser acompanhada por `GET /api/v1/rag/status`. A rota pública `POST /api/v1/rag/index-step` continua executando uma chamada síncrona manual.
+A fila mantém no máximo um job por usuário e agrupa novas solicitações. Um job `PROCESSING` recebe `rerun_requested=true` quando chegam novos chunks. Jobs em `DEAD_LETTER` não são reativados implicitamente por uma nova ingestão: a recuperação exige `POST /api/v1/rag/reprocess`. Locks cujo heartbeat expirou podem ser reivindicados por outra réplica; o `lock_token` impede que o resultado atrasado do worker anterior sobrescreva o novo processamento. O estado dos chunks deve ser acompanhado por `GET /api/v1/rag/status`, e o estado do job por `GET /api/v1/rag/queue`. A rota pública `POST /api/v1/rag/index-step` continua executando uma chamada síncrona manual.
 
 ### Idempotência
 
@@ -66,21 +67,23 @@ A fila mantém no máximo um job por usuário e agrupa novas solicitações. Um 
 
 ## Schema RAG
 
-As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21`, `V22` e `V23`.
+As migrações relevantes são `V13`, `V14`, `V15`, `V17`, `V18`, `V19`, `V20`, `V21`, `V22`, `V23`, `V24` e `V26`.
 
 ### `rag_index_jobs`
 
 | Coluna | Uso |
 | --- | --- |
 | `user_id UUID` | chave única que agrupa indexações do usuário |
-| `status VARCHAR(20)` | `PENDING`, `PROCESSING`, `COMPLETED` ou `FAILED` |
+| `status VARCHAR(20)` | `PENDING`, `PROCESSING`, `COMPLETED` ou `DEAD_LETTER` |
 | `rerun_requested BOOLEAN` | preserva ingestão recebida durante processamento |
 | `attempts INTEGER` | falhas consecutivas do job |
 | `next_attempt_at` | instante elegível após o backoff |
-| `locked_at`, `lock_token` | lease recuperável e proteção contra resultado atrasado |
+| `locked_at`, `heartbeat_at`, `lock_token` | lease renovável e proteção contra resultado atrasado |
 | `last_error TEXT` | última falha observada pelo worker |
+| `dead_lettered_at` | instante em que o limite de tentativas foi alcançado |
+| `manual_reprocess_count` | quantidade de recuperações manuais solicitadas |
 
-Padrões operacionais: polling a cada `1000 ms`, lock de `120000 ms`, cinco tentativas e backoff de `2000 ms` até `60000 ms`. Todos são configuráveis pelas variáveis `RAG_INDEX_QUEUE_*` documentadas no `.env.example`.
+Padrões operacionais: polling a cada `1000 ms`, heartbeat a cada `30000 ms`, lock de `120000 ms`, até `100` lotes por ciclo, cinco tentativas e backoff de `2000 ms` até `60000 ms`. O heartbeat deve ser menor que o timeout do lock. Todos são configuráveis pelas variáveis `RAG_INDEX_QUEUE_*` documentadas no `.env.example`.
 
 ### `rag_documents`
 
@@ -297,7 +300,42 @@ Estados agregados:
 - `FAILED`: não há pendentes/processando e existe falha;
 - `COMPLETE`: todos os chunks estão indexados.
 
-Uma nova tentativa manual reprocessa documentos sem embedding ou cujo `embedding_model` mudou. Documentos `FAILED` com embedding nulo também entram nesse critério.
+Após uma importação CSV, o frontend consulta esse endpoint a cada segundo, restrito ao `sourceId` recém-criado. A barra usa `indexedDocuments / totalDocuments` para exibir o avanço real da vetorização e só solicita a análise financeira depois de `COMPLETE` ou `EMPTY`. Se os documentos estiverem em `FAILED`, consulta também `/api/v1/rag/queue`: retries permanecem visíveis como processamento e `DEAD_LETTER` interrompe o fluxo com uma mensagem de recuperação.
+
+O job durável possui estado próprio:
+
+```http
+GET /api/v1/rag/queue
+Authorization: Bearer <jwt>
+```
+
+```json
+{
+  "status": "DEAD_LETTER",
+  "attempts": 5,
+  "rerunRequested": false,
+  "nextAttemptAt": "2026-08-03T12:00:00Z",
+  "heartbeatAt": null,
+  "deadLetteredAt": "2026-08-03T12:00:00Z",
+  "lastError": "Falha ao gerar embeddings",
+  "manualReprocessCount": 0,
+  "updatedAt": "2026-08-03T12:00:00Z"
+}
+```
+
+A recuperação manual usa `POST /api/v1/rag/reprocess`. Por padrão, reinicia documentos pendentes, em processamento órfão, com falha ou sem embedding. Com `{"force":true}`, invalida e recria todos os embeddings do usuário. A operação retorna `409 RAG_QUEUE_CONFLICT` enquanto o job está `PROCESSING` e `202 Accepted` quando o reprocessamento foi enfileirado.
+
+### Métricas da fila
+
+As métricas estão disponíveis no Actuator autenticado (`/actuator/metrics`):
+
+| Métrica | Tipo | Uso |
+| --- | --- | --- |
+| `finvise.rag.queue.jobs{status=...}` | gauge | profundidade por `pending`, `processing`, `completed` e `dead_letter` |
+| `finvise.rag.queue.jobs.processed{outcome=...}` | counter | claims, sucessos, retries, dead-letter, limite de drenagem, perda de lock e reprocessamento manual |
+| `finvise.rag.queue.batches` | counter | lotes enviados ao AI Service |
+| `finvise.rag.queue.documents.indexed` | counter | documentos indexados informados pelo AI Service |
+| `finvise.rag.queue.processing.duration` | timer | duração completa de cada job reivindicado |
 
 ## Segurança e isolamento
 
@@ -316,5 +354,5 @@ Uma nova tentativa manual reprocessa documentos sem embedding ou cujo `embedding
 - O fallback local é lexical por hashing, não um embedding semântico treinado.
 - Chamadas internas diretas com `background=true` ainda usam `BackgroundTasks`; o fluxo automático do backend usa exclusivamente a fila PostgreSQL com `background=false`.
 - O limite de 1536 dimensões é fixo no schema e no serviço.
-- As rotas internas confiam no isolamento de rede.
+- O token estático de serviço exige rotação coordenada entre backend e AI Service.
 - O frontend possui rótulos específicos apenas para alguns `chunk_type`; novos tipos continuam sendo exibidos, mas podem receber um rótulo genérico.

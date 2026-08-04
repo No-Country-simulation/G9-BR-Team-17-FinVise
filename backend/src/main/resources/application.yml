@@ -74,6 +74,8 @@ finance-ai:
       enabled: ${RAG_INDEX_QUEUE_ENABLED:true}
       poll-delay-ms: ${RAG_INDEX_QUEUE_POLL_DELAY_MS:1000}
       lock-timeout-ms: ${RAG_INDEX_QUEUE_LOCK_TIMEOUT_MS:120000}
+      heartbeat-interval-ms: ${RAG_INDEX_QUEUE_HEARTBEAT_INTERVAL_MS:30000}
+      max-batches-per-drain: ${RAG_INDEX_QUEUE_MAX_BATCHES_PER_DRAIN:100}
       max-attempts: ${RAG_INDEX_QUEUE_MAX_ATTEMPTS:5}
       retry-base-delay-ms: ${RAG_INDEX_QUEUE_RETRY_BASE_DELAY_MS:2000}
       retry-max-delay-ms: ${RAG_INDEX_QUEUE_RETRY_MAX_DELAY_MS:60000}

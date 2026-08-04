@@ -1,6 +1,7 @@
 package com.financeai.backend.rag;
 
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.AssertTrue;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.validation.annotation.Validated;
@@ -17,6 +18,12 @@ public class RagIndexQueueProperties {
 
     @Min(1000)
     private long lockTimeoutMs = 120000;
+
+    @Min(1000)
+    private long heartbeatIntervalMs = 30000;
+
+    @Min(1)
+    private int maxBatchesPerDrain = 100;
 
     @Min(1)
     private int maxAttempts = 5;
@@ -35,6 +42,11 @@ public class RagIndexQueueProperties {
                 : delay * 2);
         }
         return delay;
+    }
+
+    @AssertTrue(message = "heartbeatIntervalMs deve ser menor que lockTimeoutMs")
+    public boolean isHeartbeatIntervalValid() {
+        return heartbeatIntervalMs < lockTimeoutMs;
     }
 
     public boolean isEnabled() {
@@ -59,6 +71,22 @@ public class RagIndexQueueProperties {
 
     public void setLockTimeoutMs(long lockTimeoutMs) {
         this.lockTimeoutMs = lockTimeoutMs;
+    }
+
+    public long getHeartbeatIntervalMs() {
+        return heartbeatIntervalMs;
+    }
+
+    public void setHeartbeatIntervalMs(long heartbeatIntervalMs) {
+        this.heartbeatIntervalMs = heartbeatIntervalMs;
+    }
+
+    public int getMaxBatchesPerDrain() {
+        return maxBatchesPerDrain;
+    }
+
+    public void setMaxBatchesPerDrain(int maxBatchesPerDrain) {
+        this.maxBatchesPerDrain = maxBatchesPerDrain;
     }
 
     public int getMaxAttempts() {

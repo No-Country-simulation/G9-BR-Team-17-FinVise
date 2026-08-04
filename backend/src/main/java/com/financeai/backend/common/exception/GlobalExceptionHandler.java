@@ -1,5 +1,6 @@
 package com.financeai.backend.common.exception;
 
+import com.financeai.backend.rag.RagQueueOperationConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -119,6 +120,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleEmailAlreadyExists(EmailAlreadyExistsException ex,
                                                              HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(RagQueueOperationConflictException.class)
+    public ResponseEntity<ApiError> handleRagQueueConflict(RagQueueOperationConflictException ex,
+                                                            HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "RAG_QUEUE_CONFLICT", ex.getMessage(), request, null);
     }
 
     private ResponseEntity<ApiError> buildResponse(HttpStatus status, String code, String message,

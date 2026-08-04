@@ -100,13 +100,13 @@ class RagIndexQueueRepositoryTest extends PostgresTestSupport {
     }
 
     @Test
-    void shouldContinueImmediatelyAfterSuccessfulBatchAndResetAttempts() {
+    void shouldContinueAfterDrainLimitAndResetAttempts() {
         queueRepository.enqueue(userId);
         RagIndexJob job = queueRepository.claimNext(120000).orElseThrow();
         jdbcTemplate.update(
             "UPDATE rag_index_jobs SET attempts = 2 WHERE user_id = ?", userId);
 
-        assertThat(queueRepository.continueAfterBatch(job)).isTrue();
+        assertThat(queueRepository.continueAfterDrainLimit(job)).isTrue();
 
         assertThat(status()).isEqualTo("PENDING");
         assertThat(attempts()).isZero();
@@ -126,18 +126,32 @@ class RagIndexQueueRepositoryTest extends PostgresTestSupport {
     }
 
     @Test
-    void shouldMoveJobToFailedAfterLastAttemptAndResetOnNewEnqueue() {
+    void shouldKeepDeadLetterUntilManualReprocessing() {
         queueRepository.enqueue(userId);
         RagIndexJob job = queueRepository.claimNext(120000).orElseThrow();
 
         assertThat(queueRepository.fail(job, 5, 5, 1000, "falha permanente")).isTrue();
-        assertThat(status()).isEqualTo("FAILED");
+        assertThat(status()).isEqualTo("DEAD_LETTER");
 
         queueRepository.enqueue(userId);
 
+        assertThat(status()).isEqualTo("DEAD_LETTER");
+        assertThat(queueRepository.claimNext(120000)).isEmpty();
+
+        assertThat(queueRepository.reprocess(userId)).isTrue();
         assertThat(status()).isEqualTo("PENDING");
         assertThat(attempts()).isZero();
         assertThat(queueRepository.claimNext(120000)).isPresent();
+    }
+
+    @Test
+    void shouldRenewHeartbeatOnlyForTheCurrentLockOwner() {
+        queueRepository.enqueue(userId);
+        RagIndexJob job = queueRepository.claimNext(120000).orElseThrow();
+
+        assertThat(queueRepository.heartbeat(job)).isTrue();
+        assertThat(queueRepository.heartbeat(new RagIndexJob(
+            job.id(), job.userId(), UUID.randomUUID(), job.attempts()))).isFalse();
     }
 
     @Test
@@ -146,7 +160,7 @@ class RagIndexQueueRepositoryTest extends PostgresTestSupport {
         RagIndexJob original = queueRepository.claimNext(120000).orElseThrow();
         jdbcTemplate.update("""
             UPDATE rag_index_jobs
-            SET locked_at = CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+            SET heartbeat_at = CURRENT_TIMESTAMP - INTERVAL '5 minutes'
             WHERE user_id = ?
             """, userId);
 

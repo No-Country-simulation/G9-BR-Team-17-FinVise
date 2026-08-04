@@ -177,6 +177,8 @@ Todas as rotas abaixo, exceto autenticação e health check, exigem JWT.
 | `POST` | `/api/v1/agent/conversations/{id}/messages/stream` | Resposta do agente por SSE |
 | `GET` | `/api/v1/rag/status` | Contadores da indexação RAG |
 | `POST` | `/api/v1/rag/index-step` | Etapa manual de indexação |
+| `GET` | `/api/v1/rag/queue` | Estado do job durável de indexação |
+| `POST` | `/api/v1/rag/reprocess` | Recuperação manual e reprocessamento controlado |
 | `GET` | `/api/v1/model-status` | Estado dos modelos e do provedor LLM |
 | `GET` | `/actuator/health` | Health check público do backend |
 

@@ -164,7 +164,7 @@ sequenceDiagram
     B->>DB: Conclui ou reagenda job com backoff
 ```
 
-O armazenamento, o parsing e a classificação não mantêm uma transação PostgreSQL aberta. O job RAG é persistido na mesma transação dos chunks. A indexação ocorre depois do commit por um worker do backend; falhas são reagendadas com backoff exponencial e jobs interrompidos podem ser retomados após o timeout do lock.
+O armazenamento, o parsing e a classificação não mantêm uma transação PostgreSQL aberta. O job RAG é persistido na mesma transação dos chunks. A indexação ocorre depois do commit por um worker do backend, que renova o heartbeat e drena lotes pendentes. Falhas são reagendadas com backoff exponencial; jobs interrompidos podem ser retomados após o timeout do heartbeat e, ao esgotar as tentativas, exigem recuperação manual do estado `DEAD_LETTER`.
 
 ### Sincronização Open Finance
 

@@ -8,7 +8,7 @@ spring:
   flyway:
     enabled: true
     clean-disabled: false
-    validate-on-migrate: false
+    validate-on-migrate: true
 
 logging:
   level:

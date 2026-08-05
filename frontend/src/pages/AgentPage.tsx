@@ -277,7 +277,7 @@ export function AgentPage() {
   const isEmptyState = messages.length === 1 && messages[0].id.startsWith('welcome');
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 w-full max-w-6xl flex-col lg:h-[calc(100vh-7rem)] xl:h-[calc(100vh-8rem)]">
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 w-full max-w-none flex-col lg:h-[calc(100vh-7rem)] xl:h-[calc(100vh-8rem)]">
       <Card className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-white shadow-none lg:bg-transparent">
         <CardContent className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-0">
           <div

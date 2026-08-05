@@ -25,6 +25,74 @@
     @apply bg-slate-50 text-slate-900;
   }
 
+  .auth-shell[data-theme='dark'] {
+    color: rgb(226 232 240);
+  }
+
+  .auth-shell[data-theme='dark'] :is(h1, h2, h3, h4, h5, h6, p, span, label, legend, th, td, dt, dd, li, a) {
+    color: rgb(226 232 240);
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400, .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-stone-900, .text-stone-800, .text-stone-700, .text-zinc-900, .text-zinc-800, .text-zinc-700, .text-zinc-600, .text-zinc-500) {
+    color: rgb(226 232 240) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-white, .bg-white\/5, .bg-white\/6, .bg-white\/8, .bg-white\/10, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100, .bg-stone-50, .bg-zinc-50, .bg-primary-50, .bg-emerald-50, .bg-amber-50, .bg-red-50, .bg-violet-50) {
+    background-color: rgb(8 15 28 / 0.78) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-slate-100\/80, .bg-slate-50\/50, .bg-white\/70, .bg-white\/78, .bg-white\/80, .bg-white\/84) {
+    background-color: rgb(8 15 28 / 0.88) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-primary-50\/80, .bg-primary-50\/90, .bg-primary-100, .bg-emerald-100, .bg-amber-100, .bg-red-100, .bg-violet-100) {
+    background-color: rgb(15 118 110 / 0.18) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-slate-400, .text-gray-400, .text-stone-400, .text-zinc-400) {
+    color: rgb(148 163 184) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-slate-300, .text-gray-300, .text-stone-300, .text-zinc-300) {
+    color: rgb(191 219 254) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-primary-600, .text-primary-700, .text-cyan-600, .text-cyan-700) {
+    color: rgb(103 232 249) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.border-slate-200, .border-slate-100, .border-gray-200, .border-gray-100, .border-stone-200, .border-zinc-200) {
+    border-color: rgb(148 163 184 / 0.14) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.divide-slate-100, .divide-slate-200, .divide-gray-100, .divide-gray-200, .divide-stone-100, .divide-zinc-100) > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(148 163 184 / 0.14) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    color: rgb(248 250 252) !important;
+    background-color: rgb(15 23 42 / 0.82) !important;
+    border-color: rgb(148 163 184 / 0.18) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(input::placeholder, textarea::placeholder) {
+    color: rgb(148 163 184) !important;
+    opacity: 1;
+  }
+
+  .auth-shell[data-theme='dark'] :is(select option) {
+    background-color: rgb(15 23 42);
+    color: rgb(248 250 252);
+  }
+
+  .auth-shell[data-theme='light'] :is(.text-white, .text-slate-100, .text-slate-200, .text-gray-100, .text-gray-200, .text-stone-100, .text-zinc-100) {
+    color: rgb(15 23 42) !important;
+  }
+
+  .auth-shell[data-theme='light'] :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400, .text-stone-300, .text-stone-400, .text-zinc-300, .text-zinc-400) {
+    color: rgb(71 85 105) !important;
+  }
+
   button,
   a,
   input,
@@ -98,12 +166,21 @@
       animation: none;
       display: none;
     }
+
+    .ticker-track {
+      animation: none;
+    }
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .ticker-track {
+    animation: ticker-scroll 28s linear infinite;
+    will-change: transform;
   }
 
   .mobile-safe-top {
@@ -134,5 +211,15 @@
 
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
   }
 }

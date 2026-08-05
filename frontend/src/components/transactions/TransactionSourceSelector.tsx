@@ -1,5 +1,5 @@
 import { Select } from '@/components/ui/Select';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 import { cn } from '@/lib/utils';
 import { TransactionSource } from '@/types/transaction';
 

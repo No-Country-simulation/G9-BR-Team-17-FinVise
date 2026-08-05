@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, List, Upload, MessageSquare, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 
 interface MobileBottomNavigationProps {
   onMoreClick: () => void;

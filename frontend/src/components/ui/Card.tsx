@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 
 type DivProps = React.ComponentPropsWithRef<'div'>;
 type HeadingProps = React.ComponentPropsWithRef<'h3'>;

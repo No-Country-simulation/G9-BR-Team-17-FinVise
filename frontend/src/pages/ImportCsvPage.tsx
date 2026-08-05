@@ -12,7 +12,7 @@ import { analysisService } from '@/services/analysisService';
 import { extractErrorMessage } from '@/lib/api';
 import { ProfileAnalysisModel } from '@/types/analysis';
 import { rememberTransactionSource } from '@/hooks/useTransactionSource';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 import { cn } from '@/lib/utils';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;

@@ -1,15 +1,43 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Footer } from '@/components/layout/Footer';
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation';
+import { AuthBackground } from '@/components/auth/Background';
+import { useTheme } from '@/components/auth/ThemeProvider';
 import { cn } from '@/lib/utils';
+import { authService } from '@/services/authService';
+import { userService } from '@/services/userService';
+
+const sidebarCollapsedStorageKey = 'finvise-sidebar-collapsed';
 
 export function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { pathname } = useLocation();
   const isAgentPage = pathname === '/agent';
+  const { resolvedTheme } = useTheme();
+  const prefersReducedMotion = useReducedMotion();
+  const userId = authService.getUserId();
+  const { data: dashboardUser } = useQuery({
+    queryKey: ['users', userId, 'dashboard'],
+    queryFn: () => userService.getDashboard(userId as string),
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const userName = dashboardUser?.name || 'Usuário';
+
+  useEffect(() => {
+    const savedValue = window.localStorage.getItem(sidebarCollapsedStorageKey);
+    setIsSidebarCollapsed(savedValue === 'true');
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(sidebarCollapsedStorageKey, String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
@@ -52,11 +80,24 @@ export function MainLayout() {
   }, [isSidebarOpen]);
 
   return (
-    <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden bg-slate-50 lg:pl-64">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+    <div
+      data-theme={resolvedTheme}
+      className={cn(
+        'auth-shell relative flex min-h-dvh w-full max-w-full overflow-x-hidden transition-[padding] duration-300',
+        isSidebarCollapsed ? 'lg:pl-[5.5rem]' : 'lg:pl-64',
+        resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
+      )}
+    >
+      <AuthBackground />
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
+      />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Header userName="Demo User" onMenuClick={() => setIsSidebarOpen(true)} />
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <Header userName={userName} onMenuClick={() => setIsSidebarOpen(true)} />
 
         <main
           className={cn(
@@ -67,7 +108,14 @@ export function MainLayout() {
           )}
         >
           <div className={cn('mx-auto w-full', isAgentPage ? 'max-w-none' : 'max-w-[100rem]')}>
-            <Outlet />
+            <motion.div
+              key={pathname}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: 'easeOut' }}
+            >
+              <Outlet />
+            </motion.div>
           </div>
         </main>
 

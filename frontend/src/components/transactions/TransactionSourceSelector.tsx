@@ -1,4 +1,6 @@
 import { Select } from '@/components/ui/Select';
+import { useTheme } from '@/components/auth/ThemeProvider';
+import { cn } from '@/lib/utils';
 import { TransactionSource } from '@/types/transaction';
 
 interface TransactionSourceSelectorProps {
@@ -16,9 +18,11 @@ export function TransactionSourceSelector({
   className,
   disabled = false,
 }: TransactionSourceSelectorProps) {
+  const { resolvedTheme } = useTheme();
+
   return (
     <label className={className ?? 'block min-w-0 w-full sm:max-w-sm xl:w-auto xl:min-w-56'}>
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <span className={cn('mb-1 block text-xs font-semibold uppercase tracking-wide', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-500')}>
         {label}
       </span>
       <Select

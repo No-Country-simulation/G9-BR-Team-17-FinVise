@@ -1,32 +1,174 @@
-import { Bell, Menu, User } from 'lucide-react';
+import { Bell, ChevronRight, Menu, TrendingDown, TrendingUp, User } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
-import { getInitials } from '@/lib/utils';
+import { useNotificationPreferences } from '@/components/auth/NotificationPreferencesProvider';
+import { useTheme } from '@/components/auth/ThemeProvider';
+import { cn, formatCurrency, getInitials } from '@/lib/utils';
+import { importSourceService } from '@/services/importSourceService';
+import { transactionService } from '@/services/transactionService';
+import type { TransactionSource } from '@/types/transaction';
 
 interface HeaderProps {
   userName?: string;
   onMenuClick?: () => void;
 }
 
+const notificationTickerStorageKey = 'finvise-header-ticker-enabled';
+
 export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
+  const { resolvedTheme } = useTheme();
+  const { preferences } = useNotificationPreferences();
+  const initials = getInitials(userName);
+  const [isTickerEnabled, setIsTickerEnabled] = useState(true);
+  const currentSource = (window.localStorage.getItem('finance_ai_transaction_source') as TransactionSource) || 'CSV_IMPORT';
+  const { data: importSources = [] } = useQuery({
+    queryKey: ['header', 'import-sources'],
+    queryFn: importSourceService.getAll,
+    staleTime: 60 * 1000,
+  });
+  const { data: summary } = useQuery({
+    queryKey: ['header', 'summary', currentSource],
+    queryFn: () => transactionService.getSummary(currentSource),
+    staleTime: 60 * 1000,
+  });
+  const { data: monthlySummary = [] } = useQuery({
+    queryKey: ['header', 'monthly-summary', currentSource],
+    queryFn: () => transactionService.getMonthlySummary(currentSource),
+    staleTime: 60 * 1000,
+  });
+
+  const tickerItems = useMemo(() => {
+    const items: string[] = [];
+    const latestImport = [...importSources].sort(
+      (left, right) => new Date(right.lastSyncAt || right.createdAt).getTime() - new Date(left.lastSyncAt || left.createdAt).getTime()
+    )[0];
+
+    if (preferences.weeklyReport) {
+      items.push(
+        latestImport
+          ? `Importação recente: ${latestImport.displayName} com ${latestImport.transactionCount.toLocaleString('pt-BR')} transações indexadas`
+          : 'Importações: nenhuma fonte conectada até o momento'
+      );
+    }
+
+    if (preferences.spendingAlerts && summary) {
+      items.push(`Saldo atual: ${formatCurrency(summary.balance)} | Receitas: ${formatCurrency(summary.totalIncome)} | Despesas: ${formatCurrency(summary.totalExpense)}`);
+
+      const currentMonth = monthlySummary[monthlySummary.length - 1];
+      const previousMonth = monthlySummary[monthlySummary.length - 2];
+      if (currentMonth && previousMonth) {
+        const balanceDelta = currentMonth.balance - previousMonth.balance;
+        if (balanceDelta !== 0) {
+          items.push(`${balanceDelta > 0 ? 'Alta' : 'Queda'} no orçamento: ${formatCurrency(Math.abs(balanceDelta))} em relação ao mês anterior`);
+        }
+      }
+    }
+
+    if (preferences.productNews) {
+      items.push('FinVise atualizado: acompanhe importações e variações do orçamento em tempo real no topo da aplicação');
+    }
+
+    return items;
+  }, [importSources, monthlySummary, preferences, summary]);
+
+  useEffect(() => {
+    const storedValue = window.localStorage.getItem(notificationTickerStorageKey);
+    if (storedValue === 'false') {
+      setIsTickerEnabled(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(notificationTickerStorageKey, String(isTickerEnabled));
+  }, [isTickerEnabled]);
+
   return (
-    <header className="mobile-safe-top sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center justify-between border-b border-slate-200 bg-white px-3 shadow-sm sm:px-5 lg:h-16 lg:px-8">
+    <header
+      className={cn(
+        'mobile-safe-top sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center justify-between border-b px-3 shadow-sm backdrop-blur-xl sm:px-5 lg:h-16 lg:px-8',
+        resolvedTheme === 'dark'
+          ? 'border-white/10 bg-[rgba(8,15,28,0.72)] text-white shadow-[0_18px_50px_rgba(2,8,23,0.26)]'
+          : 'border-slate-200/80 bg-[rgba(248,250,252,0.78)] text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]'
+      )}
+    >
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="-ml-1 lg:hidden" onClick={onMenuClick} aria-label="Abrir menu">
           <Menu className="h-5 w-5" />
         </Button>
-        <span className="text-base font-bold tracking-tight text-primary-700 lg:hidden">FinVise</span>
+        <span className={cn('text-base font-bold tracking-tight lg:hidden', resolvedTheme === 'dark' ? 'text-cyan-200' : 'text-primary-700')}>FinVise</span>
+      </div>
+
+      <div className="hidden min-w-0 flex-1 overflow-hidden px-2 lg:block">
+        <div
+          className={cn(
+            'flex h-10 items-center overflow-hidden rounded-full border px-4',
+            resolvedTheme === 'dark'
+              ? 'border-white/10 bg-white/[0.03]'
+              : 'border-slate-200/80 bg-white/60'
+          )}
+        >
+          {isTickerEnabled && tickerItems.length > 0 ? (
+            <div className="ticker-track flex min-w-max items-center gap-8 whitespace-nowrap">
+              {[...tickerItems, ...tickerItems].map((item, index) => (
+                <div key={`${item}-${index}`} className={cn('inline-flex items-center gap-2 text-xs font-medium sm:text-sm', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+                  {item.includes('Alta')
+                    ? <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                    : item.includes('Queda')
+                      ? <TrendingDown className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                      : <Bell className={cn('h-3.5 w-3.5 shrink-0', resolvedTheme === 'dark' ? 'text-cyan-300' : 'text-primary-600')} />}
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={cn('truncate text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              O FinVise nao mostra apenas para onde o dinheiro foi. Ele explica o que esta acontecendo e indica o proximo passo.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label="Notificações">
-          <Bell className="h-5 w-5 text-slate-600" />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={isTickerEnabled ? 'Desativar ticker de notificações' : 'Ativar ticker de notificações'}
+          aria-pressed={isTickerEnabled ? 'true' : 'false'}
+          onClick={() => setIsTickerEnabled((current) => !current)}
+          className={cn(isTickerEnabled && (resolvedTheme === 'dark' ? 'bg-cyan-400/12 text-cyan-100' : 'bg-primary-50 text-primary-700'))}
+        >
+          <Bell className={cn('h-5 w-5', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-600', isTickerEnabled && (resolvedTheme === 'dark' ? 'text-cyan-100' : 'text-primary-700'))} />
         </Button>
-        <div className="flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 sm:px-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-primary-700">
+        <Link
+          to="/profile"
+          aria-label={`Abrir perfil de ${userName}`}
+          title={userName}
+          className={cn(
+            'group flex h-11 items-center gap-2 rounded-full border px-2.5 outline-none transition-all focus-visible:ring-2 focus-visible:ring-cyan-300/50 sm:px-3',
+            resolvedTheme === 'dark'
+              ? 'border-white/10 bg-white/5 hover:bg-white/10'
+              : 'border-slate-200 bg-white/70 hover:bg-white'
+          )}
+        >
+          <span
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+              resolvedTheme === 'dark'
+                ? 'bg-cyan-400/15 text-cyan-100 group-hover:bg-cyan-400/20'
+                : 'bg-primary-100 text-primary-700 group-hover:bg-primary-200'
+            )}
+            aria-hidden="true"
+          >
             <User className="h-4 w-4" />
-          </div>
-          <span className="hidden text-sm font-medium text-slate-700 sm:inline">{getInitials(userName)}</span>
-        </div>
+          </span>
+          <span className={cn('hidden text-sm font-medium sm:inline', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+            {initials}
+          </span>
+          <ChevronRight className={cn('hidden h-4 w-4 sm:block', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')} />
+          <span className="sr-only">{userName}</span>
+        </Link>
       </div>
     </header>
   );

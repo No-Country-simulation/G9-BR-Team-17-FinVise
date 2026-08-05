@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
+import { useNotificationPreferences } from '@/components/auth/NotificationPreferencesProvider';
+import { useTheme } from '@/components/auth/ThemeProvider';
 
 const languageOptions = [
   { value: 'pt-BR', label: 'Português (Brasil)' },
@@ -12,6 +14,8 @@ const languageOptions = [
 
 export function SettingsPage() {
   const [saved, setSaved] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const { preferences, updatePreference } = useNotificationPreferences();
 
   const handleSave = () => {
     setSaved(true);
@@ -19,7 +23,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
+    <div className="mx-auto w-full max-w-none space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
         <p className="text-slate-500">Personalize sua experiência no FinVise</p>
@@ -43,15 +47,15 @@ export function SettingsPage() {
         <CardContent className="space-y-3">
           <label className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
             <span className="text-sm text-slate-700">Alertas de gastos</span>
-            <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-primary-600" />
+            <input type="checkbox" checked={preferences.spendingAlerts} onChange={(event) => updatePreference('spendingAlerts', event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600" />
           </label>
           <label className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
             <span className="text-sm text-slate-700">Relatório semanal</span>
-            <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-slate-300 text-primary-600" />
+            <input type="checkbox" checked={preferences.weeklyReport} onChange={(event) => updatePreference('weeklyReport', event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600" />
           </label>
           <label className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
             <span className="text-sm text-slate-700">Novidades do aplicativo</span>
-            <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-primary-600" />
+            <input type="checkbox" checked={preferences.productNews} onChange={(event) => updatePreference('productNews', event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600" />
           </label>
         </CardContent>
       </Card>
@@ -68,12 +72,21 @@ export function SettingsPage() {
             <label className="mb-1 block text-sm font-medium text-slate-700">Idioma</label>
             <Select options={languageOptions} defaultValue="pt-BR" />
           </div>
-          <label className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
-            <span className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="block space-y-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Moon className="h-4 w-4" />
-              Modo escuro
+              Tema da aplicação
             </span>
-            <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-primary-600" />
+            <Select
+              aria-label="Tema da aplicação"
+              value={theme}
+              onChange={(event) => setTheme(event.target.value as 'dark' | 'light' | 'system')}
+              options={[
+                { value: 'dark', label: 'Escuro' },
+                { value: 'light', label: 'Claro' },
+                { value: 'system', label: 'Sistema' },
+              ]}
+            />
           </label>
         </CardContent>
       </Card>

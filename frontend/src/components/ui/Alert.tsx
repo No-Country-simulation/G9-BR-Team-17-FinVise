@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 
 const alertVariants = cva(
   'relative w-full rounded-[24px] border p-4 backdrop-blur-xl [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:h-5 [&>svg]:w-5 [&>svg+div]:translate-y-[-3px] [&:has(svg)]:pl-11',

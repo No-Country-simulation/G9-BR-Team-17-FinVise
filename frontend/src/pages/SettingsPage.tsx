@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
-import { useNotificationPreferences } from '@/components/auth/NotificationPreferencesProvider';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useNotificationPreferences } from '@/components/auth/useNotificationPreferences';
+import { useTheme } from '@/components/auth/useTheme';
 
 const languageOptions = [
   { value: 'pt-BR', label: 'Português (Brasil)' },

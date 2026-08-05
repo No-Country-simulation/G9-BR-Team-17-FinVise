@@ -1,17 +1,8 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-
-export type ThemeMode = 'dark' | 'light' | 'system';
-export type ResolvedTheme = 'dark' | 'light';
-
-interface ThemeContextValue {
-  theme: ThemeMode;
-  resolvedTheme: ResolvedTheme;
-  setTheme: (theme: ThemeMode) => void;
-}
+import { useEffect, useMemo, useState } from 'react';
+import { ThemeContext, type ResolvedTheme, type ThemeMode } from './theme-context';
 
 const themeStorageKey = 'finvise-theme';
-const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === 'undefined') {
@@ -61,17 +52,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (context) {
-    return context;
-  }
-
-  return {
-    theme: 'dark',
-    resolvedTheme: 'dark',
-    setTheme: () => undefined,
-  };
 }

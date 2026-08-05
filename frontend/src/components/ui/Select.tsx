@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 
 export interface SelectOption {
   value: string;

@@ -17,7 +17,7 @@ import {
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
 import { Button } from '@/components/ui/Button';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 import { FinViseMark } from '@/components/auth/FinViseLogo';
 
 const navItems = [

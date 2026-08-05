@@ -7,7 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Footer } from '@/components/layout/Footer';
 import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation';
 import { AuthBackground } from '@/components/auth/Background';
-import { useTheme } from '@/components/auth/ThemeProvider';
+import { useTheme } from '@/components/auth/useTheme';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
 import { userService } from '@/services/userService';

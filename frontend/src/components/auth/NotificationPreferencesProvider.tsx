@@ -1,16 +1,9 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-
-export interface NotificationPreferences {
-  spendingAlerts: boolean;
-  weeklyReport: boolean;
-  productNews: boolean;
-}
-
-interface NotificationPreferencesContextValue {
-  preferences: NotificationPreferences;
-  updatePreference: (key: keyof NotificationPreferences, value: boolean) => void;
-}
+import { useEffect, useMemo, useState } from 'react';
+import {
+  NotificationPreferencesContext,
+  type NotificationPreferences,
+} from './notification-preferences-context';
 
 const notificationPreferencesStorageKey = 'finvise-notification-preferences';
 
@@ -19,8 +12,6 @@ const defaultPreferences: NotificationPreferences = {
   weeklyReport: true,
   productNews: false,
 };
-
-const NotificationPreferencesContext = createContext<NotificationPreferencesContextValue | null>(null);
 
 function parseStoredPreferences(rawValue: string | null): NotificationPreferences {
   if (!rawValue) return defaultPreferences;
@@ -59,14 +50,4 @@ export function NotificationPreferencesProvider({ children }: { children: ReactN
   );
 
   return <NotificationPreferencesContext.Provider value={value}>{children}</NotificationPreferencesContext.Provider>;
-}
-
-export function useNotificationPreferences() {
-  const context = useContext(NotificationPreferencesContext);
-  if (context) return context;
-
-  return {
-    preferences: defaultPreferences,
-    updatePreference: () => undefined,
-  };
 }

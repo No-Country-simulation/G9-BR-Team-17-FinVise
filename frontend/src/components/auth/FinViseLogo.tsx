@@ -1,5 +1,5 @@
-import type { SVGProps } from 'react';
 import { cn } from '@/lib/utils';
+import finViseLogoImage from '@/assets/branding/new-logo.jpg';
 
 interface FinViseLogoProps {
   className?: string;
@@ -9,15 +9,20 @@ interface FinViseLogoProps {
   showSubtitle?: boolean;
 }
 
-export function FinViseMark(props: SVGProps<SVGSVGElement>) {
+interface FinViseMarkProps {
+  className?: string;
+}
+
+export function FinViseMark({ className }: FinViseMarkProps) {
   return (
-    <svg viewBox="0 0 72 72" fill="none" aria-hidden="true" {...props}>
-      <rect x="10" y="12" width="10" height="48" rx="4" fill="currentColor" />
-      <rect x="24" y="22" width="10" height="38" rx="4" fill="currentColor" opacity="0.9" />
-      <rect x="38" y="34" width="10" height="26" rx="4" fill="currentColor" opacity="0.8" />
-      <path d="M52 24L62 24L62 34" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M18 18L52 18" stroke="currentColor" strokeWidth="4" strokeLinecap="round" opacity="0.12" />
-    </svg>
+    <img
+      src={finViseLogoImage}
+      alt=""
+      aria-hidden="true"
+      className={cn('rounded-lg object-cover', className)}
+      loading="eager"
+      decoding="async"
+    />
   );
 }
 

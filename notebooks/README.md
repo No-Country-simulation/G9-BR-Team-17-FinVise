@@ -1,10 +1,10 @@
-# Notebook `finance_ai_data_science.ipynb`
+# Notebook `finance_ai_data_science .ipynb`
 
 Guia completo do notebook de Ciência de Dados do MVP FinVise.
 
 ## Objetivo
 
-O notebook [`finance_ai_data_science.ipynb`](./finance_ai_data_science.ipynb) implementa um fluxo fim a fim para:
+O notebook [`finance_ai_data_science .ipynb`](<./finance_ai_data_science .ipynb>) implementa um fluxo fim a fim para:
 
 1. classificar transações de despesa por categoria;
 2. classificar o perfil financeiro mensal do usuário;
@@ -52,7 +52,7 @@ O notebook procura a raiz do repositório e usa:
 
 Também grava saídas em:
 
-- [`ai-service/models/notebook-experiments/`](../ai-service/models/notebook-experiments)
+- `ai-service/models/notebook-experiments/` (criado durante a execução)
 
 ## Pré-requisitos
 
@@ -68,7 +68,7 @@ No repositório:
 cd ai-service
 python -m pip install --no-deps -e .
 python -m pip install jupyter matplotlib
-jupyter lab ../notebooks/finance_ai_data_science.ipynb
+jupyter lab "../notebooks/finance_ai_data_science .ipynb"
 ```
 
 Execute as células em ordem, sem pular etapas, para preservar rastreabilidade entre treino, seleção e avaliação final.
@@ -93,7 +93,7 @@ Execute as células em ordem, sem pular etapas, para preservar rastreabilidade e
 
 ## Artefatos gerados
 
-Arquivos exportados em [`ai-service/models/notebook-experiments/`](../ai-service/models/notebook-experiments):
+Arquivos exportados em `ai-service/models/notebook-experiments/`, criado durante a execução:
 
 - `transaction_classifier.joblib`
 - `profile_classifier.joblib`

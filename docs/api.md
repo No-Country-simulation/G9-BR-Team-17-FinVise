@@ -609,7 +609,7 @@ Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas
 | `GET` | `/internal/v1/models/status` | Registry, artefatos e LLM |
 | `GET` | `/internal/v1/rag/retrieval/metrics` | Uso dos canais, falhas vetoriais e latências da recuperação |
 | `POST` | `/internal/v1/transactions/classify` | `{items:[{description,amount,payment_method,recurrent,channel}]}` |
-| `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e nove indicadores |
+| `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e oito indicadores |
 | `POST` | `/internal/v1/profiles/recommendations` | Recomendações do motor Python |
 | `POST` | `/internal/v1/agent/respond` | Header de usuário confiável e resposta completa do agente |
 | `POST` | `/internal/v1/agent/respond/stream` | Header de usuário confiável e SSE `tools`, `sources`, `token`, `done` ou `error` |

@@ -280,3 +280,5 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 O container não declara usuário não-root. Os modelos fazem parte da imagem; o Compose não monta mais um diretório vazio sobre `/app/models`, exige modelos ativos e encaminha credenciais do PostgreSQL para o RAG.
+
+Para a matriz completa de variáveis e as diferenças entre execução isolada e Compose, consulte [`../docs/configuration.md`](../docs/configuration.md). O ciclo de desenvolvimento, testes e diagnóstico está em [`../docs/development.md`](../docs/development.md).

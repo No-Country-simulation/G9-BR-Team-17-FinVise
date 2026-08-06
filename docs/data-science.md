@@ -254,4 +254,4 @@ O Compose encaminha `ENVIRONMENT`, `REQUIRE_ACTIVE_MODELS` e as duas versões es
 
 ## Notebook
 
-`notebooks/finance_ai_data_science.ipynb` contém exploração e experimentos. Os scripts em `ai-service/training/` são a referência executável para o pipeline usado pelos artefatos e relatórios versionados; afirmações do notebook que divergirem desses scripts não descrevem o runtime atual.
+`notebooks/finance_ai_data_science .ipynb` contém exploração e experimentos. Os scripts em `ai-service/training/` são a referência executável para o pipeline usado pelos artefatos e relatórios versionados; afirmações do notebook que divergirem desses scripts não descrevem o runtime atual.

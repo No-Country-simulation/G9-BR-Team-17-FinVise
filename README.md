@@ -237,6 +237,7 @@ Embeddings remotos exigem `RAG_ENABLE_REMOTE_EMBEDDINGS=true` e `LLM_API_KEY`; s
 - [Estratégia de branches](docs/BRANCHING.md)
 - [Decisões arquiteturais](docs/adr/)
 - [Notebook de ciência de dados](notebooks/finance_ai_data_science.ipynb)
+- [README do notebook de ciência de dados](notebooks/README.md)
 
 ## 🔒 Segurança
 

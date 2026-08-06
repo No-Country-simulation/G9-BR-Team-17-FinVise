@@ -165,33 +165,41 @@ export function AnalysisResultPage() {
             Recomendações
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {analysis.recommendations.map((rec) => {
             const badge = getPriorityBadge(rec.priority);
             const impactText = rec.expectedImpact || rec.impact;
             return (
-              <div key={rec.id} className="rounded-lg border border-slate-100 p-4">
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="font-medium text-slate-900">{rec.title}</p>
-                    <p className="text-sm text-slate-600">{rec.description}</p>
-                    {rec.reason && (
-                      <p className="text-xs font-medium text-slate-700 bg-slate-50 rounded px-2 py-0.5 inline-block border border-slate-200/60">
-                        Motivo: {rec.reason}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                      {rec.suggestedAmount != null && rec.suggestedAmount > 0 && (
-                        <span className="font-semibold text-emerald-700">
-                          Valor sugerido: {formatCurrency(rec.suggestedAmount)}
-                        </span>
+              <div key={rec.id} className="rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 border border-amber-200/60">
+                      <Lightbulb className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <p className="font-semibold text-slate-900 leading-snug">{rec.title}</p>
+                      <p className="text-sm text-slate-600 leading-relaxed">{rec.description}</p>
+                      {rec.reason && (
+                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-slate-50/80 px-2.5 py-1 text-xs text-slate-700">
+                          <span className="font-semibold text-slate-900">Motivo:</span>
+                          <span>{rec.reason}</span>
+                        </div>
                       )}
-                      {impactText && (
-                        <span>Impacto: {impactText}</span>
+                      {((rec.suggestedAmount != null && rec.suggestedAmount > 0) || impactText) && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 border-t border-slate-100 text-xs">
+                          {rec.suggestedAmount != null && rec.suggestedAmount > 0 && (
+                            <span className="font-semibold text-emerald-700">
+                              Valor sugerido: {formatCurrency(rec.suggestedAmount)}
+                            </span>
+                          )}
+                          {impactText && (
+                            <span className="text-slate-500">Impacto: {impactText}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
-                  <Badge variant={badge.variant}>
+                  <Badge variant={badge.variant} className="self-start px-2.5 py-0.5 text-xs font-semibold">
                     {badge.label}
                   </Badge>
                 </div>

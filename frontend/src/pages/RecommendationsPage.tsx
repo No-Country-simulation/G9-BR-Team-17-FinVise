@@ -31,38 +31,68 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
   const impactText = recommendation.expectedImpact || recommendation.impact;
 
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+    <Card className="overflow-hidden border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
+      <CardContent className="p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4 min-w-0 flex-1">
+            {/* Ícone */}
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-200/60 shadow-2xs">
               <Lightbulb className="h-5 w-5" />
             </div>
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <p className="font-semibold text-slate-900">{recommendation.title}</p>
-              <p className="text-sm text-slate-600">{recommendation.description}</p>
 
-              {recommendation.reason && (
-                <p className="text-xs font-medium text-slate-700 bg-slate-50 rounded px-2.5 py-1 inline-block border border-slate-200/60">
-                  Motivo: {recommendation.reason}
-                </p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-xs text-slate-500">
-                {recommendation.suggestedAmount != null && recommendation.suggestedAmount > 0 && (
-                  <span className="font-semibold text-emerald-700">
-                    Valor sugerido: {formatCurrency(recommendation.suggestedAmount)}
+            {/* Conteúdo Principal */}
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-slate-900 leading-snug">
+                  {recommendation.title}
+                </h3>
+                {recommendation.category && (
+                  <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    {recommendation.category}
                   </span>
                 )}
-                {impactText && (
-                  <span>Impacto: {impactText}</span>
-                )}
               </div>
+
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {recommendation.description}
+              </p>
+
+              {/* Justificativa / Motivo */}
+              {recommendation.reason && (
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-700">
+                  <span className="font-semibold text-slate-900">Motivo:</span>
+                  <span>{recommendation.reason}</span>
+                </div>
+              )}
+
+              {/* Rodapé do Card (Valor e Impacto) */}
+              {((recommendation.suggestedAmount != null && recommendation.suggestedAmount > 0) || impactText) && (
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2.5 mt-2 border-t border-slate-100 text-xs">
+                  {recommendation.suggestedAmount != null && recommendation.suggestedAmount > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-medium">Valor sugerido:</span>
+                      <span className="font-bold text-emerald-700 text-sm">
+                        {formatCurrency(recommendation.suggestedAmount)}
+                      </span>
+                    </div>
+                  )}
+                  {impactText && (
+                    <div className="flex items-center gap-1.5 text-slate-500">
+                      <span className="font-medium text-slate-700">Impacto:</span>
+                      <span>{impactText}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-          <Badge variant={priorityBadge.variant}>
-            {priorityBadge.label}
-          </Badge>
+
+          {/* Badge de Prioridade alinhado à direita */}
+          <div className="shrink-0 self-start pt-0.5">
+            <Badge variant={priorityBadge.variant} className="px-3 py-1 text-xs font-semibold shadow-2xs">
+              {priorityBadge.label}
+            </Badge>
+          </div>
         </div>
       </CardContent>
     </Card>

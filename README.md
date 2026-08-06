@@ -20,6 +20,7 @@ O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastr
 ### Funcionalidades implementadas
 
 - Cadastro, login JWT e redefinição de senha com código enviado pela Resend.
+- Configurações de aparência, troca autenticada de senha e exportação financeira em CSV.
 - Importação de CSV com limite de 5 MiB, armazenamento local ou OCI Object Storage e bloqueio de arquivo repetido por SHA-256.
 - Integração Open Finance com Pluggy para Connect Token e sincronização explícita de um `itemId`.
 - Classificação de transações por modelo Scikit-learn ou fallback por palavras-chave.
@@ -60,7 +61,7 @@ Nginx :8080 (desenvolvimento) / :80 (produção)
 
 O backend é o proprietário das regras de negócio, do schema Flyway e dos dados financeiros. O AI Service acessa diretamente `rag_documents` para gerar/persistir embeddings e recuperar evidências; as demais informações do agente são calculadas no backend e enviadas no contexto da chamada.
 
-Mais detalhes em [`docs/architecture.md`](docs/architecture.md) e [`docs/rag-architecture.md`](docs/rag-architecture.md).
+Comece pelo [índice da documentação](docs/README.md). Os detalhes arquiteturais estão em [`docs/architecture.md`](docs/architecture.md) e [`docs/rag-architecture.md`](docs/rag-architecture.md).
 
 ## 🛠️ Tecnologias e versões
 
@@ -172,6 +173,8 @@ Todas as rotas abaixo, exceto autenticação e health check, exigem JWT.
 | `POST` | `/api/v1/auth/register` | Cadastro |
 | `POST` | `/api/v1/auth/login` | Emissão de JWT |
 | `POST` | `/api/v1/auth/forgot-password` | Solicitação de código de redefinição |
+| `POST` | `/api/v1/auth/validate-reset-code` | Validação do código e emissão do reset token |
+| `POST` | `/api/v1/auth/reset-password` | Definição da nova senha com reset token |
 | `POST` | `/api/v1/imports/transactions/csv` | Importação CSV |
 | `GET` | `/api/v1/imports/sources` | Fontes CSV/Open Finance do usuário |
 | `GET` | `/api/v1/transactions` | Transações filtradas e paginadas |
@@ -185,6 +188,8 @@ Todas as rotas abaixo, exceto autenticação e health check, exigem JWT.
 | `GET` | `/api/v1/rag/queue` | Estado do job durável de indexação |
 | `POST` | `/api/v1/rag/reprocess` | Recuperação manual e reprocessamento controlado |
 | `GET` | `/api/v1/model-status` | Estado dos modelos e do provedor LLM |
+| `PUT` | `/api/v1/users/me/password` | Troca autenticada de senha |
+| `POST` | `/api/v1/reports/financial/{userId}/export` | Exportação financeira em CSV |
 | `GET` | `/actuator/health` | Health check público do backend |
 
 O contrato completo, inclusive envelopes, filtros, payloads, SSE e endpoints internos, está em [`docs/api.md`](docs/api.md). Swagger UI: `http://localhost:8080/api/v1/swagger-ui.html`.
@@ -220,7 +225,7 @@ O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-serv
 | Grupo | Variáveis relevantes |
 | --- | --- |
 | Banco/segurança | `POSTGRES_*`, `SPRING_DATASOURCE_*`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `CORS_ALLOWED_ORIGINS` |
-| AI Service | `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, timeouts, `MODELS_DIR`, caminhos dos modelos, `LOG_LEVEL` |
+| AI Service | `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, timeouts, `AI_SERVICE_ENVIRONMENT`, `MODELS_DIR`, caminhos e versões dos modelos, `REQUIRE_ACTIVE_MODELS`, `LOG_LEVEL` |
 | LLM | `ENABLE_LLM`, `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT` |
 | RAG | `RAG_ENABLE_REMOTE_EMBEDDINGS`, `RAG_EMBEDDING_MODEL`, `RAG_EMBEDDING_BATCH_SIZE`, `RAG_INDEX_MAX_BATCHES`, `RAG_MIN_RELEVANCE`, `RAG_HYBRID_RRF_K`, `RAG_VECTOR_WEIGHT`, `RAG_TEXT_WEIGHT`, `RAG_CANDIDATE_MULTIPLIER`, `RAG_INDEX_QUEUE_*` |
 | Open Finance | `OPEN_FINANCE_*`, `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` |
@@ -230,8 +235,17 @@ O Compose consome o `.env` da raiz. Os arquivos `backend/.env.example`, `ai-serv
 
 Embeddings remotos exigem `RAG_ENABLE_REMOTE_EMBEDDINGS=true` e `LLM_API_KEY`; sem ambos, o RAG usa `local-hash-v2`. Respostas do agente por LLM também exigem `ENABLE_LLM=true`, `LLM_PROVIDER=openai` e a chave. O cliente usa URLs compatíveis com `/chat/completions` e `/embeddings`.
 
+O catálogo com padrões, diferenças entre Compose e execução isolada e dependências entre variáveis está em [Configuração](docs/configuration.md).
+
 ## 📚 Documentação técnica
 
+- [Índice completo da documentação](docs/README.md)
+- [Guia de uso](docs/user-guide.md)
+- [Configuração e variáveis de ambiente](docs/configuration.md)
+- [Desenvolvimento, testes e operação local](docs/development.md)
+- [Backend](backend/README.md)
+- [Frontend](frontend/README.md)
+- [AI Service](ai-service/README.md)
 - [Arquitetura](docs/architecture.md)
 - [API pública e interna](docs/api.md)
 - [Arquitetura RAG](docs/rag-architecture.md)
@@ -240,7 +254,7 @@ Embeddings remotos exigem `RAG_ENABLE_REMOTE_EMBEDDINGS=true` e `LLM_API_KEY`; s
 - [Deploy na OCI](docs/deployment-oci.md)
 - [Estratégia de branches](docs/BRANCHING.md)
 - [Decisões arquiteturais](docs/adr/)
-- [Notebook de ciência de dados](notebooks/finance_ai_data_science.ipynb)
+- [Notebook de ciência de dados](<notebooks/finance_ai_data_science .ipynb>)
 - [README do notebook de ciência de dados](notebooks/README.md)
 
 ## 🔒 Segurança

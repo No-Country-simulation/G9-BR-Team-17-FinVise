@@ -1,5 +1,7 @@
 # Deploy na OCI
 
+> Antes do deploy, revise o [catálogo de configuração](configuration.md), o [checklist de segurança](security.md) e o [índice da documentação](README.md).
+
 ## Visão geral
 
 O deploy versionado executa Nginx, frontend, backend, AI Service e PostgreSQL em uma única OCI Compute Instance com Docker Compose.

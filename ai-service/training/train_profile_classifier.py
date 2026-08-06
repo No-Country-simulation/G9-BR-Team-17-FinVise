@@ -17,6 +17,8 @@ from app.profile_classifier.sklearn_classifier import FEATURE_NAMES
 
 logger = logging.getLogger(__name__)
 
+MODEL_VERSION = "1.0.0"
+
 FORBIDDEN_FEATURES = {
     "score_financeiro",
     "confianca_perfil",
@@ -138,7 +140,7 @@ def train() -> None:
     with open(output_dir / "metadata.json", "w", encoding="utf-8") as f:
         json.dump(
             {
-                "version": "1.0.0",
+                "version": MODEL_VERSION,
                 "status": "ACTIVE",
                 "trained_at": datetime.now(UTC).isoformat(),
                 "model": best_name,

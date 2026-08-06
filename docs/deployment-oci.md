@@ -156,7 +156,7 @@ RESEND_FROM_ADDRESS=Finance AI <no-reply@example.com>
 
 ### 3. Modelos
 
-O Compose monta `./ai-service/models:/app/models:ro`. Artefatos de modelo são ignorados pelo Git e precisam ser provisionados antes do build/start quando modelos treinados forem desejados:
+O build do AI Service provisiona modelos bootstrap a partir dos CSVs versionados, valida seu carregamento e os incorpora à imagem:
 
 ```text
 ai-service/models/
@@ -164,16 +164,17 @@ ai-service/models/
 │   ├── model.joblib
 │   ├── metadata.json
 │   └── labels.json
-└── profile-classifier/
-    ├── model.joblib
-    ├── metadata.json
-    ├── feature_names.json
-    └── preprocessor.joblib  # somente quando o modelo selecionado usa scaler
+├── profile-classifier/
+│   ├── model.joblib
+│   ├── metadata.json
+│   ├── feature_names.json
+│   └── preprocessor.joblib  # somente quando o modelo selecionado usa scaler
+└── provisioning-manifest.json
 ```
 
-Sem artefatos válidos, o runtime atual usa fallbacks porque o Compose não encaminha `ENVIRONMENT=production` nem `REQUIRE_ACTIVE_MODELS=true` ao AI Service.
+O Compose exige `1.1.0-bootstrap.1` para transações e `1.0.0-bootstrap.1` para perfil. O override de produção define também `ENVIRONMENT=production`; sem os dois artefatos ativos e compatíveis, o AI Service falha no startup e bloqueia a subida dependente do backend/frontend.
 
-`[TODO: Definir explicitamente no Compose de produção se modelos ativos devem ser obrigatórios e encaminhar ENVIRONMENT/REQUIRE_ACTIVE_MODELS/versões esperadas.]`
+Os modelos bootstrap são adequados para disponibilizar o fluxo e verificar a infraestrutura. Antes de decisões financeiras em produção, promova artefatos treinados e avaliados com o dataset canônico completo, alterando as versões esperadas junto com a imagem.
 
 ## Deploy
 

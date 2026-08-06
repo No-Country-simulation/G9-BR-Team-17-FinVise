@@ -1,4 +1,4 @@
-.PHONY: setup build up down logs test test-backend test-ai test-frontend train-transaction-model train-profile-model evaluate-models health backup restore clean
+.PHONY: setup build up down logs test test-backend test-ai test-frontend provision-models train-transaction-model train-profile-model evaluate-models health backup restore clean
 
 COMPOSE_FILES := -f docker-compose.yml
 ifdef PROD
@@ -36,11 +36,14 @@ test-ai:
 test-frontend:
 	cd frontend && npm run test -- --run
 
+provision-models:
+	cd ai-service && python -m training.provision_models
+
 train-transaction-model:
-	cd ai-service && python training/train_transaction_classifier.py
+	cd ai-service && python -m training.train_transaction_classifier
 
 train-profile-model:
-	cd ai-service && python training/train_profile_classifier.py
+	cd ai-service && python -m training.train_profile_classifier
 
 evaluate-models:
 	cd ai-service && python -m training.evaluate_models

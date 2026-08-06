@@ -23,6 +23,9 @@ services:
 
   ai-service:
     restart: always
+    environment:
+      ENVIRONMENT: production
+      REQUIRE_ACTIVE_MODELS: "true"
     deploy:
       resources:
         limits:

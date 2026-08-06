@@ -67,55 +67,72 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className={cn('mobile-safe-top flex min-h-16 items-center border-b px-4 lg:px-4', resolvedTheme === 'dark' ? 'border-white/10' : 'border-slate-200', isCollapsed ? 'justify-center' : 'justify-between')}>
-          <div className={cn('flex min-w-0 items-center overflow-hidden transition-all duration-300', isCollapsed ? 'gap-0' : 'gap-3')}>
-            <div
-              className={cn(
-                'flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] transition-all duration-300',
-                isCollapsed && 'border-transparent bg-transparent shadow-none',
-                !isCollapsed && (
-                  resolvedTheme === 'dark'
-                    ? 'border border-white/10 bg-white/5 text-cyan-300 shadow-[0_12px_30px_rgba(0,0,0,0.18)]'
-                    : 'border border-primary-100 bg-white/80 text-primary-700 shadow-[0_12px_30px_rgba(15,23,42,0.08)]'
-                ),
-                isCollapsed && (resolvedTheme === 'dark' ? 'text-cyan-300' : 'text-primary-700')
-              )}
-            >
-              <FinViseMark className="h-8 w-8" />
-            </div>
-            <div
-              className={cn(
-                'min-w-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out',
-                isCollapsed ? 'max-w-0 opacity-0 lg:translate-x-[-8px]' : 'max-w-[10rem] opacity-100 translate-x-0'
-              )}
-              aria-hidden={isCollapsed ? 'true' : 'false'}
-            >
-              <span
+        <div className={cn('mobile-safe-top border-b px-4 lg:px-4', resolvedTheme === 'dark' ? 'border-white/10' : 'border-slate-200')}>
+          {isCollapsed ? (
+            <div className="hidden min-h-20 w-full flex-col items-center justify-center gap-2 py-2 lg:flex">
+              <div
                 className={cn(
-                  'block text-[1.65rem] font-semibold tracking-tight',
-                  resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
+                  'flex h-12 w-12 items-center justify-center rounded-[18px] border transition-all duration-300',
+                  resolvedTheme === 'dark'
+                    ? 'border-white/10 bg-white/5 text-cyan-300 shadow-[0_12px_30px_rgba(0,0,0,0.18)]'
+                    : 'border-primary-100 bg-white/80 text-primary-700 shadow-[0_12px_30px_rgba(15,23,42,0.08)]'
                 )}
               >
-                FinVise
-              </span>
+                <FinViseMark className="h-8 w-8" />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggleCollapse}
+                aria-label="Expandir menu lateral"
+                aria-pressed="true"
+                title="Expandir menu lateral"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
             </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden lg:inline-flex"
-              onClick={onToggleCollapse}
-              aria-label={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-              aria-pressed={isCollapsed ? 'true' : 'false'}
-              title={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose} aria-label="Fechar menu">
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+          ) : (
+            <div className="flex min-h-16 items-center justify-between">
+              <div className="flex min-w-0 items-center gap-3 overflow-hidden transition-all duration-300">
+                <div
+                  className={cn(
+                    'flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] transition-all duration-300',
+                    resolvedTheme === 'dark'
+                      ? 'border border-white/10 bg-white/5 text-cyan-300 shadow-[0_12px_30px_rgba(0,0,0,0.18)]'
+                      : 'border border-primary-100 bg-white/80 text-primary-700 shadow-[0_12px_30px_rgba(15,23,42,0.08)]'
+                  )}
+                >
+                  <FinViseMark className="h-8 w-8" />
+                </div>
+                <div className="min-w-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out max-w-[10rem] opacity-100 translate-x-0">
+                  <span
+                    className={cn(
+                      'block text-[1.65rem] font-semibold tracking-tight',
+                      resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
+                    )}
+                  >
+                    FinVise
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden lg:inline-flex"
+                  onClick={onToggleCollapse}
+                  aria-label="Recolher menu lateral"
+                  aria-pressed="false"
+                  title="Recolher menu lateral"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose} aria-label="Fechar menu">
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <nav className={cn('flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-4', isCollapsed && 'lg:px-3')}>

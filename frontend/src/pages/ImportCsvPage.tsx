@@ -25,6 +25,33 @@ type ImportPhase = 'IDLE' | 'UPLOADING' | 'INDEXING' | 'ANALYZING' | 'COMPLETED'
 
 class RagIndexingFailedError extends Error {}
 
+function toAccessibleImportErrorMessage(rawMessage: string): string {
+  const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes('rollback-only')
+    || normalized.includes('silently rolled back')
+    || normalized.includes('transaction rolled back')
+  ) {
+    return 'Nao foi possivel concluir a importacao por uma inconsistencia temporaria no servidor. Tente novamente em alguns instantes.';
+  }
+
+  if (
+    normalized.includes('network')
+    || normalized.includes('failed to fetch')
+    || normalized.includes('timeout')
+    || normalized.includes('ecconnaborted')
+  ) {
+    return 'Falha de conexao durante a importacao. Verifique sua rede e tente novamente.';
+  }
+
+  if (normalized.includes('payload too large') || normalized.includes('413')) {
+    return 'O arquivo enviado e maior do que o limite permitido. Use um CSV de ate 5 MB.';
+  }
+
+  return rawMessage;
+}
+
 const wait = (milliseconds: number) => new Promise((resolve) => {
   window.setTimeout(resolve, milliseconds);
 });
@@ -209,7 +236,10 @@ export function ImportCsvPage() {
       setPhase('IDLE');
       setStatusStep('');
       setBatchInfo('');
-      setResult({ success: false, message: extractErrorMessage(err) });
+      setResult({
+        success: false,
+        message: toAccessibleImportErrorMessage(extractErrorMessage(err)),
+      });
     } finally {
       setIsLoading(false);
     }

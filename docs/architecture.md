@@ -78,7 +78,7 @@ Valores monetários usam `BigDecimal` e `NUMERIC`; datas de transação usam `Lo
 
 Responsabilidades:
 
-- carregar/validar artefatos Joblib ou ativar classificadores fallback;
+- provisionar artefatos Joblib no build, validar versões/checksums e exigir os dois classificadores ativos no Compose;
 - classificar transações e perfil financeiro;
 - disponibilizar um motor de recomendações Python interno;
 - selecionar e executar ferramentas analíticas sobre o contexto enviado pelo backend;

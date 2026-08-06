@@ -572,21 +572,21 @@ Exemplo abreviado de `/model-status`:
 
 ```json
 {
-  "status": "DEGRADED",
+  "status": "READY",
   "environment": "development",
-  "modelsRequired": false,
+  "modelsRequired": true,
   "registeredAt": "2026-08-02T12:00:00Z",
   "transactionClassifier": {
-    "name": "FallbackTransactionClassifier",
-    "version": "FALLBACK",
-    "status": "FALLBACK",
-    "active": false,
-    "artifact_status": "MISSING",
+    "name": "SklearnTransactionClassifier",
+    "version": "1.1.0-bootstrap.1",
+    "status": "LOADED",
+    "active": true,
+    "artifact_status": "VALID",
     "artifact_path": "/app/models/transaction-classifier",
-    "artifact_sha256": null,
-    "metadata_sha256": null,
+    "artifact_sha256": "<sha256>",
+    "metadata_sha256": "<sha256>",
     "registered_at": "2026-08-02T12:00:00Z",
-    "error": "model not found at /app/models/transaction-classifier"
+    "error": null
   },
   "profileClassifier": {},
   "llmProvider": {

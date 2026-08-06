@@ -41,7 +41,7 @@ ai-service/
 
 - Python >= 3.11.
 - PostgreSQL acessível para indexação/recuperação RAG.
-- Artefatos de modelo opcionais quando fallbacks são permitidos.
+- Artefatos provisionados com `provision-models`; a imagem Docker já os incorpora e os exige ativos.
 
 ## Executar localmente
 
@@ -85,9 +85,9 @@ Resposta:
 | `TRANSACTION_MODEL_PATH` | `models/transaction-classifier` | classificador de transações |
 | `PROFILE_MODEL_PATH` | `models/profile-classifier` | classificador de perfil |
 | `MODEL_EVALUATION_REPORT_DIR` | `reports/final-test` | saída da avaliação |
-| `REQUIRE_ACTIVE_MODELS` | `false` | falha na inicialização quando um modelo é inválido/ausente |
-| `TRANSACTION_MODEL_VERSION` | vazio | versão esperada opcional |
-| `PROFILE_MODEL_VERSION` | vazio | versão esperada opcional |
+| `REQUIRE_ACTIVE_MODELS` | `true` no exemplo/na imagem | falha na inicialização quando um modelo é inválido/ausente |
+| `TRANSACTION_MODEL_VERSION` | `1.1.0-bootstrap.1` no exemplo/na imagem | versão ativa esperada |
+| `PROFILE_MODEL_VERSION` | `1.0.0-bootstrap.1` no exemplo/na imagem | versão ativa esperada |
 
 ### Banco para RAG
 
@@ -236,9 +236,11 @@ models/profile-classifier/
 ├── metadata.json
 ├── feature_names.json
 └── preprocessor.joblib  # opcional
+
+models/provisioning-manifest.json
 ```
 
-`metadata.status` deve ser `ACTIVE`. O registry calcula SHA-256 dos artefatos obrigatórios e expõe paths/erros no status.
+`metadata.status` deve ser `ACTIVE`. O registry calcula SHA-256 dos artefatos obrigatórios e expõe paths/erros no status. O manifesto registra checksums dos datasets bootstrap e de todos os artefatos gerados.
 
 Sem modelo válido e com fallbacks permitidos:
 
@@ -249,11 +251,14 @@ Sem modelo válido e com fallbacks permitidos:
 ## Treinamento e avaliação
 
 ```bash
+python -m training.provision_models
 python -m training.prepare_dataset
 python -m training.train_transaction_classifier
 python -m training.train_profile_classifier
 python -m training.evaluate_models
 ```
+
+`provision_models` usa `data/samples`, treina em uma área temporária, recarrega os dois modelos e só então substitui atomicamente o diretório de destino. As versões recebem o sufixo `bootstrap.1` para distingui-las dos modelos treinados com o dataset canônico completo.
 
 Detalhes, features, hiperparâmetros e métricas: `../docs/data-science.md`.
 
@@ -268,10 +273,10 @@ O lockfile inclui as dependências de desenvolvimento usadas no CI. A suíte cob
 
 ## Docker
 
-O `Dockerfile` usa Python 3.11 slim, instala `requirements.lock`, instala o pacote em modo editável sem resolver dependências novamente e inicia:
+O `Dockerfile` usa Python 3.11 slim, instala `requirements.lock`, provisiona e valida os modelos bootstrap durante o build e inicia:
 
 ```text
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-O container não declara usuário não-root. No Compose, modelos são montados read-only e credenciais do PostgreSQL são encaminhadas para o RAG.
+O container não declara usuário não-root. Os modelos fazem parte da imagem; o Compose não monta mais um diretório vazio sobre `/app/models`, exige modelos ativos e encaminha credenciais do PostgreSQL para o RAG.

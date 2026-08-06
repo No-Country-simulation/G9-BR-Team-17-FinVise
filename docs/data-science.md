@@ -159,9 +159,12 @@ Para ativação, `model.joblib`, `metadata.json` e `feature_names.json` são obr
 Na raiz:
 
 ```bash
+make provision-models
 make train-transaction-model
 make train-profile-model
 ```
+
+`make provision-models` é o caminho reproduzível de bootstrap: usa os CSVs versionados em `data/samples`, prepara os dados em área temporária, treina e recarrega os dois classificadores, grava checksums em `models/provisioning-manifest.json` e só ativa o conjunto após todas as validações. Esses artefatos usam versões `1.1.0-bootstrap.1` e `1.0.0-bootstrap.1`.
 
 Os alvos de treinamento não executam `prepare_dataset` automaticamente. Em uma instalação nova:
 
@@ -172,9 +175,11 @@ python -m training.train_transaction_classifier
 python -m training.train_profile_classifier
 ```
 
-Os scripts também estão registrados em `pyproject.toml` como `prepare-dataset`, `train-transaction`, `train-profile` e `evaluate-models` quando o pacote é instalado.
+Os scripts também estão registrados em `pyproject.toml` como `provision-models`, `prepare-dataset`, `train-transaction`, `train-profile` e `evaluate-models` quando o pacote é instalado.
 
-Artefatos de modelo são ignorados pelo Git. O diretório versionado contém apenas `.gitkeep`; para Docker, os artefatos precisam existir no host porque `./ai-service/models` é montado read-only em `/app/models`.
+Artefatos de modelo continuam ignorados pelo Git. No Docker, o provisionamento ocorre durante o build e os artefatos validados são incorporados à imagem; o Compose não depende mais de arquivos gerados previamente no host.
+
+Os modelos bootstrap tornam o ambiente executável e impedem fallback silencioso, mas são treinados com amostras reduzidas. Eles não substituem uma promoção formal dos modelos finais produzidos pelo dataset canônico, avaliação completa e registro de artefatos externo.
 
 ## Avaliação final no conjunto TEST
 
@@ -227,7 +232,7 @@ Na inicialização, o `ModelRegistry` valida arquivos, metadata, versões opcion
 
 O endpoint interno `/internal/v1/models/status` e o proxy autenticado `/api/v1/model-status` expõem estado, versões, caminhos, checksums e erros.
 
-No Compose atual, `ENVIRONMENT`, `REQUIRE_ACTIVE_MODELS`, `TRANSACTION_MODEL_VERSION` e `PROFILE_MODEL_VERSION` não são encaminhadas ao container do AI Service. Portanto, o requisito automático de modelos de produção não é ativado apenas por `SPRING_PROFILES_ACTIVE=production` no backend.
+O Compose encaminha `ENVIRONMENT`, `REQUIRE_ACTIVE_MODELS` e as duas versões esperadas. A exigência é `true` por padrão e o override de produção também fixa `ENVIRONMENT=production`; por isso, ausência, corrupção ou versão divergente encerra a inicialização. O fallback só permanece acessível em execução isolada quando `REQUIRE_ACTIVE_MODELS=false` e o ambiente não é produção.
 
 ## Fallbacks
 

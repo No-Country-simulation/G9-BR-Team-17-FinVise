@@ -116,6 +116,7 @@ Open Finance, LLM, embeddings remotos e OCI Object Storage são opcionais. Consu
 | `make down` | Encerra os containers sem remover volumes |
 | `make logs` | Acompanha os logs de todos os serviços |
 | `make test` | Executa testes de backend, AI Service e frontend |
+| `make provision-models` | Treina e valida atomicamente os dois modelos bootstrap a partir das amostras versionadas |
 | `make health` | Faz verificações HTTP de melhor esforço; o AI Service não é publicado pelo Compose padrão |
 | `make backup` | Gera um dump comprimido em `backups/` |
 | `make restore` | Invoca o script sem o argumento obrigatório e, no estado atual, termina exibindo o uso; execute o script diretamente com o backup |
@@ -128,12 +129,15 @@ Para usar o override de produção nos alvos do Makefile, execute, por exemplo, 
 O dataset canônico está em `finance_ai_dataset/`. Os scripts usam esse caminho por padrão quando são executados a partir de `ai-service/`.
 
 ```bash
+make provision-models
 make train-transaction-model
 make train-profile-model
 make evaluate-models
 ```
 
-O classificador de transações usa TF-IDF de uni/bigramas com Regressão Logística. O classificador de perfil compara Regressão Logística e Random Forest durante o treinamento. Artefatos `.joblib` e metadados de modelos são ignorados pelo Git; sem artefatos válidos, o serviço usa classificadores fallback, salvo quando modelos ativos forem exigidos pela configuração.
+O build Docker executa `training.provision_models` sobre as amostras versionadas, valida o carregamento real dos dois classificadores e incorpora os artefatos à imagem. O Compose exige ambos ativos e confere as versões bootstrap esperadas; artefato ausente, inválido ou divergente impede o AI Service de iniciar. Fallbacks permanecem disponíveis apenas em execução isolada quando a exigência é desabilitada explicitamente.
+
+O classificador de transações usa TF-IDF de uni/bigramas com Regressão Logística. O classificador de perfil compara Regressão Logística e Random Forest durante o treinamento. As versões `*-bootstrap.1` identificam modelos funcionais produzidos pelas amostras do repositório e não devem ser confundidas com os artefatos finais treinados no dataset canônico completo.
 
 O relatório reproduzível do conjunto `TEST` está em [`ai-service/reports/final-test/`](ai-service/reports/final-test/), e a metodologia completa está em [`docs/data-science.md`](docs/data-science.md).
 

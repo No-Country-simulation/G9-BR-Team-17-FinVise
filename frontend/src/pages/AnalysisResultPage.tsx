@@ -9,8 +9,22 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
 import { AnalysisResultSkeleton } from '@/components/skeletons/PageSkeletons';
 import { PieChart } from '@/components/charts/PieChart';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
-import { FinancialAnalysisResponse } from '@/types/analysis';
+import { FinancialAnalysisResponse, Recommendation } from '@/types/analysis';
 import { analysisService } from '@/services/analysisService';
+
+function getPriorityBadge(priority: Recommendation['priority']) {
+  switch (priority) {
+    case 'CRITICAL':
+      return { variant: 'danger' as const, label: 'Crítica' };
+    case 'HIGH':
+      return { variant: 'danger' as const, label: 'Alta' };
+    case 'MEDIUM':
+      return { variant: 'warning' as const, label: 'Média' };
+    case 'LOW':
+    default:
+      return { variant: 'default' as const, label: 'Baixa' };
+  }
+}
 
 function IndicatorCard({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
   return (
@@ -81,15 +95,15 @@ export function AnalysisResultPage() {
           <p className="text-slate-500">Análise gerada em {new Date(analysis.createdAt).toLocaleDateString('pt-BR')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="w-fit text-sm">
-          {analysis.modelVersions.transactionSource === 'OPEN_FINANCE_PLUGGY' ? 'Open Finance' : 'Arquivo CSV'}
-        </Badge>
-        <Badge
-          variant={analysis.profile.riskLevel === 'LOW' ? 'success' : analysis.profile.riskLevel === 'MEDIUM' ? 'warning' : 'danger'}
-          className="w-fit text-sm"
-        >
-          {analysis.profile.label}
-        </Badge>
+          <Badge variant="outline" className="w-fit text-sm">
+            {analysis.modelVersions.transactionSource === 'OPEN_FINANCE_PLUGGY' ? 'Open Finance' : 'Arquivo CSV'}
+          </Badge>
+          <Badge
+            variant={analysis.profile.riskLevel === 'LOW' ? 'success' : analysis.profile.riskLevel === 'MEDIUM' ? 'warning' : 'danger'}
+            className="w-fit text-sm"
+          >
+            {analysis.profile.label}
+          </Badge>
         </div>
       </div>
 
@@ -152,21 +166,38 @@ export function AnalysisResultPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {analysis.recommendations.map((rec) => (
-            <div key={rec.id} className="rounded-lg border border-slate-100 p-4">
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-900">{rec.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{rec.description}</p>
+          {analysis.recommendations.map((rec) => {
+            const badge = getPriorityBadge(rec.priority);
+            const impactText = rec.expectedImpact || rec.impact;
+            return (
+              <div key={rec.id} className="rounded-lg border border-slate-100 p-4">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="font-medium text-slate-900">{rec.title}</p>
+                    <p className="text-sm text-slate-600">{rec.description}</p>
+                    {rec.reason && (
+                      <p className="text-xs font-medium text-slate-700 bg-slate-50 rounded px-2 py-0.5 inline-block border border-slate-200/60">
+                        Motivo: {rec.reason}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                      {rec.suggestedAmount != null && rec.suggestedAmount > 0 && (
+                        <span className="font-semibold text-emerald-700">
+                          Valor sugerido: {formatCurrency(rec.suggestedAmount)}
+                        </span>
+                      )}
+                      {impactText && (
+                        <span>Impacto: {impactText}</span>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant={badge.variant}>
+                    {badge.label}
+                  </Badge>
                 </div>
-                <Badge
-                  variant={rec.priority === 'HIGH' ? 'danger' : rec.priority === 'MEDIUM' ? 'warning' : 'default'}
-                >
-                  {rec.priority === 'HIGH' ? 'Alta' : rec.priority === 'MEDIUM' ? 'Média' : 'Baixa'}
-                </Badge>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

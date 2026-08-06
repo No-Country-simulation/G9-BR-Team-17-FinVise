@@ -10,8 +10,26 @@ import { FinancialAnalysisResponse, Recommendation } from '@/types/analysis';
 import { analysisService } from '@/services/analysisService';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { TransactionSourceSelector } from '@/components/transactions/TransactionSourceSelector';
+import { formatCurrency } from '@/lib/utils';
+
+function getPriorityBadge(priority: Recommendation['priority']) {
+  switch (priority) {
+    case 'CRITICAL':
+      return { variant: 'danger' as const, label: 'Crítica' };
+    case 'HIGH':
+      return { variant: 'danger' as const, label: 'Alta' };
+    case 'MEDIUM':
+      return { variant: 'warning' as const, label: 'Média' };
+    case 'LOW':
+    default:
+      return { variant: 'default' as const, label: 'Baixa' };
+  }
+}
 
 function RecommendationCard({ recommendation }: { recommendation: Recommendation }) {
+  const priorityBadge = getPriorityBadge(recommendation.priority);
+  const impactText = recommendation.expectedImpact || recommendation.impact;
+
   return (
     <Card>
       <CardContent className="p-5">
@@ -20,20 +38,30 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
               <Lightbulb className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <p className="font-semibold text-slate-900">{recommendation.title}</p>
-              <p className="mt-1 text-sm text-slate-600">{recommendation.description}</p>
-              {recommendation.impact && (
-                <p className="mt-2 text-xs text-slate-500">Impacto: {recommendation.impact}</p>
+              <p className="text-sm text-slate-600">{recommendation.description}</p>
+
+              {recommendation.reason && (
+                <p className="text-xs font-medium text-slate-700 bg-slate-50 rounded px-2.5 py-1 inline-block border border-slate-200/60">
+                  Motivo: {recommendation.reason}
+                </p>
               )}
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-xs text-slate-500">
+                {recommendation.suggestedAmount != null && recommendation.suggestedAmount > 0 && (
+                  <span className="font-semibold text-emerald-700">
+                    Valor sugerido: {formatCurrency(recommendation.suggestedAmount)}
+                  </span>
+                )}
+                {impactText && (
+                  <span>Impacto: {impactText}</span>
+                )}
+              </div>
             </div>
           </div>
-          <Badge
-            variant={
-              recommendation.priority === 'HIGH' ? 'danger' : recommendation.priority === 'MEDIUM' ? 'warning' : 'default'
-            }
-          >
-            {recommendation.priority === 'HIGH' ? 'Alta' : recommendation.priority === 'MEDIUM' ? 'Média' : 'Baixa'}
+          <Badge variant={priorityBadge.variant}>
+            {priorityBadge.label}
           </Badge>
         </div>
       </CardContent>
@@ -61,10 +89,10 @@ export function RecommendationsPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end xl:shrink-0">
           <TransactionSourceSelector value={source} onChange={setSource} />
           <Link to="/analyses/new">
-          <Button>
-            Nova Análise
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+            <Button>
+              Nova Análise
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </Link>
         </div>
       </div>

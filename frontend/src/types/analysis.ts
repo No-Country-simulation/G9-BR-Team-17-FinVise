@@ -63,9 +63,14 @@ export interface Recommendation {
   id: string;
   title: string;
   description: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  reason?: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   category: string;
   impact?: string;
+  expectedImpact?: string;
+  suggestedAmount?: number;
+  relatedIndicator?: string;
+  createdAt?: string;
 }
 
 export interface Alert {

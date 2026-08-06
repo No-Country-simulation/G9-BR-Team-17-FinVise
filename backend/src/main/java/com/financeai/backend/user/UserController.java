@@ -2,6 +2,7 @@ package com.financeai.backend.user;
 
 import com.financeai.backend.common.response.ApiResponse;
 import com.financeai.backend.auth.AuthenticatedUserProvider;
+import com.financeai.backend.auth.GenericMessageResponse;
 import com.financeai.backend.recommendation.RecommendationDto;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -51,5 +52,12 @@ public class UserController {
         @Valid @RequestBody SavingsSimulationRequest request) {
         authenticatedUserProvider.requireCurrentUser(userId);
         return ResponseEntity.ok(ApiResponse.success(userService.simulateSavings(request)));
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<GenericMessageResponse> changePassword(
+        @Valid @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(authenticatedUserProvider.getUserId(), request);
+        return ResponseEntity.ok(new GenericMessageResponse("Senha atualizada com sucesso."));
     }
 }

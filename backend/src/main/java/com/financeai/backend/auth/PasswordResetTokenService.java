@@ -17,6 +17,7 @@ import java.util.UUID;
 public class PasswordResetTokenService {
 
     private static final String SCOPE_CLAIM = "scope";
+    private static final String RESET_CODE_ID_CLAIM = "reset_code_id";
     private static final String RESET_SCOPE = "password_reset";
     private static final long EXPIRATION_MINUTES = 5;
 
@@ -26,18 +27,19 @@ public class PasswordResetTokenService {
         this.signingKey = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    public String generateToken(UUID userId) {
+    public String generateToken(UUID userId, UUID resetCodeId) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim(SCOPE_CLAIM, RESET_SCOPE)
+                .claim(RESET_CODE_ID_CLAIM, resetCodeId.toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(EXPIRATION_MINUTES * 60)))
                 .signWith(signingKey)
                 .compact();
     }
 
-    public UUID validateAndExtractUserId(String token) {
+    public ResetTokenClaims validateAndExtractClaims(String token) {
         Claims claims;
         try {
             claims = Jwts.parser()
@@ -56,6 +58,16 @@ public class PasswordResetTokenService {
             throw new PasswordResetCodeException.InvalidResetTokenException();
         }
 
-        return UUID.fromString(claims.getSubject());
+        try {
+            UUID userId = UUID.fromString(claims.getSubject());
+            UUID resetCodeId = UUID.fromString(
+                    claims.get(RESET_CODE_ID_CLAIM, String.class));
+            return new ResetTokenClaims(userId, resetCodeId);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new PasswordResetCodeException.InvalidResetTokenException();
+        }
+    }
+
+    public record ResetTokenClaims(UUID userId, UUID resetCodeId) {
     }
 }

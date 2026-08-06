@@ -3,6 +3,9 @@ package com.financeai.backend.report;
 import com.financeai.backend.common.response.ApiResponse;
 import com.financeai.backend.auth.AuthenticatedUserProvider;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -28,8 +31,15 @@ public class ReportController {
     }
 
     @PostMapping("/financial/{userId}/export")
-    public ResponseEntity<ApiResponse<String>> exportFinancialReport(@PathVariable UUID userId) {
-        reportService.buildFinancialReport(authenticatedUserProvider.requireCurrentUser(userId));
-        return ResponseEntity.ok(ApiResponse.success("Exportação de relatório em desenvolvimento"));
+    public ResponseEntity<byte[]> exportFinancialReport(@PathVariable UUID userId) {
+        byte[] csv = reportService.exportFinancialReportCsv(
+            authenticatedUserProvider.requireCurrentUser(userId));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv;charset=UTF-8"));
+        headers.setContentDisposition(ContentDisposition.attachment()
+            .filename("finvise-relatorio-financeiro.csv")
+            .build());
+        headers.setCacheControl("no-store");
+        return ResponseEntity.ok().headers(headers).body(csv);
     }
 }

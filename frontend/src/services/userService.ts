@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { ApiResponse } from '@/types/common';
+import { ChangePasswordRequest, GenericMessageResponse } from '@/types/auth';
 
 export interface DashboardUserResponse {
   userId: string;
@@ -21,5 +22,10 @@ export const userService = {
     }
 
     return response.data;
+  },
+
+  async changePassword(request: ChangePasswordRequest): Promise<GenericMessageResponse> {
+    const { data } = await api.put<GenericMessageResponse>('/users/me/password', request);
+    return data;
   },
 };

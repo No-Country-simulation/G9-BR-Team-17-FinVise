@@ -28,4 +28,20 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument();
   });
+
+  it('shows the success message passed by registration or password recovery', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/login',
+          state: { successMessage: 'Senha atualizada. Entre com sua nova senha.' },
+        }]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <AppRoutes />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Senha atualizada. Entre com sua nova senha.')).toBeInTheDocument();
+  });
 });

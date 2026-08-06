@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -52,8 +52,10 @@ function AIFinanceMotionPanel() {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
 
   const {
     register,
@@ -111,6 +113,12 @@ export function LoginPage() {
             <Alert variant="danger" className="mb-6" role="alert" aria-live="polite">
               <AlertTitle>Erro de autenticação</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {!error && successMessage && (
+            <Alert variant="success" className="mb-6" role="status" aria-live="polite">
+              <AlertTitle>Operação concluída</AlertTitle>
+              <AlertDescription>{successMessage}</AlertDescription>
             </Alert>
           )}
 

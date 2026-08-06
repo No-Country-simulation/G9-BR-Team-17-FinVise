@@ -9,6 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -63,6 +66,27 @@ public class ReportService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public byte[] exportFinancialReportCsv(UUID userId) {
+        FinancialReportDto report = buildFinancialReport(userId);
+        StringBuilder csv = new StringBuilder("\uFEFF");
+        csv.append("Relatório Financeiro FinVise\r\n");
+        csv.append("Gerado em;").append(escape(Instant.now().toString())).append("\r\n");
+        csv.append("Usuário;").append(escape(report.userName())).append("\r\n\r\n");
+        csv.append("Resumo;Valor\r\n");
+        csv.append("Receitas;").append(decimal(report.totalIncome())).append("\r\n");
+        csv.append("Despesas;").append(decimal(report.totalExpenses())).append("\r\n");
+        csv.append("Saldo;").append(decimal(report.balance())).append("\r\n\r\n");
+        csv.append("Categoria;Valor;Percentual\r\n");
+        report.summaryByCategory().entrySet().stream()
+            .sorted(Comparator.comparing(Map.Entry::getKey))
+            .forEach(entry -> csv
+                .append(escape(entry.getKey())).append(';')
+                .append(decimal(entry.getValue().amount())).append(';')
+                .append(decimal(entry.getValue().percentage())).append("%\r\n"));
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
     private BigDecimal scaled(BigDecimal value) {
         return (value != null ? value : BigDecimal.ZERO).setScale(SCALE, ROUNDING);
     }
@@ -73,5 +97,14 @@ public class ReportService {
         }
         return value.multiply(ONE_HUNDRED)
             .divide(total, SCALE, ROUNDING);
+    }
+
+    private String decimal(BigDecimal value) {
+        return scaled(value).toPlainString().replace('.', ',');
+    }
+
+    private String escape(String value) {
+        String safe = value == null ? "" : value;
+        return '"' + safe.replace("\"", "\"\"") + '"';
     }
 }

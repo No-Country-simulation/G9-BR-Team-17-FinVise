@@ -144,7 +144,7 @@ Content-Type: application/json
 {"message":"Senha atualizada com sucesso."}
 ```
 
-O código e o reset token expiram em cinco minutos. Após cinco códigos inválidos, o registro fica bloqueado por 30 minutos.
+O código e o reset token expiram em cinco minutos. O token fica vinculado ao código validado e só pode ser usado uma vez. Após cinco códigos inválidos, o registro fica bloqueado por 30 minutos.
 
 ### Análises financeiras
 
@@ -401,6 +401,18 @@ O objeto `analysis` segue o contrato completo de análise. Não existe endpoint 
 | `GET` | `/api/v1/users/{userId}/history` | Histórico de análises |
 | `GET` | `/api/v1/users/{userId}/recommendations` | Recomendações do usuário |
 | `POST` | `/api/v1/users/{userId}/simulations/savings` | Simulação aritmética de poupança |
+| `PUT` | `/api/v1/users/me/password` | Altera a senha do usuário autenticado após validar a senha atual |
+
+Corpo da alteração de senha:
+
+```json
+{
+  "currentPassword": "senha-atual",
+  "newPassword": "nova-senha-com-8-ou-mais"
+}
+```
+
+A resposta é `{"message":"Senha atualizada com sucesso."}`. Uma senha atual incorreta retorna o erro `INVALID_CURRENT_PASSWORD`; a nova senha não pode ser igual à atual.
 
 Corpo da simulação:
 
@@ -420,9 +432,9 @@ As taxas são percentuais. A resposta inclui os mesmos quatro campos e `currentM
 | Método | Endpoint | Estado atual |
 | --- | --- | --- |
 | `GET` | `/api/v1/reports/financial/{userId}` | Retorna totais e resumo por categoria de todas as transações do usuário |
-| `POST` | `/api/v1/reports/financial/{userId}/export` | Valida/monta o relatório, mas retorna apenas a string `Exportação de relatório em desenvolvimento` |
+| `POST` | `/api/v1/reports/financial/{userId}/export` | Baixa o relatório financeiro em CSV UTF-8, separado por ponto e vírgula |
 
-Não há geração de PDF ou Excel implementada.
+O download usa `Content-Type: text/csv;charset=UTF-8`, `Content-Disposition: attachment` e contém totais de receitas, despesas, saldo e resumo por categoria. Não há geração de PDF ou Excel implementada.
 
 ### Agente financeiro
 

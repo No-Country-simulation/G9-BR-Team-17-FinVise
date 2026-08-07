@@ -17,6 +17,8 @@ import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { Select } from '@/components/ui/Select';
 import { importSourceService } from '@/services/importSourceService';
 import { TransactionSource } from '@/types/transaction';
+import { GenerateReportButton } from '@/components/ui/ButtonReport';
+
 
 function transactionSource(type: 'CSV' | 'OPEN_FINANCE'): TransactionSource {
   return type === 'CSV' ? 'CSV_IMPORT' : 'OPEN_FINANCE_PLUGGY';
@@ -179,12 +181,15 @@ export function DashboardPage() {
               />
             </label>
           )}
-          <Link to={newAnalysisUrl}>
-          <Button className="w-full whitespace-nowrap sm:w-auto">
-            Nova Análise
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-          </Link>
+          <div className="flex gap-2">
+            <GenerateReportButton source={source} importSourceId={importSourceId} />
+            <Link to={newAnalysisUrl}>
+              <Button className="w-full whitespace-nowrap sm:w-auto">
+                Nova Análise
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

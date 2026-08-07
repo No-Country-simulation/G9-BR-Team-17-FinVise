@@ -1,5 +1,6 @@
 package com.financeai.backend.fact;
 
+import com.financeai.backend.analysis.FinancialAnalysisRepository;
 import com.financeai.backend.rag.RagDocumentRepository;
 import com.financeai.backend.rag.RagIngestionService;
 import com.financeai.backend.transaction.Transaction;
@@ -23,17 +24,20 @@ public class FinancialSourceConsistencyService {
     private final TransactionRepository transactionRepository;
     private final RagIngestionService ragIngestionService;
     private final RagDocumentRepository ragDocumentRepository;
+    private final FinancialAnalysisRepository analysisRepository;
 
     public FinancialSourceConsistencyService(FinancialFactsService financialFactsService,
                                              FinancialFactSnapshotRepository snapshotRepository,
                                              TransactionRepository transactionRepository,
                                              RagIngestionService ragIngestionService,
-                                             RagDocumentRepository ragDocumentRepository) {
+                                             RagDocumentRepository ragDocumentRepository,
+                                             FinancialAnalysisRepository analysisRepository) {
         this.financialFactsService = financialFactsService;
         this.snapshotRepository = snapshotRepository;
         this.transactionRepository = transactionRepository;
         this.ragIngestionService = ragIngestionService;
         this.ragDocumentRepository = ragDocumentRepository;
+        this.analysisRepository = analysisRepository;
     }
 
     @Transactional
@@ -60,6 +64,8 @@ public class FinancialSourceConsistencyService {
             userId, source.name(), sourceId);
         ragDocumentRepository.deleteByUserIdAndSourceTypeAndSourceId(
             userId, ragSourceType(source), sourceId.toString());
+        analysisRepository.deleteByUserIdAndImportSourceId(
+            userId, sourceId.toString());
     }
 
     private String ragSourceType(TransactionSource source) {

@@ -269,9 +269,18 @@ public class AnalysisService {
     public AnalysisResponse getLatestAnalysis(UUID userId,
                                               TransactionSource source,
                                               UUID importSourceId) {
+        String sourceName = source != null ? source.name() : null;
+        if (sourceName != null) {
+            if (!transactionRepository.existsByUserIdAndSource(userId, sourceName)) {
+                return null;
+            }
+        } else if (!transactionRepository.existsByUserId(userId)) {
+            return null;
+        }
+
         return analysisRepository.findLatestByUserAndSource(
                 userId,
-                source != null ? source.name() : null,
+                sourceName,
                 importSourceId != null ? importSourceId.toString() : null)
             .map(analysis -> loadResponses(List.of(analysis)).getFirst())
             .orElse(null);

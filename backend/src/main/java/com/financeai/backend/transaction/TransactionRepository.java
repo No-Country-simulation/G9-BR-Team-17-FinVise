@@ -55,6 +55,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     boolean existsByUserIdAndSourceAndExternalId(UUID userId, String source, String externalId);
 
+    boolean existsByUserIdAndSource(UUID userId, String source);
+
+    boolean existsByUserId(UUID userId);
+
     @Query("SELECT t.externalId FROM Transaction t WHERE t.user.id = :userId " +
         "AND t.source = :source AND t.externalId IN :externalIds")
     Set<String> findExistingExternalIds(@Param("userId") UUID userId,

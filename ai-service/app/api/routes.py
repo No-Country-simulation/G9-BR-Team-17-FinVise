@@ -13,6 +13,7 @@ from app.recommendations.rules import get_recommendation_engine
 from app.schemas.agent import AgentApiRequest, AgentRequest, AgentResponse
 from app.schemas.common import HealthResponse, ModelStatusResponse
 from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse
+from app.schemas.recommendation import RecommendationGenerateRequest, RecommendationGenerateResponse
 from app.schemas.transaction import TransactionClassifyRequest, TransactionClassifyResponse
 
 logger = get_logger(__name__)
@@ -102,6 +103,21 @@ def analyze_profile(request: ProfileAnalyzeRequest) -> ProfileAnalyzeResponse:
     return result
 
 
+@internal_router.post("/recommendations/generate", response_model=RecommendationGenerateResponse)
+def generate_recommendations(request: RecommendationGenerateRequest) -> RecommendationGenerateResponse:
+    from app.recommendations.ai_engine import get_ai_recommendation_engine
+
+    engine = get_ai_recommendation_engine()
+    try:
+        return engine.generate(request)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Recommendation generation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recommendation generation failed: {exc}",
+        ) from exc
+
+
 @internal_router.post("/agent/respond", response_model=AgentResponse)
 def agent_respond(
     request: AgentApiRequest,
@@ -157,8 +173,18 @@ def agent_respond_stream(
 
 @internal_router.post("/profiles/recommendations")
 def get_recommendations(request: ProfileAnalyzeRequest):
-    engine = get_recommendation_engine()
-    return {"recommendations": engine.recommend(request)}
+    from app.recommendations.ai_engine import get_ai_recommendation_engine
+
+    engine = get_ai_recommendation_engine()
+    rec_request = RecommendationGenerateRequest(
+        monthlyIncome=request.monthlyIncome,
+        debtLevelPercentage=request.debtLevelPercentage,
+        savingFrequency=request.savingFrequency,
+        financialReserve=request.financialReserve,
+        indicators=request.indicators,
+    )
+    res = engine.generate(rec_request)
+    return {"recommendations": [item.model_dump() for item in res.recommendations]}
 
 
 class RagIndexRequest(BaseModel):

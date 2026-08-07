@@ -78,7 +78,7 @@ Valores monetários usam `BigDecimal` e `NUMERIC`; datas de transação usam `Lo
 
 Responsabilidades:
 
-- carregar/validar artefatos Joblib ou ativar classificadores fallback;
+- provisionar artefatos Joblib no build, validar versões/checksums e exigir os dois classificadores ativos no Compose;
 - classificar transações e perfil financeiro;
 - disponibilizar um motor de recomendações Python interno;
 - selecionar e executar ferramentas analíticas sobre o contexto enviado pelo backend;
@@ -269,7 +269,7 @@ O código atual cobre um fluxo vertical mais amplo que o MVP inicial: autentica�
 Fora do escopo comprovado no repositório:
 
 - webhook receptor de Open Finance;
-- exportação real de relatório em PDF/Excel;
+- exportação de relatório em PDF/Excel; a exportação CSV está implementada;
 - terminação TLS pronta no Nginx versionado;
 - fila externa dedicada; a fila RAG implementada usa o próprio PostgreSQL;
 - revogação de JWTs de login após redefinição de senha;

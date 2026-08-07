@@ -5,6 +5,7 @@ import com.financeai.backend.analysis.FinancialAnalysisRepository;
 import com.financeai.backend.auth.RegisterRequest;
 import com.financeai.backend.auth.RegisterResponse;
 import com.financeai.backend.common.exception.EmailAlreadyExistsException;
+import com.financeai.backend.common.exception.BusinessException;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
 import com.financeai.backend.indicator.FinancialIndicator;
 import com.financeai.backend.indicator.FinancialIndicatorRepository;
@@ -178,6 +179,21 @@ public class UserService {
         User saved = userRepository.save(user);
 
         return RegisterResponse.from(saved);
+    }
+
+    @Transactional
+    public void changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = findUser(userId);
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new BusinessException(
+                "INVALID_CURRENT_PASSWORD", "A senha atual informada está incorreta");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new BusinessException(
+                "PASSWORD_UNCHANGED", "A nova senha deve ser diferente da senha atual");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
     }
 
     private User findUser(UUID userId) {

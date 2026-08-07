@@ -63,8 +63,8 @@ Não há rotação de chave, `kid`, refresh token, blacklist ou revogação de s
 - O código possui seis dígitos, é gerado com `SecureRandom` e armazenado como SHA-256.
 - Código e reset token expiram em cinco minutos.
 - Após cinco tentativas inválidas, o registro é bloqueado por 30 minutos.
-- O reset token é um JWT com claim `scope=password_reset` e é enviado no header Bearer do endpoint de alteração.
-- Após o uso, o código é marcado com `used_at`.
+- O reset token é um JWT com claim `scope=password_reset`, fica vinculado ao identificador do código validado e é enviado no header Bearer do endpoint de alteração.
+- Após o uso, o código vinculado é marcado com `used_at`; uma segunda tentativa com o mesmo token é rejeitada.
 - O envio pela Resend é assíncrono; falhas são registradas sem derrubar a resposta do endpoint.
 
 Limite conhecido: redefinir a senha não invalida JWTs de login já emitidos. O próprio código mantém um `TODO` para blacklist ou versionamento de token.

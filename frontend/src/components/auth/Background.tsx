@@ -1,9 +1,21 @@
 import { motion } from 'framer-motion';
+import loginBackgroundImage from '@/assets/branding/new-logo.jpg';
 
 export function AuthBackground() {
   return (
-    <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,#071321_0%,#081a2d_52%,#0b2138_100%)]" />
+    <div aria-hidden="true" className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0">
+        <img
+          src={loginBackgroundImage}
+          alt=""
+          className="h-full w-full object-cover opacity-24"
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+      <div
+        className="absolute inset-0 bg-[linear-gradient(135deg,#071321_0%,#081a2d_52%,#0b2138_100%)]"
+      />
       <motion.div
         className="absolute left-[-10%] top-[14%] h-[30rem] w-[30rem] rounded-full bg-teal-400/14 blur-3xl"
         animate={{ opacity: [0.55, 0.8, 0.55], scale: [1, 1.06, 1] }}

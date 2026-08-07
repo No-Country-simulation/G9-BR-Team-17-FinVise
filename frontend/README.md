@@ -107,7 +107,9 @@ O login persiste:
 
 O interceptor Axios adiciona `Authorization: Bearer <token>`. Em `401`, remove a sessão local e redireciona para `/login`.
 
-O cadastro não autentica automaticamente. O reset de senha envia o `resetToken` emitido pela validação do código como Bearer específico na última etapa.
+O cadastro não autentica automaticamente. A recuperação de senha é concluída na própria rota em três etapas: solicitação por e-mail, validação do código de seis dígitos e definição da nova senha. A última etapa envia como Bearer o `resetToken` de uso único emitido pela validação do código.
+
+A página `/settings` contém apenas operações funcionais: tema claro/escuro/sistema persistido no navegador, idioma atual `pt-BR`, troca autenticada de senha e download do relatório financeiro em CSV. A exportação considera todas as transações do usuário e inclui receitas, despesas, saldo e totais por categoria.
 
 O projeto não distribui usuário/senha de demonstração; a migração `V16` remove a antiga conta pública.
 
@@ -141,3 +143,5 @@ npm run test:coverage -- --run
 ## Backend esperado
 
 O frontend consome o contrato descrito em `../docs/api.md`. Respostas REST normalmente usam `ApiResponse<T>`; reset de senha, RAG, model status e SSE possuem formatos próprios e são tratados pelos serviços correspondentes.
+
+Consulte também o [guia funcional](../docs/user-guide.md), a [configuração consolidada](../docs/configuration.md) e o [guia de desenvolvimento](../docs/development.md).

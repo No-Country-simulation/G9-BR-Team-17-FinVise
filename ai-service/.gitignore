@@ -17,6 +17,7 @@ env/
 data/processed/*.parquet
 models/*/model.joblib
 models/*/preprocessor.joblib
+models/provisioning-manifest.json
 
 # pytest
 .pytest_cache/

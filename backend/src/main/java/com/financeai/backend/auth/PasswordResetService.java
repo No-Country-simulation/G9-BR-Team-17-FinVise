@@ -99,13 +99,22 @@ public class PasswordResetService {
             throw new PasswordResetCodeException.InvalidResetCodeException();
         }
 
-        String resetToken = passwordResetTokenService.generateToken(user.getId());
+        String resetToken = passwordResetTokenService.generateToken(user.getId(), resetCode.getId());
         return new ValidateResetCodeResponse(resetToken);
     }
 
     @Transactional
     public void resetPassword(String resetToken, String newPassword) {
-        UUID userId = passwordResetTokenService.validateAndExtractUserId(resetToken);
+        PasswordResetTokenService.ResetTokenClaims claims =
+                passwordResetTokenService.validateAndExtractClaims(resetToken);
+        UUID userId = claims.userId();
+
+        PasswordResetCode resetCode = passwordResetCodeRepository
+                .findById(claims.resetCodeId())
+                .filter(code -> code.getUserId().equals(userId))
+                .filter(code -> !code.isUsed())
+                .filter(code -> !code.isExpired())
+                .orElseThrow(PasswordResetCodeException.InvalidResetTokenException::new);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(PasswordResetCodeException.InvalidResetCodeException::new);
@@ -113,12 +122,8 @@ public class PasswordResetService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        passwordResetCodeRepository
-                .findFirstByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(userId)
-                .ifPresent(code -> {
-                    code.markAsUsed();
-                    passwordResetCodeRepository.save(code);
-                });
+        resetCode.markAsUsed();
+        passwordResetCodeRepository.save(resetCode);
 
         // TODO: invalidar sessões/JWTs de login ativos do usuário aqui,
         // integrando com o mecanismo de blacklist/versionamento de token já usado no projeto.

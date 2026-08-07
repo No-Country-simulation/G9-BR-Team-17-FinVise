@@ -144,7 +144,7 @@ Content-Type: application/json
 {"message":"Senha atualizada com sucesso."}
 ```
 
-O código e o reset token expiram em cinco minutos. Após cinco códigos inválidos, o registro fica bloqueado por 30 minutos.
+O código e o reset token expiram em cinco minutos. O token fica vinculado ao código validado e só pode ser usado uma vez. Após cinco códigos inválidos, o registro fica bloqueado por 30 minutos.
 
 ### Análises financeiras
 
@@ -401,6 +401,18 @@ O objeto `analysis` segue o contrato completo de análise. Não existe endpoint 
 | `GET` | `/api/v1/users/{userId}/history` | Histórico de análises |
 | `GET` | `/api/v1/users/{userId}/recommendations` | Recomendações do usuário |
 | `POST` | `/api/v1/users/{userId}/simulations/savings` | Simulação aritmética de poupança |
+| `PUT` | `/api/v1/users/me/password` | Altera a senha do usuário autenticado após validar a senha atual |
+
+Corpo da alteração de senha:
+
+```json
+{
+  "currentPassword": "senha-atual",
+  "newPassword": "nova-senha-com-8-ou-mais"
+}
+```
+
+A resposta é `{"message":"Senha atualizada com sucesso."}`. Uma senha atual incorreta retorna o erro `INVALID_CURRENT_PASSWORD`; a nova senha não pode ser igual à atual.
 
 Corpo da simulação:
 
@@ -420,9 +432,9 @@ As taxas são percentuais. A resposta inclui os mesmos quatro campos e `currentM
 | Método | Endpoint | Estado atual |
 | --- | --- | --- |
 | `GET` | `/api/v1/reports/financial/{userId}` | Retorna totais e resumo por categoria de todas as transações do usuário |
-| `POST` | `/api/v1/reports/financial/{userId}/export` | Valida/monta o relatório, mas retorna apenas a string `Exportação de relatório em desenvolvimento` |
+| `POST` | `/api/v1/reports/financial/{userId}/export` | Baixa o relatório financeiro em CSV UTF-8, separado por ponto e vírgula |
 
-Não há geração de PDF ou Excel implementada.
+O download usa `Content-Type: text/csv;charset=UTF-8`, `Content-Disposition: attachment` e contém totais de receitas, despesas, saldo e resumo por categoria. Não há geração de PDF ou Excel implementada.
 
 ### Agente financeiro
 
@@ -560,21 +572,21 @@ Exemplo abreviado de `/model-status`:
 
 ```json
 {
-  "status": "DEGRADED",
+  "status": "READY",
   "environment": "development",
-  "modelsRequired": false,
+  "modelsRequired": true,
   "registeredAt": "2026-08-02T12:00:00Z",
   "transactionClassifier": {
-    "name": "FallbackTransactionClassifier",
-    "version": "FALLBACK",
-    "status": "FALLBACK",
-    "active": false,
-    "artifact_status": "MISSING",
+    "name": "SklearnTransactionClassifier",
+    "version": "1.1.0-bootstrap.1",
+    "status": "LOADED",
+    "active": true,
+    "artifact_status": "VALID",
     "artifact_path": "/app/models/transaction-classifier",
-    "artifact_sha256": null,
-    "metadata_sha256": null,
+    "artifact_sha256": "<sha256>",
+    "metadata_sha256": "<sha256>",
     "registered_at": "2026-08-02T12:00:00Z",
-    "error": "model not found at /app/models/transaction-classifier"
+    "error": null
   },
   "profileClassifier": {},
   "llmProvider": {
@@ -597,7 +609,7 @@ Essas rotas não passam pelo Nginx (`/internal/` recebe `403`) e são consumidas
 | `GET` | `/internal/v1/models/status` | Registry, artefatos e LLM |
 | `GET` | `/internal/v1/rag/retrieval/metrics` | Uso dos canais, falhas vetoriais e latências da recuperação |
 | `POST` | `/internal/v1/transactions/classify` | `{items:[{description,amount,payment_method,recurrent,channel}]}` |
-| `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e nove indicadores |
+| `POST` | `/internal/v1/profiles/analyze` | Modelo, entrada financeira e oito indicadores |
 | `POST` | `/internal/v1/profiles/recommendations` | Recomendações do motor Python |
 | `POST` | `/internal/v1/agent/respond` | Header de usuário confiável e resposta completa do agente |
 | `POST` | `/internal/v1/agent/respond/stream` | Header de usuário confiável e SSE `tools`, `sources`, `token`, `done` ou `error` |

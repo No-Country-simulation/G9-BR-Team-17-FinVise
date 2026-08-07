@@ -9,7 +9,6 @@ from app.api.security import require_service_token, trusted_user_id
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.model_registry.registry import get_registry
-from app.recommendations.rules import get_recommendation_engine
 from app.schemas.agent import AgentApiRequest, AgentRequest, AgentResponse
 from app.schemas.common import HealthResponse, ModelStatusResponse
 from app.schemas.profile import ProfileAnalyzeRequest, ProfileAnalyzeResponse

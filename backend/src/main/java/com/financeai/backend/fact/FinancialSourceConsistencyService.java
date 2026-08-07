@@ -71,6 +71,6 @@ public class FinancialSourceConsistencyService {
     private String ragSourceType(TransactionSource source) {
         return source == TransactionSource.OPEN_FINANCE_PLUGGY
             ? "OPEN_FINANCE"
-            : "CSV";
+            : "CSV_IMPORT";
     }
 }

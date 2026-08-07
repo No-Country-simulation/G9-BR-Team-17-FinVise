@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,6 +70,19 @@ public class AiServiceClient {
                 .body(ProfileAnalysisResult.class);
         } catch (RestClientException e) {
             log.warn("Falha ao chamar ai-service para análise de perfil: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public AiRecommendationResponse generateRecommendations(AiRecommendationRequest request) {
+        try {
+            return restClient.post()
+                .uri("/internal/v1/recommendations/generate")
+                .body(request)
+                .retrieve()
+                .body(AiRecommendationResponse.class);
+        } catch (RestClientException e) {
+            log.warn("Falha ao chamar ai-service para geração de recomendações: {}", e.getMessage());
             return null;
         }
     }
@@ -210,6 +224,31 @@ public class AiServiceClient {
             response.indexedCount(), userId);
         return response;
     }
+
+    public record AiRecommendationRequest(
+        BigDecimal monthlyIncome,
+        BigDecimal debtLevelPercentage,
+        String savingFrequency,
+        BigDecimal financialReserve,
+        Map<String, Object> indicators,
+        Map<String, BigDecimal> spendingByCategory
+    ) {}
+
+    public record AiRecommendationItem(
+        String title,
+        String description,
+        String reason,
+        String priority,
+        String category,
+        String impact,
+        BigDecimal suggestedAmount,
+        String relatedIndicator
+    ) {}
+
+    public record AiRecommendationResponse(
+        String source,
+        List<AiRecommendationItem> recommendations
+    ) {}
 
     public record RagIndexResponse(
         @JsonProperty("indexed_count") int indexedCount,

@@ -59,6 +59,7 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
+  const registeredEmail = (location.state as { registeredEmail?: string } | null)?.registeredEmail;
 
   const {
     register,
@@ -109,7 +110,7 @@ export function LoginPage() {
         <AuthLayoutCard data-testid="login-card" className="mx-auto flex h-full w-full max-w-[560px] flex-col overflow-hidden border-0 bg-transparent p-4 shadow-none backdrop-blur-none sm:p-5 md:p-6 lg:-translate-y-16">
           <div className="mb-4 md:mb-5">
             <h1 className="text-3xl font-bold leading-tight text-white">Entrar</h1>
-            <p className="mt-2 text-base text-slate-300">Use seu e-mail cadastrado para acessar sua área financeira.</p>
+            <p className="mt-2 text-base text-slate-200">Use seu e-mail cadastrado para acessar sua área financeira.</p>
           </div>
 
           {error && (
@@ -121,11 +122,14 @@ export function LoginPage() {
           {!error && successMessage && (
             <Alert variant="success" className="mb-6" role="status" aria-live="polite">
               <AlertTitle>Operação concluída</AlertTitle>
-              <AlertDescription>{successMessage}</AlertDescription>
+              <AlertDescription>
+                {successMessage}
+                {registeredEmail ? ` (${registeredEmail})` : ''}
+              </AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="flex-1 space-y-3 md:space-y-3.5" noValidate>
+          <form onSubmit={handleSubmit(onSubmit)} className="flex-1 space-y-3 md:space-y-3.5" noValidate aria-busy={isLoading ? 'true' : 'false'}>
             <AuthInput
               label="E-mail"
               placeholder="voce@email.com"
@@ -143,7 +147,7 @@ export function LoginPage() {
               {...register('password')}
             />
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start justify-between gap-2 min-[420px]:flex-row min-[420px]:items-center">
               <Checkbox label="Lembrar de mim" />
               <Link to="/forgot-password" className={cn('text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
                 Esqueci minha senha
@@ -157,7 +161,7 @@ export function LoginPage() {
             </motion.div>
           </form>
 
-          <div className="mt-3 text-sm text-slate-300 md:mt-4">
+          <div className="mt-3 text-sm text-slate-200 md:mt-4">
             Não possui uma conta?{' '}
             <Link to="/register" className={cn('font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
               Criar conta

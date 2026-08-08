@@ -17,12 +17,14 @@ export const AuthInput = forwardRef<HTMLInputElement, InputProps>(function AuthI
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const feedbackText = error || success || helperText;
-  const feedbackClassName = error ? 'text-sm text-red-300' : success ? 'text-sm text-emerald-300' : 'text-sm text-slate-400';
+  const feedbackId = `${inputId}-feedback`;
+  const describedBy = [props['aria-describedby'], feedbackText ? feedbackId : null].filter(Boolean).join(' ') || undefined;
+  const feedbackClassName = error ? 'text-sm text-red-200' : success ? 'text-sm text-emerald-200' : 'text-sm text-slate-300';
 
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={inputId} className="mb-2 block text-[15px] font-medium text-slate-100">
+        <label htmlFor={inputId} className="mb-2 block text-[15px] font-semibold text-slate-50">
           {label}
         </label>
       )}
@@ -31,8 +33,10 @@ export const AuthInput = forwardRef<HTMLInputElement, InputProps>(function AuthI
         <input
           ref={ref}
           id={inputId}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={describedBy}
           className={cn(
-            'flex h-14 w-full rounded-[14px] border border-white/10 bg-white/5 px-4 text-[16px] text-slate-50 caret-cyan-300 placeholder:text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/40 disabled:cursor-not-allowed disabled:opacity-50',
+            'flex h-14 w-full rounded-[14px] border border-white/15 bg-white/7 px-4 text-[16px] text-slate-50 caret-cyan-300 placeholder:text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-200 focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/45 disabled:cursor-not-allowed disabled:opacity-50',
             icon && 'pl-11',
             error && 'border-red-400/70 focus:border-red-300 focus:ring-red-400/30',
             success && 'border-emerald-400/70 focus:border-emerald-300 focus:ring-emerald-400/30',
@@ -42,7 +46,7 @@ export const AuthInput = forwardRef<HTMLInputElement, InputProps>(function AuthI
         />
         {endAdornment}
       </div>
-      {feedbackText ? <p className={cn('mt-1.5', feedbackClassName)}>{feedbackText}</p> : null}
+      {feedbackText ? <p id={feedbackId} className={cn('mt-1.5', feedbackClassName)}>{feedbackText}</p> : null}
     </div>
   );
 });

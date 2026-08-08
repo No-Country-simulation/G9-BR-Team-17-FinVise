@@ -45,8 +45,16 @@ export function LineChart({ data, title, emptyMessage = 'Sem dados para exibir' 
               tickFormatter={(value) => `R$ ${compactCurrency.format(Number(value))}`}
             />
             <Tooltip
+              wrapperClassName="chart-tooltip"
               formatter={(value) => formatCurrency(Number(value ?? 0))}
-              labelStyle={{ color: '#334155', fontWeight: 600 }}
+              contentStyle={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                color: '#0f172a',
+              }}
+              labelStyle={{ color: '#0f172a', fontWeight: 700 }}
+              itemStyle={{ color: '#0f172a', fontWeight: 500 }}
             />
             <Legend />
             <Line type="linear" dataKey="income" name="Receitas" stroke="#10b981" strokeWidth={2} dot={showDots} activeDot={{ r: 5 }} />

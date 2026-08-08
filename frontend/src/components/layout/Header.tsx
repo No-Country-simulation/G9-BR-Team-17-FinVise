@@ -16,27 +16,40 @@ interface HeaderProps {
 }
 
 const notificationTickerStorageKey = 'finvise-header-ticker-enabled';
+const transactionSourceStorageKey = 'finance_ai_transaction_source';
+const tickerRefreshMs = 30_000;
+
+function getStoredTransactionSource(): TransactionSource {
+  const stored = window.localStorage.getItem(transactionSourceStorageKey);
+  return stored === 'OPEN_FINANCE_PLUGGY' ? 'OPEN_FINANCE_PLUGGY' : 'CSV_IMPORT';
+}
 
 export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const { preferences } = useNotificationPreferences();
   const initials = getInitials(userName);
   const [isTickerEnabled, setIsTickerEnabled] = useState(true);
-  const currentSource = (window.localStorage.getItem('finance_ai_transaction_source') as TransactionSource) || 'CSV_IMPORT';
+  const [currentSource, setCurrentSource] = useState<TransactionSource>(getStoredTransactionSource);
   const { data: importSources = [] } = useQuery({
     queryKey: ['header', 'import-sources'],
     queryFn: importSourceService.getAll,
     staleTime: 60 * 1000,
+    refetchInterval: tickerRefreshMs,
+    refetchIntervalInBackground: true,
   });
   const { data: summary } = useQuery({
     queryKey: ['header', 'summary', currentSource],
     queryFn: () => transactionService.getSummary(currentSource),
     staleTime: 60 * 1000,
+    refetchInterval: tickerRefreshMs,
+    refetchIntervalInBackground: true,
   });
   const { data: monthlySummary = [] } = useQuery({
     queryKey: ['header', 'monthly-summary', currentSource],
     queryFn: () => transactionService.getMonthlySummary(currentSource),
     staleTime: 60 * 1000,
+    refetchInterval: tickerRefreshMs,
+    refetchIntervalInBackground: true,
   });
 
   const tickerItems = useMemo(() => {
@@ -54,10 +67,22 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
     }
 
     if (preferences.spendingAlerts && summary) {
-      items.push(`Saldo atual: ${formatCurrency(summary.balance)} | Receitas: ${formatCurrency(summary.totalIncome)} | Despesas: ${formatCurrency(summary.totalExpense)}`);
+      const expenseShare = summary.totalIncome > 0
+        ? Math.round((summary.totalExpense / summary.totalIncome) * 100)
+        : null;
+      items.push(
+        `Visão geral: saldo ${formatCurrency(summary.balance)} | Receitas ${formatCurrency(summary.totalIncome)} | Despesas ${formatCurrency(summary.totalExpense)}${expenseShare === null ? '' : ` (${expenseShare}% das receitas)`}`
+      );
 
       const currentMonth = monthlySummary[monthlySummary.length - 1];
       const previousMonth = monthlySummary[monthlySummary.length - 2];
+      if (currentMonth) {
+        const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' })
+          .format(new Date(`${currentMonth.month}-01T12:00:00`));
+        items.push(
+          `${monthLabel}: saldo ${formatCurrency(currentMonth.balance)} | Receitas ${formatCurrency(currentMonth.income)} | Despesas ${formatCurrency(currentMonth.expense)}`
+        );
+      }
       if (currentMonth && previousMonth) {
         const balanceDelta = currentMonth.balance - previousMonth.balance;
         if (balanceDelta !== 0) {
@@ -67,11 +92,15 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
     }
 
     if (preferences.productNews) {
-      items.push('FinVise atualizado: acompanhe importações e variações do orçamento em tempo real no topo da aplicação');
+      items.push(
+        latestImport
+          ? `Fonte em uso: ${latestImport.displayName} | Última atualização ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(latestImport.lastSyncAt || latestImport.createdAt))}`
+          : `Fonte selecionada: ${currentSource === 'CSV_IMPORT' ? 'Arquivo CSV' : 'Open Finance'}`
+      );
     }
 
     return items;
-  }, [importSources, monthlySummary, preferences, summary]);
+  }, [currentSource, importSources, monthlySummary, preferences, summary]);
 
   useEffect(() => {
     const storedValue = window.localStorage.getItem(notificationTickerStorageKey);
@@ -81,13 +110,30 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
   }, []);
 
   useEffect(() => {
+    const syncSource = () => setCurrentSource(getStoredTransactionSource());
+    const syncSourceFromStorage = (event: StorageEvent) => {
+      if (event.key === transactionSourceStorageKey) {
+        syncSource();
+      }
+    };
+
+    window.addEventListener('storage', syncSourceFromStorage);
+    window.addEventListener('finance-ai:transaction-source-changed', syncSource);
+
+    return () => {
+      window.removeEventListener('storage', syncSourceFromStorage);
+      window.removeEventListener('finance-ai:transaction-source-changed', syncSource);
+    };
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem(notificationTickerStorageKey, String(isTickerEnabled));
   }, [isTickerEnabled]);
 
   return (
     <header
       className={cn(
-        'mobile-safe-top sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center justify-between border-b px-3 shadow-sm backdrop-blur-xl sm:px-5 lg:h-16 lg:px-8',
+        'mobile-safe-top flex min-h-16 w-full min-w-0 items-center justify-between border-b px-3 shadow-sm backdrop-blur-xl sm:px-5 lg:h-16 lg:px-8',
         resolvedTheme === 'dark'
           ? 'border-white/10 bg-[rgba(8,15,28,0.72)] text-white shadow-[0_18px_50px_rgba(2,8,23,0.26)]'
           : 'border-slate-200/80 bg-[rgba(248,250,252,0.78)] text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]'

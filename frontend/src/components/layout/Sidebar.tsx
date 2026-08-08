@@ -114,6 +114,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
   const { pathname } = useLocation();
   const [isImportOpen, setIsImportOpen] = useState(true);
   const [isInsightsOpen, setIsInsightsOpen] = useState(true);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   const activeGroup = useMemo(() => {
     if (pathname.startsWith('/import')) return 'import';
@@ -125,6 +126,23 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
     if (activeGroup === 'import') setIsImportOpen(true);
     if (activeGroup === 'insights') setIsInsightsOpen(true);
   }, [activeGroup]);
+
+  useEffect(() => {
+    if (!isLogoutConfirmOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsLogoutConfirmOpen(false);
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isLogoutConfirmOpen]);
 
   const handleLogout = () => {
     authService.logout();
@@ -306,7 +324,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
 
         <div className={cn('shrink-0 border-t p-4', resolvedTheme === 'dark' ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white/70', isCollapsed && 'lg:px-3')}>
           <button
-            onClick={handleLogout}
+            onClick={() => setIsLogoutConfirmOpen(true)}
             aria-label="Sair"
             title={isCollapsed ? 'Sair' : undefined}
             className={cn(
@@ -322,6 +340,64 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
           </button>
         </div>
       </aside>
+
+      {isLogoutConfirmOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center p-3 backdrop-blur-sm sm:items-center sm:p-6">
+          <div className={cn('absolute inset-0', resolvedTheme === 'dark' ? 'bg-slate-950/55' : 'bg-slate-950/35')} />
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Fechar confirmação de saída"
+            onClick={() => setIsLogoutConfirmOpen(false)}
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-confirm-title"
+            className={cn(
+              'relative w-full max-w-lg overflow-hidden rounded-[30px] border p-6 shadow-[0_24px_70px_rgba(0,0,0,0.45)] sm:p-7',
+              resolvedTheme === 'dark'
+                ? 'border-white/20 bg-[linear-gradient(180deg,rgba(8,15,28,0.98)_0%,rgba(5,12,25,0.97)_100%)]'
+                : 'border-cyan-100 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(241,245,249,0.98)_100%)]'
+            )}
+          >
+            <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 h-52 w-52 rounded-full bg-emerald-300/15 blur-3xl" aria-hidden="true" />
+
+            <div className="relative flex items-start gap-4">
+              <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border', resolvedTheme === 'dark' ? 'border-red-200/30 bg-red-500/20 text-red-100' : 'border-red-200 bg-red-50 text-red-600')}>
+                <LogOut className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="logout-confirm-title" className={cn('text-xl font-bold tracking-tight', resolvedTheme === 'dark' ? 'text-slate-50' : 'text-slate-900')}>
+                  Confirmar saída
+                </h2>
+                <p className={cn('mt-2 text-sm leading-relaxed', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+                  Você deseja realmente sair da sua conta agora?
+                </p>
+              </div>
+            </div>
+
+            <div className="relative mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => setIsLogoutConfirmOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="w-full sm:w-auto"
+                onClick={handleLogout}
+              >
+                Sair agora
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

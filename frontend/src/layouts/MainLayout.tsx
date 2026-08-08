@@ -97,7 +97,16 @@ export function MainLayout() {
       />
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <Header userName={userName} onMenuClick={() => setIsSidebarOpen(true)} />
+        <div
+          className={cn(
+            'fixed left-0 right-0 top-0 z-30 transition-[left] duration-300',
+            isSidebarCollapsed ? 'lg:left-[5.5rem]' : 'lg:left-64'
+          )}
+        >
+          <Header userName={userName} onMenuClick={() => setIsSidebarOpen(true)} />
+        </div>
+
+        <div className="h-16 shrink-0" aria-hidden="true" />
 
         <main
           className={cn(

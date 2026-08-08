@@ -187,8 +187,8 @@ export function ImportSourcesPage() {
     const previousOverflow = document.body.style.overflow;
     const previousOverscrollBehavior = document.body.style.overscrollBehavior;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeDeleteModal();
+      if (event.key === 'Escape' && !deleteMutation.isPending) {
+        setSourcePendingDelete(null);
       }
     };
 

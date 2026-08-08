@@ -32,19 +32,23 @@ export function AuthLayout({
         <section className="absolute left-4 top-4 z-20 flex items-center gap-4 sm:left-6 sm:top-5 lg:left-8 lg:top-6">
           <div
             className={cn(
-              'flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl',
-              theme === 'dark' ? 'border border-white/10 bg-white/10' : 'border border-slate-200 bg-white/90'
+              'flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl',
+              theme === 'dark'
+                ? 'border border-cyan-300/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(10,24,40,0.55))] shadow-[0_14px_28px_rgba(0,0,0,0.35)]'
+                : 'border border-transparent bg-transparent shadow-none'
             )}
           >
-            <FinViseMark className="h-10 w-10 object-cover" />
+            <FinViseMark className="h-14 w-14" theme={theme} />
           </div>
 
           <div className="text-left">
             <p className="text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]">
               <span className="text-cyan-300">Fin</span>
-              <span className="text-white">Vise</span>
+              <span className={cn(theme === 'dark' ? 'text-white' : 'text-slate-900')}>Vise</span>
             </p>
-            <p className="mt-0.5 text-xs text-slate-300 sm:text-sm">Inteligência financeira simplificada</p>
+            <p className={cn('mt-0.5 text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              Inteligência financeira simplificada
+            </p>
           </div>
 
           {onThemeToggle ? (
@@ -59,19 +63,23 @@ export function AuthLayout({
             <header className="mb-3 flex items-center gap-3 sm:mb-4 opacity-0 pointer-events-none" aria-hidden="true">
               <div
                 className={cn(
-                  'flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl',
-                  theme === 'dark' ? 'border border-white/10 bg-white/10' : 'border border-slate-200 bg-white/90'
+                  'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl',
+                  theme === 'dark'
+                    ? 'border border-cyan-300/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(10,24,40,0.55))] shadow-[0_14px_28px_rgba(0,0,0,0.35)]'
+                    : 'border border-transparent bg-transparent shadow-none'
                 )}
               >
-                <FinViseMark className="h-8 w-8 object-cover" />
+                <FinViseMark className="h-11 w-11" theme={theme} />
               </div>
 
               <div className="text-left">
                 <p className="text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]">
                   <span className="text-cyan-300">Fin</span>
-                  <span className="text-white">Vise</span>
+                  <span className={cn(theme === 'dark' ? 'text-white' : 'text-slate-900')}>Vise</span>
                 </p>
-                <p className="mt-1 text-xs text-slate-300 sm:text-sm">Inteligência financeira simplificada</p>
+                <p className={cn('mt-1 text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+                  Inteligência financeira simplificada
+                </p>
               </div>
 
               {onThemeToggle ? <div className="ml-auto" /> : null}
@@ -95,9 +103,11 @@ export function AuthLayout({
             <div className="text-center">
               <p className="text-[34px] font-semibold tracking-[-0.02em] sm:text-[44px]">
                 <span className="text-cyan-300">Fin</span>
-                <span className="text-white">Vise</span>
+                <span className={cn(theme === 'dark' ? 'text-white' : 'text-slate-900')}>Vise</span>
               </p>
-              <p className="text-xs text-slate-300 sm:text-sm">Inteligência financeira simplificada</p>
+              <p className={cn('text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+                Inteligência financeira simplificada
+              </p>
             </div>
           </div>
           {onThemeToggle ? (

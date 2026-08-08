@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,8 +36,10 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export function RegisterPage() {
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
+  const redirectTimeoutRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successEmail, setSuccessEmail] = useState<string | null>(null);
 
   const {
     register,
@@ -69,19 +71,28 @@ export function RegisterPage() {
 
     try {
       const response = await authService.register({ fullName, email, password });
-      navigate('/login', {
-        replace: true,
-        state: {
-          successMessage: 'Sua conta foi criada. Faça login para continuar.',
-          registeredEmail: response.email,
-        },
-      });
+      setSuccessEmail(response.email);
+      redirectTimeoutRef.current = window.setTimeout(() => {
+        navigate('/login', {
+          replace: true,
+          state: {
+            successMessage: 'Cadastro concluído com sucesso. Faça login para continuar.',
+            registeredEmail: response.email,
+          },
+        });
+      }, 1300);
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => () => {
+    if (redirectTimeoutRef.current !== null) {
+      window.clearTimeout(redirectTimeoutRef.current);
+    }
+  }, []);
 
   return (
     <AuthLayout>
@@ -94,7 +105,7 @@ export function RegisterPage() {
         <AuthLayoutCard>
           <div className="mb-5 text-center md:mb-6">
             <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Criar conta</h1>
-            <p className="mt-2 text-base text-slate-300 sm:text-lg">Comece a organizar seu futuro financeiro</p>
+            <p className="mt-2 text-base text-slate-200 sm:text-lg">Comece a organizar seu futuro financeiro</p>
           </div>
 
           {error && (
@@ -104,7 +115,7 @@ export function RegisterPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 md:space-y-4" noValidate>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 md:space-y-4" noValidate aria-busy={isLoading ? 'true' : 'false'}>
             <AuthInput
               label="Nome completo"
               placeholder="Seu nome completo"
@@ -148,7 +159,7 @@ export function RegisterPage() {
             </motion.div>
           </form>
 
-          <div className="mt-5 text-center text-sm text-slate-300 md:mt-6">
+          <div className="mt-5 text-center text-sm text-slate-200 md:mt-6">
             Já possui uma conta?{' '}
             <Link to="/login" className={cn('font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
               Entrar
@@ -156,6 +167,21 @@ export function RegisterPage() {
           </div>
         </AuthLayoutCard>
       </motion.div>
+
+      {successEmail && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:items-center sm:p-6">
+          <div
+            role="status"
+            aria-live="polite"
+            className="w-full max-w-lg rounded-[24px] border border-emerald-300/35 bg-[linear-gradient(180deg,rgba(16,185,129,0.16)_0%,rgba(6,78,59,0.42)_100%)] p-5 text-slate-50 shadow-[0_22px_60px_rgba(0,0,0,0.42)]"
+          >
+            <h2 className="text-lg font-bold">Cadastro concluído</h2>
+            <p className="mt-1 text-sm text-slate-100">
+              Conta criada para {successEmail}. Redirecionando para login...
+            </p>
+          </div>
+        </div>
+      )}
     </AuthLayout>
   );
 }

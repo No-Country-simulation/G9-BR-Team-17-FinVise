@@ -61,6 +61,15 @@
     color: rgb(103 232 249) !important;
   }
 
+  .auth-shell[data-theme='dark'] .contrast-on-cyan,
+  .auth-shell[data-theme='dark'] .contrast-on-cyan * {
+    color: rgb(15 23 42) !important;
+  }
+
+  .auth-shell[data-theme='dark'] .chart-tooltip :is(p, li, span) {
+    color: rgb(15 23 42) !important;
+  }
+
   .auth-shell[data-theme='dark'] :is(.border-slate-200, .border-slate-100, .border-gray-200, .border-gray-100, .border-stone-200, .border-zinc-200) {
     border-color: rgb(148 163 184 / 0.14) !important;
   }

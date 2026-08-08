@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { useTheme } from './useTheme';
-import finViseLogoImage from '@/assets/branding/new-logo-finvise.png';
+import finViseDarkLogoImage from '@/assets/branding/new-logo-finvise.png';
+import finViseLightLogoImage from '@/assets/branding/new-logo-finvise-claro.png';
 
 interface FinViseLogoProps {
   className?: string;
@@ -26,17 +27,8 @@ export function FinViseMark({ className, theme }: FinViseMarkProps) {
         className
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'absolute inset-0 rounded-[inherit]',
-          effectiveTheme === 'dark'
-            ? 'bg-[radial-gradient(circle_at_50%_40%,rgba(45,212,191,0.2),rgba(10,24,40,0.75)_70%)] ring-1 ring-cyan-200/40'
-            : 'opacity-0'
-        )}
-      />
       <img
-        src={finViseLogoImage}
+        src={effectiveTheme === 'dark' ? finViseLightLogoImage : finViseDarkLogoImage}
         alt=""
         aria-hidden="true"
         className={cn(

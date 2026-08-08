@@ -1,20 +1,30 @@
 import { motion } from 'framer-motion';
 import loginBackgroundImage from '@/assets/branding/new-logo.jpg';
+import { cn } from '@/lib/utils';
+import { useTheme } from './useTheme';
 
 export function AuthBackground() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
   return (
     <div aria-hidden="true" className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
       <div className="absolute inset-0">
         <img
           src={loginBackgroundImage}
           alt=""
-          className="h-full w-full object-cover opacity-24"
+          className={cn('h-full w-full object-cover', isDark ? 'opacity-24' : 'opacity-[0.06]')}
           loading="eager"
           decoding="async"
         />
       </div>
       <div
-        className="absolute inset-0 bg-[linear-gradient(135deg,#071321_0%,#081a2d_52%,#0b2138_100%)]"
+        className={cn(
+          'absolute inset-0',
+          isDark
+            ? 'bg-[linear-gradient(135deg,#071321_0%,#081a2d_52%,#0b2138_100%)]'
+            : 'bg-[linear-gradient(135deg,rgba(238,244,249,0.96)_0%,rgba(223,232,240,0.94)_55%,rgba(203,215,227,0.92)_100%)]'
+        )}
       />
       <motion.div
         className="absolute left-[-10%] top-[14%] h-[30rem] w-[30rem] rounded-full bg-teal-400/14 blur-3xl"
@@ -32,7 +42,14 @@ export function AuthBackground() {
         <path d="M-100 900C140 770 320 660 510 640C730 615 920 760 1130 700C1330 640 1500 450 2020 360" stroke="rgba(103,232,249,0.24)" strokeWidth="1" />
         <path d="M-120 300C220 380 360 520 560 530C770 540 920 340 1140 355C1360 370 1520 510 2020 470" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
       </svg>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06),transparent_28%)]" />
+      <div
+        className={cn(
+          'absolute inset-0',
+          isDark
+            ? 'bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.06),transparent_28%)]'
+            : 'bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.5),transparent_34%)]'
+        )}
+      />
       <motion.div
         className="absolute left-[12%] top-[26%] h-1.5 w-1.5 rounded-full bg-teal-300/80 shadow-[0_0_14px_rgba(45,212,191,0.45)]"
         animate={{ y: [0, -10, 0], opacity: [0.45, 1, 0.45] }}

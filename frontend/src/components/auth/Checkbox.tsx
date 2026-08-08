@@ -10,13 +10,13 @@ interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
 export function Checkbox({ label, helperText, error, className, ...props }: CheckboxProps) {
   return (
     <label className={cn('flex cursor-pointer items-start gap-3', className)}>
-      <span className="relative mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border border-white/15 bg-white/5">
+      <span className="relative mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center">
         <input
           type="checkbox"
-          className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          className="peer absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer opacity-0"
           {...props}
         />
-        <Check className="h-3.5 w-3.5 scale-0 text-cyan-300 transition-transform peer-checked:scale-100" />
+        <Check className="h-5 w-5 rounded-[6px] border border-white/15 bg-white/5 p-0.5 text-transparent transition-colors peer-checked:text-cyan-300 peer-focus-visible:ring-2 peer-focus-visible:ring-cyan-300 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-slate-950" />
       </span>
       <span className="min-w-0">
         {label && <span className="block text-[15px] font-medium text-slate-100">{label}</span>}

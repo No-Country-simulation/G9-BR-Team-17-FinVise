@@ -16,6 +16,8 @@ import {
 } from '@/components/auth';
 import { authService } from '@/services/authService';
 import { extractErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/auth/useTheme';
 
 const registerSchema = z
   .object({
@@ -32,6 +34,7 @@ const registerSchema = z
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +150,7 @@ export function RegisterPage() {
 
           <div className="mt-5 text-center text-sm text-slate-300 md:mt-6">
             Já possui uma conta?{' '}
-            <Link to="/login" className="font-semibold text-cyan-300 transition-colors hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+            <Link to="/login" className={cn('font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
               Entrar
             </Link>
           </div>

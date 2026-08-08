@@ -185,10 +185,11 @@ export function ImportSourcesPage() {
             <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
             Atualizar
           </Button>
-          <Link to="/import">
-            <Button className="w-full">
-              <Plus className="mr-2 h-4 w-4" />Nova importação
-            </Button>
+          <Link
+            to="/import"
+            className="inline-flex h-14 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] px-5 py-2 text-[16px] font-semibold tracking-tight text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)] focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <Plus className="mr-2 h-4 w-4" />Nova importação
           </Link>
         </div>
       </div>
@@ -246,10 +247,10 @@ export function ImportSourcesPage() {
             aria-selected={filter === option.value}
             onClick={() => setFilter(option.value)}
             className={cn(
-              'min-w-0 truncate rounded-lg px-1.5 py-2 text-[11px] font-medium transition-colors sm:shrink-0 sm:px-4 sm:text-sm',
+              'min-h-11 min-w-0 truncate rounded-lg px-1.5 py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:shrink-0 sm:px-4 sm:text-sm',
               filter === option.value
                 ? 'bg-primary-50 text-primary-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 focus-visible:bg-slate-50 focus-visible:text-slate-900',
             )}
           >
             {option.label}

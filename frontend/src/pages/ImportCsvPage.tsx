@@ -253,17 +253,25 @@ export function ImportCsvPage() {
           <p className="text-sm text-slate-500 sm:text-base">Escolha CSV ou conecte sua instituição pelo Open Finance</p>
         </div>
         <div className="grid gap-2 min-[420px]:grid-cols-2 xl:shrink-0">
-          <Link to="/import/sources">
-            <Button variant="outline" className="w-full whitespace-nowrap">
-              <Database className="mr-2 h-4 w-4" />
-              Ver fontes
-            </Button>
+          <Link
+            to="/import/sources"
+            className={cn(
+              'inline-flex h-14 w-full items-center justify-center whitespace-nowrap rounded-[14px] border px-5 py-2 text-[16px] font-semibold tracking-tight transition-all duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
+              resolvedTheme === 'dark' ? 'border-white/12 bg-white/6 text-slate-100 hover:bg-white/10' : 'border-slate-300 bg-white/80 text-slate-700 hover:bg-slate-50'
+            )}
+          >
+            <Database className="mr-2 h-4 w-4" />
+            Ver fontes
           </Link>
-          <Link to="/open-finance">
-            <Button variant="outline" className="w-full whitespace-nowrap">
-              <Landmark className="mr-2 h-4 w-4" />
-              Conectar Open Finance
-            </Button>
+          <Link
+            to="/open-finance"
+            className={cn(
+              'inline-flex h-14 w-full items-center justify-center whitespace-nowrap rounded-[14px] border px-5 py-2 text-[16px] font-semibold tracking-tight transition-all duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
+              resolvedTheme === 'dark' ? 'border-white/12 bg-white/6 text-slate-100 hover:bg-white/10' : 'border-slate-300 bg-white/80 text-slate-700 hover:bg-slate-50'
+            )}
+          >
+            <Landmark className="mr-2 h-4 w-4" />
+            Conectar Open Finance
           </Link>
         </div>
       </div>
@@ -286,10 +294,10 @@ export function ImportCsvPage() {
                 ]}
               />
             </div>
-            <div
-              onClick={() => !isLoading && inputRef.current?.click()}
+            <label
+              htmlFor="transaction-csv-file"
               className={cn(
-                'flex min-h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-colors sm:p-8',
+                'flex min-h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2 sm:p-8',
                 isLoading
                   ? resolvedTheme === 'dark'
                     ? 'cursor-not-allowed border-white/10 bg-white/5 opacity-60'
@@ -308,8 +316,8 @@ export function ImportCsvPage() {
                 {file ? file.name : 'Clique para selecionar o arquivo CSV'}
               </p>
               <p className={cn('text-xs', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-500')}>Arquivos .csv de até 5 MB</p>
-              <input ref={inputRef} type="file" accept=".csv" disabled={isLoading} className="hidden" onChange={handleFileChange} />
-            </div>
+              <input id="transaction-csv-file" ref={inputRef} type="file" accept=".csv" disabled={isLoading} className="sr-only" onChange={handleFileChange} />
+            </label>
 
             {isLoading && (
               <div className="space-y-3 rounded-xl border border-primary-200 bg-primary-50/80 p-4 transition-all shadow-sm">

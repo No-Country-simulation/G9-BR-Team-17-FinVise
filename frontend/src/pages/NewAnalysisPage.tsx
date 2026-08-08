@@ -158,11 +158,17 @@ export function NewAnalysisPage() {
             <div className="space-y-4 text-center">
               <p className="text-sm text-slate-500">Nenhuma transação foi importada.</p>
               <div className="flex flex-col justify-center gap-3 sm:flex-row">
-                <Link to="/import">
-                  <Button><FileUp className="mr-2 h-4 w-4" />Importar CSV</Button>
+                <Link
+                  to="/import"
+                  className="inline-flex h-14 items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] px-5 py-2 text-[16px] font-semibold tracking-tight text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <FileUp className="mr-2 h-4 w-4" />Importar CSV
                 </Link>
-                <Link to="/open-finance">
-                  <Button variant="outline"><Landmark className="mr-2 h-4 w-4" />Open Finance</Button>
+                <Link
+                  to="/open-finance"
+                  className="inline-flex h-14 items-center justify-center rounded-[14px] border border-slate-300 bg-white/80 px-5 py-2 text-[16px] font-semibold tracking-tight text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <Landmark className="mr-2 h-4 w-4" />Open Finance
                 </Link>
               </div>
             </div>
@@ -190,7 +196,7 @@ export function NewAnalysisPage() {
                 key={option.code}
                 type="button"
                 onClick={() => setModel(option.code)}
-                className={`rounded-xl border-2 p-5 text-left transition-colors ${selected ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-primary-200'}`}
+                className={`rounded-xl border-2 p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${selected ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-primary-200 focus-visible:border-primary-200'}`}
                 aria-pressed={selected}
               >
                 <Icon className={`mb-3 h-7 w-7 ${selected ? 'text-primary-700' : 'text-slate-500'}`} />

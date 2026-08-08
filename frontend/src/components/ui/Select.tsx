@@ -19,7 +19,7 @@ function Select({ className, options, error, ref, ...props }: SelectProps) {
       <select
         ref={ref}
         className={cn(
-          'flex h-11 w-full rounded-[14px] border px-4 py-2 text-base backdrop-blur-xl focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:text-sm',
+          'flex h-11 w-full rounded-[14px] border px-4 py-2 text-base backdrop-blur-xl focus:border-transparent focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm',
           resolvedTheme === 'dark'
             ? 'border-white/12 bg-white/6 text-white focus:ring-cyan-300/40'
             : 'border-slate-200/80 bg-white/78 text-slate-900 focus:ring-primary-500',

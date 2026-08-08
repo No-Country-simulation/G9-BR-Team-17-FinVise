@@ -124,7 +124,9 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
             </div>
           ) : (
             <p className={cn('truncate text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-              O FinVise nao mostra apenas para onde o dinheiro foi. Ele explica o que esta acontecendo e indica o proximo passo.
+              {isTickerEnabled
+                ? 'Nenhuma atualização financeira disponível no momento.'
+                : 'FinVise: inteligência financeira simplificada.'}
             </p>
           )}
         </div>
@@ -176,10 +178,16 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           </span>
         </button>
 
-        <Link to="/settings" aria-label="Abrir configurações" title="Configurações">
-          <Button variant="ghost" size="icon">
-            <Settings className={cn('h-5 w-5', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-600')} />
-          </Button>
+        <Link
+          to="/settings"
+          aria-label="Abrir configurações"
+          title="Configurações"
+          className={cn(
+            'inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
+            resolvedTheme === 'dark' ? 'hover:bg-white/8 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+          )}
+        >
+          <Settings className="h-5 w-5 text-current" />
         </Link>
 
         <Button
@@ -188,9 +196,11 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           aria-label={isTickerEnabled ? 'Desativar ticker de notificações' : 'Ativar ticker de notificações'}
           aria-pressed={isTickerEnabled ? 'true' : 'false'}
           onClick={() => setIsTickerEnabled((current) => !current)}
-          className={cn(isTickerEnabled && (resolvedTheme === 'dark' ? 'bg-cyan-400/12 text-cyan-100' : 'bg-primary-50 text-primary-700'))}
+          className={cn(
+            isTickerEnabled && (resolvedTheme === 'dark' ? 'bg-cyan-400/12 text-cyan-100' : 'bg-primary-50 text-primary-700')
+          )}
         >
-          <Bell className={cn('h-5 w-5', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-600', isTickerEnabled && (resolvedTheme === 'dark' ? 'text-cyan-100' : 'text-primary-700'))} />
+          <Bell className="h-5 w-5 text-current" />
         </Button>
         <Link
           to="/profile"

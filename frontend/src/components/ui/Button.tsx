@@ -8,19 +8,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)]',
+          'bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_16px_38px_rgba(45,212,191,0.24)]',
         destructive:
-          'bg-[linear-gradient(180deg,#fb7185_0%,#ef4444_100%)] text-white shadow-[0_12px_30px_rgba(239,68,68,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(239,68,68,0.26)]',
+          'bg-[linear-gradient(180deg,#fb7185_0%,#ef4444_100%)] text-white shadow-[0_12px_30px_rgba(239,68,68,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(239,68,68,0.26)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_16px_38px_rgba(239,68,68,0.26)]',
         outline:
-          'border border-white/12 bg-white/6 text-slate-100 hover:-translate-y-0.5 hover:bg-white/10',
+          'border border-white/12 bg-white/6 text-slate-100 hover:-translate-y-0.5 hover:bg-white/10 focus-visible:-translate-y-0.5 focus-visible:bg-white/10',
         secondary:
-          'border border-white/10 bg-white/8 text-slate-100 hover:-translate-y-0.5 hover:bg-white/12',
+          'border border-white/10 bg-white/8 text-slate-100 hover:-translate-y-0.5 hover:bg-white/12 focus-visible:-translate-y-0.5 focus-visible:bg-white/12',
         ghost: 'text-slate-300 hover:bg-white/8 hover:text-white',
         link: 'text-primary-600 underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-14 px-5 py-2 text-[16px]',
-        sm: 'h-10 px-3 text-xs sm:h-10',
+        sm: 'h-11 px-3 text-xs',
         lg: 'h-12 px-6 text-base',
         icon: 'h-11 w-11 rounded-full',
       },

@@ -31,12 +31,7 @@ export function AuthLayout({
 
         <section className="absolute left-4 top-4 z-20 flex items-center gap-4 sm:left-6 sm:top-5 lg:left-8 lg:top-6">
           <div
-            className={cn(
-              'flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl',
-              theme === 'dark'
-                ? 'border border-cyan-300/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(10,24,40,0.55))] shadow-[0_14px_28px_rgba(0,0,0,0.35)]'
-                : 'border border-transparent bg-transparent shadow-none'
-            )}
+            className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden bg-transparent shadow-none"
           >
             <FinViseMark className="h-14 w-14" theme={theme} />
           </div>
@@ -62,12 +57,7 @@ export function AuthLayout({
           <section className="mx-auto flex min-h-0 w-full max-w-[640px] flex-col justify-center">
             <header className="mb-3 flex items-center gap-3 sm:mb-4 opacity-0 pointer-events-none" aria-hidden="true">
               <div
-                className={cn(
-                  'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl',
-                  theme === 'dark'
-                    ? 'border border-cyan-300/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(10,24,40,0.55))] shadow-[0_14px_28px_rgba(0,0,0,0.35)]'
-                    : 'border border-transparent bg-transparent shadow-none'
-                )}
+                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden bg-transparent shadow-none"
               >
                 <FinViseMark className="h-11 w-11" theme={theme} />
               </div>
@@ -100,14 +90,19 @@ export function AuthLayout({
       <div className="relative z-10 mx-auto w-full max-w-[1920px]">
         <header className="relative mx-auto mb-2 w-full max-w-lg sm:mb-3">
           <div className="flex w-full justify-center">
-            <div className="text-center">
-              <p className="text-[34px] font-semibold tracking-[-0.02em] sm:text-[44px]">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden bg-transparent shadow-none sm:h-16 sm:w-16">
+                <FinViseMark className="h-11 w-11 sm:h-14 sm:w-14" theme={theme} />
+              </div>
+              <div className="text-left">
+                <p className="text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]">
                 <span className="text-cyan-300">Fin</span>
-                <span className={cn(theme === 'dark' ? 'text-white' : 'text-slate-900')}>Vise</span>
-              </p>
-              <p className={cn('text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-                Inteligência financeira simplificada
-              </p>
+                  <span className="text-white">Vise</span>
+                </p>
+                <p className={cn('mt-0.5 text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+                  Inteligência financeira simplificada
+                </p>
+              </div>
             </div>
           </div>
           {onThemeToggle ? (

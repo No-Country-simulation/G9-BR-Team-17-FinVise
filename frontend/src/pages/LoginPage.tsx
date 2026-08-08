@@ -17,6 +17,8 @@ import {
 
 import { authService } from '@/services/authService';
 import { extractErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/auth/useTheme';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Informe seu e-mail').email('Informe um e-mail válido'),
@@ -51,6 +53,7 @@ function AIFinanceMotionPanel() {
 }
 
 export function LoginPage() {
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
@@ -103,7 +106,7 @@ export function LoginPage() {
         transition={{ duration: 0.35, ease: 'easeOut' }}
         className="h-full w-full"
       >
-        <AuthLayoutCard data-testid="login-card" className="mx-auto flex h-full w-full max-w-[560px] flex-col overflow-hidden border-0 bg-transparent p-4 shadow-none backdrop-blur-none sm:p-5 md:p-6">
+        <AuthLayoutCard data-testid="login-card" className="mx-auto flex h-full w-full max-w-[560px] flex-col overflow-hidden border-0 bg-transparent p-4 shadow-none backdrop-blur-none sm:p-5 md:p-6 lg:-translate-y-16">
           <div className="mb-4 md:mb-5">
             <h1 className="text-3xl font-bold leading-tight text-white">Entrar</h1>
             <p className="mt-2 text-base text-slate-300">Use seu e-mail cadastrado para acessar sua área financeira.</p>
@@ -142,7 +145,7 @@ export function LoginPage() {
 
             <div className="flex items-center justify-between gap-3">
               <Checkbox label="Lembrar de mim" />
-              <Link to="/forgot-password" className="text-sm font-medium text-cyan-300 transition-colors hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+              <Link to="/forgot-password" className={cn('text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
                 Esqueci minha senha
               </Link>
             </div>
@@ -156,7 +159,7 @@ export function LoginPage() {
 
           <div className="mt-3 text-sm text-slate-300 md:mt-4">
             Não possui uma conta?{' '}
-            <Link to="/register" className="font-semibold text-cyan-300 transition-colors hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+            <Link to="/register" className={cn('font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
               Criar conta
             </Link>
           </div>

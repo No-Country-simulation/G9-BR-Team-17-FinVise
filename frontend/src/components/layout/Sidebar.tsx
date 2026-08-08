@@ -14,6 +14,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
@@ -45,7 +46,61 @@ const submenuPanelClass =
   'ml-3 overflow-hidden border-l pl-3 transition-all duration-300 ease-out';
 
 const submenuLinkClass =
-  'flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50';
+  'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 focus-visible:translate-x-0.5';
+
+interface SubmenuItem {
+  to: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+}
+
+interface SubmenuPanelProps {
+  isOpen: boolean;
+  isCollapsed: boolean;
+  items: SubmenuItem[];
+  resolvedTheme: 'dark' | 'light';
+  onClose: () => void;
+}
+
+function SubmenuPanel({ isOpen, isCollapsed, items, resolvedTheme, onClose }: SubmenuPanelProps) {
+  return (
+    <div
+      className={cn(
+        submenuPanelClass,
+        resolvedTheme === 'dark' ? 'border-white/10' : 'border-slate-200',
+        isCollapsed && 'lg:hidden',
+        isOpen ? 'mt-1 max-h-40 translate-y-0 opacity-100' : 'pointer-events-none max-h-0 -translate-y-1 opacity-0'
+      )}
+    >
+      <div className="flex flex-col gap-1 py-1">
+        {items.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end
+            onClick={onClose}
+            aria-label={item.label}
+            className={({ isActive }) =>
+              cn(
+                submenuLinkClass,
+                isActive
+                  ? resolvedTheme === 'dark'
+                    ? 'bg-cyan-400/12 text-cyan-100'
+                    : 'bg-primary-50 text-primary-700'
+                  : resolvedTheme === 'dark'
+                    ? 'text-slate-300 hover:translate-x-0.5 hover:bg-cyan-400/10 hover:text-white'
+                    : 'text-slate-600 hover:translate-x-0.5 hover:bg-slate-100 hover:text-slate-900'
+              )
+            }
+          >
+            <item.icon className="h-[18px] w-[18px] shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -99,12 +154,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
           {isCollapsed ? (
             <div className="hidden min-h-20 w-full flex-col items-center justify-center gap-2 py-2 lg:flex">
               <div
-                className={cn(
-                  'flex h-14 w-14 items-center justify-center rounded-[18px] border transition-all duration-300',
-                  resolvedTheme === 'dark'
-                    ? 'border-cyan-300/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(10,24,40,0.55))] text-cyan-300 shadow-[0_14px_28px_rgba(0,0,0,0.35)]'
-                    : 'border-transparent bg-transparent text-primary-700 shadow-none'
-                )}
+                className="flex h-14 w-14 items-center justify-center bg-transparent shadow-none transition-all duration-300"
               >
                 <FinViseMark className="h-11 w-11" theme={resolvedTheme} />
               </div>
@@ -123,12 +173,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
             <div className="flex min-h-16 items-center justify-between">
               <div className="flex min-w-0 items-center gap-3 overflow-hidden transition-all duration-300">
                 <div
-                  className={cn(
-                    'flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] transition-all duration-300',
-                    resolvedTheme === 'dark'
-                      ? 'border border-cyan-300/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(10,24,40,0.55))] text-cyan-300 shadow-[0_14px_28px_rgba(0,0,0,0.35)]'
-                      : 'border border-transparent bg-transparent text-primary-700 shadow-none'
-                  )}
+                  className="flex h-14 w-14 shrink-0 items-center justify-center bg-transparent shadow-none transition-all duration-300"
                 >
                   <FinViseMark className="h-11 w-11" theme={resolvedTheme} />
                 </div>
@@ -218,40 +263,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
               <span className={cn('truncate', isCollapsed && 'lg:hidden')}>Importações</span>
               <ChevronDown className={cn('ml-auto h-4 w-4 transition-transform duration-200', isCollapsed && 'hidden', isImportOpen ? 'rotate-180' : 'rotate-0')} />
             </button>
-            <div
-              className={cn(
-                submenuPanelClass,
-                resolvedTheme === 'dark' ? 'border-white/10' : 'border-slate-200',
-                isCollapsed && 'lg:hidden',
-                isImportOpen ? 'max-h-40 opacity-100 translate-y-0 mt-1' : 'pointer-events-none max-h-0 opacity-0 -translate-y-1'
-              )}
-            >
-              <div className="flex flex-col gap-1 py-1">
-                {importNavItems.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={onClose}
-                    aria-label={item.label}
-                    className={({ isActive }) =>
-                      cn(
-                        submenuLinkClass,
-                        isActive
-                          ? resolvedTheme === 'dark'
-                            ? 'bg-cyan-400/12 text-cyan-100'
-                            : 'bg-primary-50 text-primary-700'
-                          : resolvedTheme === 'dark'
-                            ? 'text-slate-300 hover:bg-cyan-400/10 hover:text-white hover:translate-x-0.5'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-0.5'
-                      )
-                    }
-                  >
-                    <item.icon className="h-4.5 w-4.5 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            </div>
+            <SubmenuPanel
+              isOpen={isImportOpen}
+              isCollapsed={isCollapsed}
+              items={importNavItems}
+              resolvedTheme={resolvedTheme}
+              onClose={onClose}
+            />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -276,40 +294,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
               <span className={cn('truncate', isCollapsed && 'lg:hidden')}>IA e insights</span>
               <ChevronDown className={cn('ml-auto h-4 w-4 transition-transform duration-200', isCollapsed && 'hidden', isInsightsOpen ? 'rotate-180' : 'rotate-0')} />
             </button>
-            <div
-              className={cn(
-                submenuPanelClass,
-                resolvedTheme === 'dark' ? 'border-white/10' : 'border-slate-200',
-                isCollapsed && 'lg:hidden',
-                isInsightsOpen ? 'max-h-40 opacity-100 translate-y-0 mt-1' : 'pointer-events-none max-h-0 opacity-0 -translate-y-1'
-              )}
-            >
-              <div className="flex flex-col gap-1 py-1">
-                {insightNavItems.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={onClose}
-                    aria-label={item.label}
-                    className={({ isActive }) =>
-                      cn(
-                        submenuLinkClass,
-                        isActive
-                          ? resolvedTheme === 'dark'
-                            ? 'bg-cyan-400/12 text-cyan-100'
-                            : 'bg-primary-50 text-primary-700'
-                          : resolvedTheme === 'dark'
-                            ? 'text-slate-300 hover:bg-cyan-400/10 hover:text-white hover:translate-x-0.5'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-0.5'
-                      )
-                    }
-                  >
-                    <item.icon className="h-4.5 w-4.5 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            </div>
+            <SubmenuPanel
+              isOpen={isInsightsOpen}
+              isCollapsed={isCollapsed}
+              items={insightNavItems}
+              resolvedTheme={resolvedTheme}
+              onClose={onClose}
+            />
           </div>
         </nav>
 

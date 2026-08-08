@@ -142,7 +142,7 @@ export function PieChart({ data, title, emptyMessage = 'Sem dados para exibir' }
               onMouseEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}
               onClick={() => setActiveIndex(index)}
-              className="flex min-h-9 min-w-0 items-center gap-2 rounded-lg px-1 text-left outline-none transition-colors hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-primary-500"
+              className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-1 text-left outline-none transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-primary-500"
               title={`${item.name}: ${formatCurrency(item.value)}`}
             >
               <span

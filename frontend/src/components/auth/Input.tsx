@@ -7,10 +7,11 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   success?: string;
   icon?: React.ReactNode;
+  endAdornment?: React.ReactNode;
 }
 
 export const AuthInput = forwardRef<HTMLInputElement, InputProps>(function AuthInput(
-  { className, label, helperText, error, success, icon, id, ...props },
+  { className, label, helperText, error, success, icon, endAdornment, id, ...props },
   ref
 ) {
   const generatedId = useId();
@@ -39,6 +40,7 @@ export const AuthInput = forwardRef<HTMLInputElement, InputProps>(function AuthI
           )}
           {...props}
         />
+        {endAdornment}
       </div>
       {feedbackText ? <p className={cn('mt-1.5', feedbackClassName)}>{feedbackText}</p> : null}
     </div>

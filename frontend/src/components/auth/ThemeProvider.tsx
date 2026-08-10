@@ -6,22 +6,26 @@ const themeStorageKey = 'finvise-theme';
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === 'undefined') {
-    return 'dark';
+    return 'light';
   }
 
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<ThemeMode>('dark');
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme());
+function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') {
+    return 'light';
+  }
 
-  useEffect(() => {
-    const savedTheme = window.localStorage.getItem(themeStorageKey);
-    if (savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system') {
-      setTheme(savedTheme);
-    }
-  }, []);
+  const savedTheme = window.localStorage.getItem(themeStorageKey);
+  return savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system'
+    ? savedTheme
+    : 'light';
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme());
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -43,6 +47,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     body.dataset.theme = resolvedTheme;
     root.style.colorScheme = resolvedTheme;
     body.style.colorScheme = resolvedTheme;
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
+      'content',
+      resolvedTheme === 'dark' ? '#071321' : '#f8fafc'
+    );
     window.localStorage.setItem(themeStorageKey, theme);
   }, [resolvedTheme, theme]);
 

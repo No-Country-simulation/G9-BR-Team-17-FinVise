@@ -13,7 +13,7 @@ import {
   X,
   ChevronDown,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -115,6 +115,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
   const [isImportOpen, setIsImportOpen] = useState(true);
   const [isInsightsOpen, setIsInsightsOpen] = useState(true);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    window.matchMedia('(min-width: 1024px)').matches
+  );
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const logoutDialogRef = useRef<HTMLDivElement>(null);
+  const logoutCancelButtonRef = useRef<HTMLButtonElement>(null);
 
   const activeGroup = useMemo(() => {
     if (pathname.startsWith('/import')) return 'import';
@@ -128,19 +135,91 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
   }, [activeGroup]);
 
   useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 1024px)');
+    const updateViewport = (event: MediaQueryListEvent | MediaQueryList) => {
+      setIsDesktopViewport(event.matches);
+    };
+
+    updateViewport(desktopQuery);
+    desktopQuery.addEventListener('change', updateViewport);
+    return () => desktopQuery.removeEventListener('change', updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || isLogoutConfirmOpen) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const keepFocusInside = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !sidebarRef.current) return;
+
+      const focusableElements = Array.from(
+        sidebarRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.offsetParent !== null);
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', keepFocusInside);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('keydown', keepFocusInside);
+      previouslyFocused?.focus();
+    };
+  }, [isLogoutConfirmOpen, isOpen]);
+
+  useEffect(() => {
     if (!isLogoutConfirmOpen) return;
 
     const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsLogoutConfirmOpen(false);
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const frame = window.requestAnimationFrame(() => logoutCancelButtonRef.current?.focus());
+    const handleDialogKeyboard = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsLogoutConfirmOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !logoutDialogRef.current) return;
+
+      const focusableElements = Array.from(
+        logoutDialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')
+      ).filter((element) => element.offsetParent !== null);
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('keydown', handleDialogKeyboard);
 
     return () => {
+      window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('keydown', handleDialogKeyboard);
+      previouslyFocused?.focus();
     };
   }, [isLogoutConfirmOpen]);
 
@@ -151,7 +230,11 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
 
   return (
     <>
-      <div
+      <button
+        type="button"
+        aria-label="Fechar menu"
+        aria-hidden={!isOpen}
+        tabIndex={isOpen ? 0 : -1}
         className={cn(
           'fixed inset-0 z-40 bg-black/50 transition-opacity lg:hidden',
           isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -159,6 +242,12 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
         onClick={onClose}
       />
       <aside
+        id="app-sidebar"
+        ref={sidebarRef}
+        inert={!isOpen && !isDesktopViewport ? true : undefined}
+        role={isOpen && !isDesktopViewport ? 'dialog' : undefined}
+        aria-modal={isOpen && !isDesktopViewport ? 'true' : undefined}
+        aria-label="Menu principal"
         className={cn(
           'fixed left-0 top-0 z-50 flex h-dvh w-[min(18rem,calc(100vw-2.5rem))] transform flex-col border-r backdrop-blur-xl transition-[width,transform] duration-300 ease-out lg:translate-x-0 lg:shadow-none',
           resolvedTheme === 'dark'
@@ -169,61 +258,65 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
         )}
       >
         <div className={cn('mobile-safe-top border-b px-4 lg:px-4', resolvedTheme === 'dark' ? 'border-white/10' : 'border-slate-200')}>
-          {isCollapsed ? (
-            <div className="hidden min-h-20 w-full flex-col items-center justify-center gap-2 py-2 lg:flex">
+          <div className={cn('hidden min-h-20 w-full flex-col items-center justify-center gap-2 py-2', isCollapsed && 'lg:flex')}>
+            <div
+              className="flex h-14 w-14 items-center justify-center bg-transparent shadow-none transition-all duration-300"
+            >
+              <FinViseMark className="h-11 w-11" theme={resolvedTheme} />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleCollapse}
+              aria-label="Expandir menu lateral"
+              aria-pressed="true"
+              title="Expandir menu lateral"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className={cn('min-h-16 items-center justify-between', isCollapsed ? 'flex lg:hidden' : 'flex')}>
+            <div className="flex min-w-0 items-center gap-3 overflow-hidden transition-all duration-300">
               <div
-                className="flex h-14 w-14 items-center justify-center bg-transparent shadow-none transition-all duration-300"
+                className="flex h-14 w-14 shrink-0 items-center justify-center bg-transparent shadow-none transition-all duration-300"
               >
                 <FinViseMark className="h-11 w-11" theme={resolvedTheme} />
               </div>
+              <div className="min-w-0 max-w-[10rem] translate-x-0 overflow-hidden whitespace-nowrap opacity-100 transition-all duration-300 ease-out">
+                <span
+                  className={cn(
+                    'block text-[1.65rem] font-semibold tracking-tight',
+                    resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
+                  )}
+                >
+                  FinVise
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
+                className="hidden lg:inline-flex"
                 onClick={onToggleCollapse}
-                aria-label="Expandir menu lateral"
-                aria-pressed="true"
-                title="Expandir menu lateral"
+                aria-label="Recolher menu lateral"
+                aria-pressed="false"
+                title="Recolher menu lateral"
               >
                 <Menu className="h-5 w-5" />
               </Button>
+              <Button
+                ref={closeButtonRef}
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={onClose}
+                aria-label="Fechar menu"
+              >
+                <X className="h-5 w-5" />
+              </Button>
             </div>
-          ) : (
-            <div className="flex min-h-16 items-center justify-between">
-              <div className="flex min-w-0 items-center gap-3 overflow-hidden transition-all duration-300">
-                <div
-                  className="flex h-14 w-14 shrink-0 items-center justify-center bg-transparent shadow-none transition-all duration-300"
-                >
-                  <FinViseMark className="h-11 w-11" theme={resolvedTheme} />
-                </div>
-                <div className="min-w-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out max-w-[10rem] opacity-100 translate-x-0">
-                  <span
-                    className={cn(
-                      'block text-[1.65rem] font-semibold tracking-tight',
-                      resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-                    )}
-                  >
-                    FinVise
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden lg:inline-flex"
-                  onClick={onToggleCollapse}
-                  aria-label="Recolher menu lateral"
-                  aria-pressed="false"
-                  title="Recolher menu lateral"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose} aria-label="Fechar menu">
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
         <nav className={cn('flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4', isCollapsed && 'lg:px-3')}>
@@ -352,9 +445,11 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
           />
 
           <div
+            ref={logoutDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="logout-confirm-title"
+            aria-describedby="logout-confirm-description"
             className={cn(
               'relative w-full max-w-lg overflow-hidden rounded-[30px] border p-6 shadow-[0_24px_70px_rgba(0,0,0,0.45)] sm:p-7',
               resolvedTheme === 'dark'
@@ -373,7 +468,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                 <h2 id="logout-confirm-title" className={cn('text-xl font-bold tracking-tight', resolvedTheme === 'dark' ? 'text-slate-50' : 'text-slate-900')}>
                   Confirmar saída
                 </h2>
-                <p className={cn('mt-2 text-sm leading-relaxed', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+                <p id="logout-confirm-description" className={cn('mt-2 text-sm leading-relaxed', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
                   Você deseja realmente sair da sua conta agora?
                 </p>
               </div>
@@ -381,6 +476,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
 
             <div className="relative mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button
+                ref={logoutCancelButtonRef}
                 variant="outline"
                 className="w-full sm:w-auto"
                 onClick={() => setIsLogoutConfirmOpen(false)}

@@ -2,119 +2,118 @@ import type { ReactNode } from 'react';
 import { AuthBackground } from './Background';
 import { FinViseMark } from './FinViseLogo';
 import { ThemeToggle } from './ThemeToggle';
-import { PageContainer } from './PageContainer';
 import { GlassCard } from './GlassCard';
+import { useTheme } from './useTheme';
 import { cn } from '@/lib/utils';
 
 interface AuthLayoutProps {
   children: ReactNode;
   theme?: 'dark' | 'light';
   onThemeToggle?: () => void;
-  variant?: 'default' | 'split';
+  variant?: 'default' | 'split' | 'reverse' | 'focus';
   aside?: ReactNode;
+}
+
+interface AuthBrandProps {
+  theme: 'dark' | 'light';
+  centered?: boolean;
+}
+
+function AuthBrand({ theme, centered = false }: AuthBrandProps) {
+  return (
+    <div className={cn('flex min-w-0 items-center gap-2.5 sm:gap-3', centered && 'justify-center')}>
+      <FinViseMark className="h-12 w-12 shrink-0 sm:h-14 sm:w-14" theme={theme} />
+      <div className="min-w-0">
+        <p className="auth-wordmark text-[2rem] leading-none sm:text-[2.25rem]">
+          <span className={theme === 'dark' ? 'text-slate-50' : 'text-slate-950'}>Fin</span>
+          <span className={theme === 'dark' ? 'text-slate-50' : 'text-slate-950'}>Vise</span>
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function AuthLayout({
   children,
-  theme = 'dark',
+  theme: themeOverride,
   onThemeToggle,
   variant = 'default',
   aside,
 }: AuthLayoutProps) {
-  if (variant === 'split') {
-    return (
-      <div
-        className={cn('auth-shell relative h-dvh w-screen overflow-hidden', theme === 'dark' ? 'dark' : 'light')}
-        data-theme={theme}
-      >
-        <AuthBackground />
-
-        <section className="absolute left-4 top-4 z-20 flex items-center gap-4 sm:left-6 sm:top-5 lg:left-8 lg:top-6">
-          <div
-            className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden bg-transparent shadow-none"
-          >
-            <FinViseMark className="h-14 w-14" theme={theme} />
-          </div>
-
-          <div className="text-left">
-            <p className="text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]">
-              <span className="text-cyan-300">Fin</span>
-              <span className={cn(theme === 'dark' ? 'text-white' : 'text-slate-900')}>Vise</span>
-            </p>
-            <p className={cn('mt-0.5 text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-              Inteligência financeira simplificada
-            </p>
-          </div>
-
-          {onThemeToggle ? (
-            <div className="ml-4">
-              <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-            </div>
-          ) : null}
-        </section>
-
-        <div className="relative z-10 mx-auto grid h-full w-full max-w-[2000px] items-stretch gap-6 px-4 py-3 sm:px-6 sm:py-4 lg:grid-cols-2 lg:gap-9 lg:px-8 lg:py-5 lg:[--auth-card-h:clamp(500px,calc(50dvh-176px),680px)] lg:[--auth-aside-offset:clamp(121.1px,16dvh,150px)]">
-          <section className="mx-auto flex min-h-0 w-full max-w-[640px] flex-col justify-center">
-            <header className="mb-3 flex items-center gap-3 sm:mb-4 opacity-0 pointer-events-none" aria-hidden="true">
-              <div
-                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden bg-transparent shadow-none"
-              >
-                <FinViseMark className="h-11 w-11" theme={theme} />
-              </div>
-
-              <div className="text-left">
-                <p className="text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]">
-                  <span className="text-cyan-300">Fin</span>
-                  <span className={cn(theme === 'dark' ? 'text-white' : 'text-slate-900')}>Vise</span>
-                </p>
-                <p className={cn('mt-1 text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-                  Inteligência financeira simplificada
-                </p>
-              </div>
-
-              {onThemeToggle ? <div className="ml-auto" /> : null}
-            </header>
-
-            <main className="w-full min-h-0 lg:h-[var(--auth-card-h)]">{children}</main>
-          </section>
-
-          {aside ? <aside className="mx-auto hidden min-h-0 w-full max-w-[640px] lg:mt-[var(--auth-aside-offset)] lg:h-[var(--auth-card-h)] lg:block">{aside}</aside> : null}
-        </div>
-      </div>
-    );
-  }
+  const { resolvedTheme, setTheme } = useTheme();
+  const theme = themeOverride ?? resolvedTheme;
+  const hasVisualPanel = variant !== 'default' && Boolean(aside);
+  const toggleTheme = onThemeToggle ?? (() => setTheme(theme === 'dark' ? 'light' : 'dark'));
 
   return (
-    <PageContainer className={theme === 'dark' ? 'dark' : 'light'}>
+    <div
+      className={cn(
+        'auth-shell relative min-h-dvh w-full overflow-x-hidden',
+        theme === 'dark' ? 'dark text-white' : 'light text-slate-950'
+      )}
+      data-theme={theme}
+      data-auth-variant={variant}
+    >
       <AuthBackground />
-      <div className="relative z-10 mx-auto w-full max-w-[1920px]">
-        <header className="relative mx-auto mb-2 w-full max-w-lg sm:mb-3">
-          <div className="flex w-full justify-center">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden bg-transparent shadow-none sm:h-16 sm:w-16">
-                <FinViseMark className="h-11 w-11 sm:h-14 sm:w-14" theme={theme} />
-              </div>
-              <div className="text-left">
-                <p className="text-[34px] font-semibold leading-none tracking-[-0.02em] sm:text-[44px]">
-                <span className="text-cyan-300">Fin</span>
-                  <span className="text-white">Vise</span>
-                </p>
-                <p className={cn('mt-0.5 text-xs sm:text-sm', theme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
-                  Inteligência financeira simplificada
-                </p>
-              </div>
-            </div>
-          </div>
-          {onThemeToggle ? (
-            <div className="absolute right-0 top-0">
-              <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-            </div>
-          ) : null}
-        </header>
 
-        <main className="mx-auto w-full max-w-lg">{children}</main>
+      {variant !== 'split' ? (
+        <header className="relative z-20 mx-auto flex min-h-[4.5rem] w-full max-w-[1680px] items-center justify-between gap-4 px-4 py-3 sm:min-h-20 sm:px-7 lg:px-10 xl:px-14">
+          <AuthBrand theme={theme} />
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </header>
+      ) : null}
+
+      <div
+        className={cn(
+          'relative z-10 mx-auto grid w-full max-w-[1680px] px-3 pb-8 sm:px-6 lg:min-h-[calc(100dvh-6rem)] lg:px-10 lg:pb-10 xl:px-14',
+          variant === 'split' && 'min-h-dvh items-center gap-4 sm:gap-7 lg:min-h-dvh xl:grid-cols-[minmax(28rem,0.88fr)_minmax(34rem,1.12fr)] xl:gap-14',
+          variant === 'reverse' && 'items-center gap-4 sm:gap-7 xl:grid-cols-[minmax(28rem,1fr)_minmax(28rem,1fr)] xl:gap-14',
+          variant === 'focus' && 'max-w-[1240px] items-center gap-4 sm:gap-7 xl:grid-cols-[minmax(19rem,0.72fr)_minmax(28rem,0.9fr)] xl:gap-12',
+          variant === 'default' && 'place-items-center'
+        )}
+      >
+        <section
+          className={cn(
+            'order-2 flex w-full min-w-0 justify-center py-3 sm:py-6 lg:py-8',
+            variant === 'split' && 'xl:order-1 xl:justify-start',
+            variant === 'reverse' && 'xl:order-2 xl:justify-end',
+            variant === 'focus' && 'xl:order-2 xl:justify-end',
+            variant === 'default' && 'max-w-xl'
+          )}
+        >
+          <div className={cn('w-full', variant === 'focus' && 'max-w-[32rem]', variant === 'reverse' && 'max-w-[40rem]', variant === 'split' && 'max-w-[34rem]', variant === 'default' && 'max-w-[34rem]')}>
+            {variant === 'split' ? (
+              <div className="mb-4 flex min-h-14 w-full items-center justify-center sm:mb-5">
+                <AuthBrand theme={theme} centered />
+              </div>
+            ) : null}
+            <main className="w-full">{children}</main>
+            {variant === 'split' ? (
+              <div className="mt-2 flex w-full justify-end px-1">
+                <ThemeToggle
+                  theme={theme}
+                  onToggle={toggleTheme}
+                  className="h-9 min-w-9 border-transparent bg-transparent px-2 shadow-none hover:translate-y-0"
+                />
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        {hasVisualPanel ? (
+          <aside
+            className={cn(
+              'order-1 hidden min-h-0 w-full self-stretch xl:block',
+              variant === 'split' && 'xl:order-2',
+              variant === 'reverse' && 'xl:order-1',
+              variant === 'focus' && 'xl:order-1 xl:self-center'
+            )}
+          >
+            {aside}
+          </aside>
+        ) : null}
       </div>
-    </PageContainer>
+    </div>
   );
 }
 
@@ -125,7 +124,7 @@ interface AuthCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function AuthLayoutCard({ children, className, ...props }: AuthCardProps) {
   return (
-    <GlassCard className={cn('mx-auto w-full max-w-[640px]', className)} {...props}>
+    <GlassCard className={cn('mx-auto w-full', className)} {...props}>
       {children}
     </GlassCard>
   );

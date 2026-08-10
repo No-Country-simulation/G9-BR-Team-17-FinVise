@@ -1,5 +1,6 @@
 export { AuthBackground } from './Background';
 export { AuthLayout, AuthLayoutCard } from './AuthLayout';
+export { AuthExperiencePanel } from './AuthExperiencePanel';
 export { GlassCard } from './GlassCard';
 export { FinViseLogo } from './FinViseLogo';
 export { PrimaryButton, SecondaryButton } from './Button';

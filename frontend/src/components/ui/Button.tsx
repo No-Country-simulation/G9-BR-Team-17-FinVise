@@ -10,7 +10,7 @@ const buttonVariants = cva(
         default:
           'bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_16px_38px_rgba(45,212,191,0.24)]',
         destructive:
-          'bg-[linear-gradient(180deg,#fb7185_0%,#ef4444_100%)] text-white shadow-[0_12px_30px_rgba(239,68,68,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(239,68,68,0.26)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_16px_38px_rgba(239,68,68,0.26)]',
+          'bg-[linear-gradient(180deg,#dc2626_0%,#b91c1c_100%)] text-white shadow-[0_12px_30px_rgba(185,28,28,0.22)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(185,28,28,0.28)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_16px_38px_rgba(185,28,28,0.28)]',
         outline:
           'border border-white/12 bg-white/6 text-slate-100 hover:-translate-y-0.5 hover:bg-white/10 focus-visible:-translate-y-0.5 focus-visible:bg-white/10',
         secondary:
@@ -51,12 +51,14 @@ function Button({ className, variant, size, isLoading, children, ref, ...props }
         resolvedTheme === 'light' && variant === 'ghost' && 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
         className
       )}
-      disabled={isLoading || props.disabled}
       {...props}
+      disabled={isLoading || props.disabled}
+      aria-busy={isLoading || undefined}
     >
       {isLoading && (
         <svg
           className="mr-2 h-4 w-4 animate-spin"
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"

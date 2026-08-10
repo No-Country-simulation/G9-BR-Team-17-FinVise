@@ -33,7 +33,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('finance_ai_token');
       localStorage.removeItem('finance_ai_user_id');
-      window.location.href = '/login';
+
+      const requestUrl = error.config?.url ?? '';
+      const isLoginRequest = requestUrl.includes('/auth/login');
+
+      if (!isLoginRequest) {
+        window.location.href = '/login';
+      }
     }
 
     return Promise.reject(apiError);

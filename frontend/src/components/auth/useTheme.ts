@@ -8,8 +8,8 @@ export function useTheme() {
   }
 
   return {
-    theme: 'dark' as const,
-    resolvedTheme: 'dark' as const,
+    theme: 'light' as const,
+    resolvedTheme: 'light' as const,
     setTheme: () => undefined,
   };
 }

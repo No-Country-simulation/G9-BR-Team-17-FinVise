@@ -48,7 +48,10 @@ export function MainLayout() {
   }, []);
 
   useLayoutEffect(() => {
-    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const resetScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.getElementById('main-content')?.focus({ preventScroll: true });
+    };
     resetScroll();
     const frame = window.requestAnimationFrame(resetScroll);
     return () => window.cancelAnimationFrame(frame);
@@ -89,6 +92,12 @@ export function MainLayout() {
       )}
     >
       <AuthBackground />
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[70] -translate-y-24 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-xl transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+      >
+        Pular para o conteúdo principal
+      </a>
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -103,14 +112,21 @@ export function MainLayout() {
             isSidebarCollapsed ? 'lg:left-[5.5rem]' : 'lg:left-64'
           )}
         >
-          <Header userName={userName} onMenuClick={() => setIsSidebarOpen(true)} />
+          <Header
+            userName={userName}
+            isMenuOpen={isSidebarOpen}
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
         </div>
 
-        <div className="h-16 shrink-0" aria-hidden="true" />
+        <div className="mobile-safe-top h-16 shrink-0" aria-hidden="true" />
 
         <main
+          id="main-content"
+          tabIndex={-1}
+          aria-label="Conteúdo principal"
           className={cn(
-            'w-full min-w-0 max-w-full flex-1 overflow-x-hidden',
+            'w-full min-w-0 max-w-full flex-1 overflow-x-hidden outline-none',
             isAgentPage
               ? 'p-0 pb-16 lg:p-6 xl:p-8'
               : 'px-3 pb-24 pt-4 sm:px-5 sm:pt-5 lg:p-6 xl:p-8'

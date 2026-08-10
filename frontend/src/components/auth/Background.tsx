@@ -1,14 +1,18 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import loginBackgroundImage from '@/assets/branding/new-logo.jpg';
 import { cn } from '@/lib/utils';
 import { useTheme } from './useTheme';
+import { useMediaQuery } from './useMediaQuery';
 
 export function AuthBackground() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const prefersReducedMotion = useReducedMotion();
+  const isMotionViewport = useMediaQuery('(min-width: 768px)');
+  const shouldAnimate = !prefersReducedMotion && isMotionViewport;
 
   return (
-    <div aria-hidden="true" className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden [contain:paint]">
       <div className="absolute inset-0">
         <img
           src={loginBackgroundImage}
@@ -16,6 +20,8 @@ export function AuthBackground() {
           className={cn('h-full w-full object-cover', isDark ? 'opacity-24' : 'opacity-[0.06]')}
           loading="eager"
           decoding="async"
+          fetchPriority="high"
+          draggable={false}
         />
       </div>
       <div
@@ -27,14 +33,14 @@ export function AuthBackground() {
         )}
       />
       <motion.div
-        className="absolute left-[-10%] top-[14%] h-[30rem] w-[30rem] rounded-full bg-teal-400/14 blur-3xl"
-        animate={{ opacity: [0.55, 0.8, 0.55], scale: [1, 1.06, 1] }}
-        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        className={cn('absolute left-[-10%] top-[14%] h-[30rem] w-[30rem] transform-gpu rounded-full bg-teal-400/14 blur-3xl', shouldAnimate && 'will-change-[transform,opacity]')}
+        animate={shouldAnimate ? { opacity: [0.55, 0.8, 0.55], scale: [1, 1.06, 1] } : undefined}
+        transition={shouldAnimate ? { duration: 12, repeat: Infinity, ease: 'easeInOut' } : undefined}
       />
       <motion.div
-        className="absolute right-[-12%] top-[4%] h-[28rem] w-[28rem] rounded-full bg-cyan-400/10 blur-3xl"
-        animate={{ opacity: [0.35, 0.65, 0.35], scale: [1, 1.05, 1] }}
-        transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+        className={cn('absolute right-[-12%] top-[4%] h-[28rem] w-[28rem] transform-gpu rounded-full bg-cyan-400/10 blur-3xl', shouldAnimate && 'will-change-[transform,opacity]')}
+        animate={shouldAnimate ? { opacity: [0.35, 0.65, 0.35], scale: [1, 1.05, 1] } : undefined}
+        transition={shouldAnimate ? { duration: 14, repeat: Infinity, ease: 'easeInOut' } : undefined}
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(45,212,191,0.08),transparent_32%),radial-gradient(circle_at_20%_80%,rgba(14,165,233,0.05),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(45,212,191,0.04),transparent_28%)]" />
       <svg className="absolute inset-0 h-full w-full opacity-[0.16]" viewBox="0 0 1920 1080" fill="none" preserveAspectRatio="none">
@@ -52,18 +58,18 @@ export function AuthBackground() {
       />
       <motion.div
         className="absolute left-[12%] top-[26%] h-1.5 w-1.5 rounded-full bg-teal-300/80 shadow-[0_0_14px_rgba(45,212,191,0.45)]"
-        animate={{ y: [0, -10, 0], opacity: [0.45, 1, 0.45] }}
-        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        animate={shouldAnimate ? { y: [0, -10, 0], opacity: [0.45, 1, 0.45] } : undefined}
+        transition={shouldAnimate ? { duration: 5, repeat: Infinity, ease: 'easeInOut' } : undefined}
       />
       <motion.div
         className="absolute right-[18%] top-[38%] h-1.5 w-1.5 rounded-full bg-cyan-300/80 shadow-[0_0_14px_rgba(103,232,249,0.45)]"
-        animate={{ y: [0, -12, 0], opacity: [0.4, 0.95, 0.4] }}
-        transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+        animate={shouldAnimate ? { y: [0, -12, 0], opacity: [0.4, 0.95, 0.4] } : undefined}
+        transition={shouldAnimate ? { duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1 } : undefined}
       />
       <motion.div
         className="absolute right-[28%] top-[64%] h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_12px_rgba(255,255,255,0.18)]"
-        animate={{ y: [0, 8, 0], opacity: [0.22, 0.65, 0.22] }}
-        transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+        animate={shouldAnimate ? { y: [0, 8, 0], opacity: [0.22, 0.65, 0.22] } : undefined}
+        transition={shouldAnimate ? { duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 0.5 } : undefined}
       />
     </div>
   );

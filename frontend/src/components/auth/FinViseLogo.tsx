@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { useTheme } from './useTheme';
-import finViseDarkLogoImage from '@/assets/branding/new-logo-finvise.png';
-import finViseLightLogoImage from '@/assets/branding/new-logo-finvise-claro.png';
+import finViseDarkLogoImage from '@/assets/branding/new-logo-finvise-optimized.png';
+import finViseLightLogoImage from '@/assets/branding/new-logo-finvise-claro-optimized.png';
 
 interface FinViseLogoProps {
   className?: string;
@@ -39,6 +39,7 @@ export function FinViseMark({ className, theme }: FinViseMarkProps) {
         )}
         loading="eager"
         decoding="async"
+        draggable={false}
       />
     </span>
   );

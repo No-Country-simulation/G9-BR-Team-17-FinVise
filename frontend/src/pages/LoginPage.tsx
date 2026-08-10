@@ -3,10 +3,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { CircleAlert, ShieldCheck } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import {
+  AuthExperiencePanel,
   AuthLayout,
   AuthLayoutCard,
   AuthInput,
@@ -14,7 +15,6 @@ import {
   PasswordInput,
   PrimaryButton,
 } from '@/components/auth';
-
 import { authService } from '@/services/authService';
 import { extractErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -27,33 +27,9 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-function AIFinanceMotionPanel() {
-  return (
-    <div data-testid="finance-motion-card" className="relative h-full min-h-[420px] overflow-hidden rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_18%_18%,rgba(45,212,191,0.15),transparent_42%),linear-gradient(145deg,rgba(8,20,36,0.95)_0%,rgba(6,14,26,0.98)_100%)] shadow-[0_24px_90px_rgba(2,8,23,0.48)] lg:min-h-0">
-      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(148,163,184,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.16) 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
-
-      <div className="absolute left-6 right-6 top-8">
-        <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">Inteligencia Assistida</p>
-        <p className="mt-2 text-3xl font-semibold leading-tight text-white">Analise, entenda, decida.</p>
-      </div>
-
-      <svg className="absolute inset-x-0 bottom-16 top-28 w-full" viewBox="0 0 600 360" fill="none" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 300C80 285 110 210 170 205C230 200 250 260 310 248C370 236 390 170 450 162C510 154 535 188 600 180" stroke="rgba(45,212,191,0.95)" strokeWidth="4" strokeLinecap="round" />
-        <path d="M0 328C80 312 110 250 170 244C230 238 255 278 310 270C365 262 395 220 450 215C505 210 540 227 600 222" stroke="rgba(56,189,248,0.72)" strokeWidth="3" strokeLinecap="round" />
-      </svg>
-
-      <motion.div className="absolute bottom-14 left-10 h-20 w-7 rounded-t-md bg-cyan-400/30" animate={{ height: [60, 92, 60] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }} />
-      <motion.div className="absolute bottom-14 left-22 h-[72px] w-7 rounded-t-md bg-cyan-300/40" animate={{ height: [50, 80, 50] }} transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }} />
-      <motion.div className="absolute bottom-14 left-34 h-24 w-7 rounded-t-md bg-teal-300/35" animate={{ height: [72, 110, 72] }} transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut', delay: 0.15 }} />
-
-      <motion.div className="absolute right-16 bottom-20 h-3 w-3 rounded-full bg-cyan-300" animate={{ y: [0, -18, 0], opacity: [0.45, 1, 0.45] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }} />
-      <motion.div className="absolute right-28 bottom-28 h-2.5 w-2.5 rounded-full bg-teal-300" animate={{ y: [0, 14, 0], opacity: [0.3, 0.95, 0.3] }} transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }} />
-    </div>
-  );
-}
-
 export function LoginPage() {
   const { resolvedTheme } = useTheme();
+  const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
@@ -70,13 +46,16 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+    defaultValues: { email: '', password: '' },
   });
 
   const canSubmit = watch('email').length > 0 && watch('password').length > 0;
+  const hasFieldError = Boolean(errors.email || errors.password);
+  const hasLoginError = hasFieldError || Boolean(error);
+  const loginErrorId = 'login-form-error';
+  const loginErrorMessage = hasFieldError
+    ? 'Verifique as informações da conta e tente novamente.'
+    : error;
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
@@ -88,6 +67,8 @@ export function LoginPage() {
       const message = extractErrorMessage(err);
       if (message.toLowerCase().includes('network') || message.toLowerCase().includes('timeout')) {
         setError('Não foi possível conectar ao servidor. Verifique a disponibilidade do backend.');
+      } else if (message.toLowerCase().includes('credenciais') || message.toLowerCase().includes('unauthorized')) {
+        setError('E-mail ou senha incorretos. Verifique os dados e tente novamente.');
       } else {
         setError(message || 'Credenciais inválidas');
       }
@@ -97,30 +78,25 @@ export function LoginPage() {
   };
 
   return (
-    <AuthLayout
-      variant="split"
-      aside={<AIFinanceMotionPanel />}
-    >
+    <AuthLayout variant="split" aside={<AuthExperiencePanel mode="login" />}>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="h-full w-full"
+        transition={{ duration: reduceMotion ? 0 : 0.4, ease: 'easeOut' }}
+        className="w-full"
       >
-        <AuthLayoutCard data-testid="login-card" className="mx-auto flex h-full w-full max-w-[560px] flex-col overflow-hidden border-0 bg-transparent p-4 shadow-none backdrop-blur-none sm:p-5 md:p-6 lg:-translate-y-16">
-          <div className="mb-4 md:mb-5">
-            <h1 className="text-3xl font-bold leading-tight text-white">Entrar</h1>
-            <p className="mt-2 text-base text-slate-200">Use seu e-mail cadastrado para acessar sua área financeira.</p>
+        <AuthLayoutCard data-testid="login-card">
+          <div className="mb-5 text-center">
+            <h1 aria-label="Entrar" className={cn('text-[1.75rem] font-bold leading-tight tracking-[-0.035em] sm:text-[2rem]', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-950')}>
+              Boas-vindas de volta
+            </h1>
+            <p className={cn('mx-auto mt-2 max-w-md text-[15px] leading-relaxed', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              Entre para continuar cuidando do seu futuro financeiro.
+            </p>
           </div>
 
-          {error && (
-            <Alert variant="danger" className="mb-6" role="alert" aria-live="polite">
-              <AlertTitle>Erro de autenticação</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
           {!error && successMessage && (
-            <Alert variant="success" className="mb-6" role="status" aria-live="polite">
+            <Alert variant="success" className="mb-5" role="status" aria-live="polite">
               <AlertTitle>Operação concluída</AlertTitle>
               <AlertDescription>
                 {successMessage}
@@ -129,42 +105,79 @@ export function LoginPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="flex-1 space-y-3 md:space-y-3.5" noValidate aria-busy={isLoading ? 'true' : 'false'}>
-            <AuthInput
-              label="E-mail"
-              placeholder="voce@email.com"
-              autoComplete="email"
-              icon={<Mail className="h-4 w-4" />}
-              error={errors.email?.message}
-              {...register('email')}
-            />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate aria-busy={isLoading ? 'true' : 'false'}>
+            <div data-testid="login-fields" className={cn(
+              'divide-y overflow-hidden rounded-2xl border transition-[border-color,background-color,box-shadow] focus-within:ring-2',
+              hasLoginError
+                ? resolvedTheme === 'dark'
+                  ? 'divide-red-400/80 border-red-400/90 bg-[rgba(69,10,10,0.55)] shadow-[inset_0_1px_0_rgba(254,202,202,0.08)] focus-within:ring-red-400/25'
+                  : 'divide-red-500/70 border-red-500 bg-red-50/55 focus-within:ring-red-500/15'
+                : resolvedTheme === 'dark'
+                  ? 'divide-white/10 border-white/20 bg-slate-950/25 focus-within:ring-cyan-500/25'
+                  : 'divide-slate-200 border-slate-300 bg-white/55 focus-within:ring-cyan-500/20'
+            )}>
+              <AuthInput
+                variant="grouped"
+                hideFeedback
+                label="E-mail"
+                placeholder="voce@email.com"
+                autoComplete="email"
+                aria-describedby={hasLoginError ? loginErrorId : undefined}
+                error={errors.email?.message || error || undefined}
+                {...register('email', { onChange: () => setError(null) })}
+              />
 
-            <PasswordInput
-              label="Senha"
-              placeholder="Sua senha"
-              autoComplete="current-password"
-              error={errors.password?.message}
-              {...register('password')}
-            />
+              <PasswordInput
+                variant="grouped"
+                hideFeedback
+                showIcon={false}
+                label="Senha"
+                placeholder="Sua senha"
+                autoComplete="current-password"
+                aria-describedby={hasLoginError ? loginErrorId : undefined}
+                error={errors.password?.message || error || undefined}
+                {...register('password', { onChange: () => setError(null) })}
+              />
+            </div>
 
-            <div className="flex flex-col items-start justify-between gap-2 min-[420px]:flex-row min-[420px]:items-center">
-              <Checkbox label="Lembrar de mim" />
-              <Link to="/forgot-password" className={cn('text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
+            {loginErrorMessage ? (
+              <p
+                id={loginErrorId}
+                role="alert"
+                aria-live="polite"
+                className={cn(
+                  '-mt-1 flex items-start gap-1.5 rounded-lg px-0.5 text-[13px] font-semibold leading-snug',
+                  resolvedTheme === 'dark' ? 'text-red-200' : 'text-red-700'
+                )}
+              >
+                <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                {loginErrorMessage}
+              </p>
+            ) : null}
+
+            <div className="flex items-center justify-between gap-2">
+              <Checkbox label="Lembrar de mim" className="shrink-0" />
+              <Link to="/forgot-password" className={cn('whitespace-nowrap rounded-md text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 sm:text-sm', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-700 hover:text-cyan-900')}>
                 Esqueci minha senha
               </Link>
             </div>
 
-            <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.18 }}>
+            <motion.div whileHover={reduceMotion ? undefined : { y: -2 }} transition={{ duration: 0.18 }}>
               <PrimaryButton type="submit" isLoading={isLoading} disabled={!canSubmit}>
-                Entrar
+                Entrar na FinVise
               </PrimaryButton>
             </motion.div>
           </form>
 
-          <div className="mt-3 text-sm text-slate-200 md:mt-4">
-            Não possui uma conta?{' '}
-            <Link to="/register" className={cn('font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
-              Criar conta
+          <p className={cn('mt-4 flex items-center justify-center gap-2 text-xs', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+            <ShieldCheck className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+            Seus dados são criptografados e protegidos.
+          </p>
+
+          <div className={cn('mt-5 border-t pt-5 text-center text-sm', resolvedTheme === 'dark' ? 'border-white/10 text-slate-300' : 'border-slate-200 text-slate-600')}>
+            Ainda não tem uma conta?{' '}
+            <Link to="/register" className={cn('rounded-md font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-700 hover:text-cyan-900')}>
+              Criar conta grátis
             </Link>
           </div>
         </AuthLayoutCard>

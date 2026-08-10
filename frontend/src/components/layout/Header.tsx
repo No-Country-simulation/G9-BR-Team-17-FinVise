@@ -12,6 +12,7 @@ import type { TransactionSource } from '@/types/transaction';
 
 interface HeaderProps {
   userName?: string;
+  isMenuOpen?: boolean;
   onMenuClick?: () => void;
 }
 
@@ -24,7 +25,7 @@ function getStoredTransactionSource(): TransactionSource {
   return stored === 'OPEN_FINANCE_PLUGGY' ? 'OPEN_FINANCE_PLUGGY' : 'CSV_IMPORT';
 }
 
-export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
+export function Header({ userName = 'Usuário', isMenuOpen = false, onMenuClick }: HeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const { preferences } = useNotificationPreferences();
   const initials = getInitials(userName);
@@ -139,8 +140,16 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           : 'border-slate-200/80 bg-[rgba(248,250,252,0.78)] text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.08)]'
       )}
     >
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="-ml-1 lg:hidden" onClick={onMenuClick} aria-label="Abrir menu">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="-ml-1 shrink-0 lg:hidden"
+          onClick={onMenuClick}
+          aria-label="Abrir menu"
+          aria-controls="app-sidebar"
+          aria-expanded={isMenuOpen}
+        >
           <Menu className="h-5 w-5" />
         </Button>
         <span className={cn('text-base font-bold tracking-tight lg:hidden', resolvedTheme === 'dark' ? 'text-cyan-200' : 'text-primary-700')}>FinVise</span>
@@ -158,7 +167,11 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           {isTickerEnabled && tickerItems.length > 0 ? (
             <div className="ticker-track flex min-w-max items-center gap-8 whitespace-nowrap">
               {[...tickerItems, ...tickerItems].map((item, index) => (
-                <div key={`${item}-${index}`} className={cn('inline-flex items-center gap-2 text-xs font-medium sm:text-sm', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}>
+                <div
+                  key={`${item}-${index}`}
+                  aria-hidden={index >= tickerItems.length ? 'true' : undefined}
+                  className={cn('inline-flex items-center gap-2 text-xs font-medium sm:text-sm', resolvedTheme === 'dark' ? 'text-slate-200' : 'text-slate-700')}
+                >
                   {item.includes('Alta')
                     ? <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                     : item.includes('Queda')
@@ -178,7 +191,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
         <button
           type="button"
           role="switch"
@@ -187,7 +200,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           title={resolvedTheme === 'dark' ? 'Modo escuro ativo' : 'Modo claro ativo'}
           onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
           className={cn(
-            'group relative inline-flex h-11 w-20 items-center rounded-full border px-1.5 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60',
+            'group relative inline-flex h-11 w-16 shrink-0 items-center rounded-full border px-1.5 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 sm:w-20',
             resolvedTheme === 'dark'
               ? 'border-cyan-300/35 bg-[linear-gradient(180deg,rgba(8,24,42,0.95),rgba(5,15,28,0.95))] shadow-[0_10px_24px_rgba(2,8,23,0.45)]'
               : 'border-cyan-200 bg-[linear-gradient(180deg,#f7fdff_0%,#e6f7ff_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.10)]'
@@ -215,7 +228,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
             className={cn(
               'pointer-events-none inline-flex h-8 w-8 items-center justify-center rounded-full border transition-all duration-300',
               resolvedTheme === 'dark'
-                ? 'translate-x-9 border-cyan-100/35 bg-[linear-gradient(180deg,#f8fbff_0%,#e5eef8_100%)] text-slate-900 shadow-[0_5px_16px_rgba(0,0,0,0.45)]'
+                ? 'translate-x-5 border-cyan-100/35 bg-[linear-gradient(180deg,#f8fbff_0%,#e5eef8_100%)] text-slate-900 shadow-[0_5px_16px_rgba(0,0,0,0.45)] sm:translate-x-9'
                 : 'translate-x-0 border-cyan-100 bg-white text-amber-500 shadow-[0_5px_14px_rgba(15,23,42,0.18)]'
             )}
             aria-hidden="true"
@@ -229,7 +242,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           aria-label="Abrir configurações"
           title="Configurações"
           className={cn(
-            'inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
+            'hidden h-11 w-11 items-center justify-center rounded-full text-slate-300 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:inline-flex',
             resolvedTheme === 'dark' ? 'hover:bg-white/8 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
           )}
         >
@@ -243,6 +256,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           aria-pressed={isTickerEnabled ? 'true' : 'false'}
           onClick={() => setIsTickerEnabled((current) => !current)}
           className={cn(
+            'hidden md:inline-flex',
             isTickerEnabled && (resolvedTheme === 'dark' ? 'bg-cyan-400/12 text-cyan-100' : 'bg-primary-50 text-primary-700')
           )}
         >
@@ -253,7 +267,7 @@ export function Header({ userName = 'Usuário', onMenuClick }: HeaderProps) {
           aria-label={`Abrir perfil de ${userName}`}
           title={userName}
           className={cn(
-            'group flex h-11 items-center gap-2 rounded-full border px-2.5 outline-none transition-all focus-visible:ring-2 focus-visible:ring-cyan-300/50 sm:px-3',
+            'group flex h-11 items-center gap-2 rounded-full border px-1.5 outline-none transition-all focus-visible:ring-2 focus-visible:ring-cyan-300/50 sm:px-3',
             resolvedTheme === 'dark'
               ? 'border-white/10 bg-white/5 hover:bg-white/10'
               : 'border-slate-200 bg-white/70 hover:bg-white'

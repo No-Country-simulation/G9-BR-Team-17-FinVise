@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, User, UserPlus } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { CheckCircle2, Clock3, Mail, User, UserPlus } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import {
+  AuthExperiencePanel,
   AuthInput,
   AuthLayout,
   AuthLayoutCard,
@@ -35,6 +36,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export function RegisterPage() {
   const { resolvedTheme } = useTheme();
+  const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const redirectTimeoutRef = useRef<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,12 +52,7 @@ export function RegisterPage() {
     resolver: zodResolver(registerSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
-    defaultValues: {
-      fullName: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-    },
+    defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' },
   });
 
   const password = watch('password');
@@ -65,12 +62,12 @@ export function RegisterPage() {
     && watch('password').length > 0
     && watch('confirmPassword').length > 0;
 
-  const onSubmit = async ({ fullName, email, password }: RegisterFormData) => {
+  const onSubmit = async ({ fullName, email, password: submittedPassword }: RegisterFormData) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await authService.register({ fullName, email, password });
+      const response = await authService.register({ fullName, email, password: submittedPassword });
       setSuccessEmail(response.email);
       redirectTimeoutRef.current = window.setTimeout(() => {
         navigate('/login', {
@@ -89,79 +86,100 @@ export function RegisterPage() {
   };
 
   useEffect(() => () => {
-    if (redirectTimeoutRef.current !== null) {
-      window.clearTimeout(redirectTimeoutRef.current);
-    }
+    if (redirectTimeoutRef.current !== null) window.clearTimeout(redirectTimeoutRef.current);
   }, []);
 
   return (
-    <AuthLayout>
+    <AuthLayout variant="reverse" aside={<AuthExperiencePanel mode="register" />}>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
+        transition={{ duration: reduceMotion ? 0 : 0.4, ease: 'easeOut' }}
         className="w-full"
       >
-        <AuthLayoutCard>
-          <div className="mb-5 text-center md:mb-6">
-            <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Criar conta</h1>
-            <p className="mt-2 text-base text-slate-200 sm:text-lg">Comece a organizar seu futuro financeiro</p>
+        <AuthLayoutCard className="lg:p-6 xl:p-7">
+          <div className="mb-4">
+            <div className={cn('mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em]', resolvedTheme === 'dark' ? 'text-cyan-300' : 'text-cyan-700')}>
+              <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+              Comece em menos de 2 minutos
+            </div>
+            <h1 className={cn('text-[1.75rem] font-bold leading-tight tracking-[-0.035em] sm:text-[2rem]', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-950')}>
+              Sua jornada começa aqui
+            </h1>
+            <p className={cn('mt-2 text-[15px] leading-relaxed', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>
+              Crie sua conta e dê o primeiro passo para decisões financeiras melhores.
+            </p>
           </div>
 
           {error && (
-            <Alert variant="danger" className="mb-6" role="alert" aria-live="polite">
+            <Alert variant="danger" className="mb-5" role="alert" aria-live="polite">
               <AlertTitle>Não foi possível concluir o cadastro</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 md:space-y-4" noValidate aria-busy={isLoading ? 'true' : 'false'}>
-            <AuthInput
-              label="Nome completo"
-              placeholder="Seu nome completo"
-              autoComplete="name"
-              icon={<User className="h-4 w-4" />}
-              error={errors.fullName?.message}
-              {...register('fullName')}
-            />
+          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-3.5 xl:grid-cols-2" noValidate aria-busy={isLoading ? 'true' : 'false'}>
+            <div>
+              <AuthInput
+                label="Nome completo"
+                placeholder="Como podemos chamar você?"
+                autoComplete="name"
+                icon={<User className="h-4 w-4" />}
+                error={errors.fullName?.message}
+                {...register('fullName')}
+              />
+            </div>
 
-            <AuthInput
-              label="E-mail"
-              placeholder="voce@email.com"
-              autoComplete="email"
-              icon={<Mail className="h-4 w-4" />}
-              error={errors.email?.message}
-              {...register('email')}
-            />
+            <div>
+              <AuthInput
+                label="E-mail"
+                placeholder="voce@email.com"
+                autoComplete="email"
+                icon={<Mail className="h-4 w-4" />}
+                error={errors.email?.message}
+                {...register('email')}
+              />
+            </div>
 
-            <PasswordInput
-              label="Senha"
-              placeholder="Crie uma senha segura"
-              autoComplete="new-password"
-              error={errors.password?.message}
-              {...register('password')}
-            />
+            <div>
+              <PasswordInput
+                label="Senha"
+                placeholder="Crie uma senha segura"
+                autoComplete="new-password"
+                error={errors.password?.message}
+                {...register('password')}
+              />
+            </div>
 
-            <PasswordStrength password={password} />
+            <div>
+              <PasswordInput
+                label="Confirmar senha"
+                placeholder="Digite a senha novamente"
+                autoComplete="new-password"
+                error={errors.confirmPassword?.message}
+                {...register('confirmPassword')}
+              />
+            </div>
 
-            <PasswordInput
-              label="Confirmar senha"
-              placeholder="Confirme sua senha"
-              autoComplete="new-password"
-              error={errors.confirmPassword?.message}
-              {...register('confirmPassword')}
-            />
+            <div className="xl:col-span-2">
+              <PasswordStrength password={password} />
+            </div>
 
-            <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.18 }}>
+            <motion.div className="xl:col-span-2" whileHover={reduceMotion ? undefined : { y: -2 }} transition={{ duration: 0.18 }}>
               <PrimaryButton type="submit" isLoading={isLoading} disabled={!canSubmit} leadingIcon={<UserPlus className="h-4 w-4" />}>
-                Criar conta
+                Criar minha conta
               </PrimaryButton>
             </motion.div>
           </form>
 
-          <div className="mt-5 text-center text-sm text-slate-200 md:mt-6">
+          <p className={cn('mt-4 flex items-start justify-center gap-2 text-center text-xs leading-relaxed', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+            Ao continuar, você concorda com o tratamento seguro dos dados necessários para sua conta.
+          </p>
+
+          <div className={cn('mt-5 border-t pt-5 text-center text-sm', resolvedTheme === 'dark' ? 'border-white/10 text-slate-300' : 'border-slate-200 text-slate-600')}>
             Já possui uma conta?{' '}
-            <Link to="/login" className={cn('font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-primary-700 hover:text-primary-800')}>
+            <Link to="/login" className={cn('rounded-md font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400', resolvedTheme === 'dark' ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-700 hover:text-cyan-900')}>
               Entrar
             </Link>
           </div>
@@ -173,12 +191,17 @@ export function RegisterPage() {
           <div
             role="status"
             aria-live="polite"
-            className="w-full max-w-lg rounded-[24px] border border-emerald-300/35 bg-[linear-gradient(180deg,rgba(16,185,129,0.16)_0%,rgba(6,78,59,0.42)_100%)] p-5 text-slate-50 shadow-[0_22px_60px_rgba(0,0,0,0.42)]"
+            className="w-full max-w-lg rounded-[24px] border border-emerald-300/35 bg-[linear-gradient(180deg,rgba(16,185,129,0.94)_0%,rgba(5,150,105,0.96)_100%)] p-5 text-white shadow-[0_22px_60px_rgba(0,0,0,0.42)]"
           >
-            <h2 className="text-lg font-bold">Cadastro concluído</h2>
-            <p className="mt-1 text-sm text-slate-100">
-              Conta criada para {successEmail}. Redirecionando para login...
-            </p>
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0" aria-hidden="true" />
+              <div>
+                <h2 className="text-lg font-bold">Cadastro concluído</h2>
+                <p className="mt-1 text-sm text-emerald-50">
+                  Conta criada para {successEmail}. Redirecionando para o login...
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

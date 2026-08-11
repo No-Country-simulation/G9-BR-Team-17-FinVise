@@ -87,7 +87,7 @@ export function MainLayout() {
       data-theme={resolvedTheme}
       className={cn(
         'auth-shell relative flex min-h-dvh w-full max-w-full overflow-x-hidden transition-[padding] duration-300',
-        isSidebarCollapsed ? 'lg:pl-[5.5rem]' : 'lg:pl-64',
+        isSidebarCollapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-60',
         resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
       )}
     >
@@ -109,7 +109,7 @@ export function MainLayout() {
         <div
           className={cn(
             'fixed left-0 right-0 top-0 z-30 transition-[left] duration-300',
-            isSidebarCollapsed ? 'lg:left-[5.5rem]' : 'lg:left-64'
+            isSidebarCollapsed ? 'lg:left-[4.5rem]' : 'lg:left-60'
           )}
         >
           <Header

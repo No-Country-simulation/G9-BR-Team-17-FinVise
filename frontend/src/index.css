@@ -110,7 +110,11 @@
   .auth-shell[data-theme='light'] .auth-primary-button,
   .auth-shell[data-theme='light'] .auth-primary-button *,
   .auth-shell[data-theme='dark'] .auth-primary-button,
-  .auth-shell[data-theme='dark'] .auth-primary-button * {
+  .auth-shell[data-theme='dark'] .auth-primary-button *,
+  .auth-shell[data-theme='light'] .app-primary-button,
+  .auth-shell[data-theme='light'] .app-primary-button *,
+  .auth-shell[data-theme='dark'] .app-primary-button,
+  .auth-shell[data-theme='dark'] .app-primary-button * {
     color: rgb(255 255 255) !important;
     -webkit-text-fill-color: rgb(255 255 255) !important;
   }
@@ -297,6 +301,44 @@
   68%,
   100% {
     transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes finvise-particle-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8vh, 0) scale(0.35);
+  }
+
+  12% {
+    opacity: var(--particle-opacity);
+  }
+
+  86% {
+    opacity: var(--particle-opacity);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--particle-drift), -112vh, 0) scale(0.7);
+  }
+}
+
+.finvise-particle {
+  animation: finvise-particle-rise var(--particle-duration) linear var(--particle-delay) infinite;
+}
+
+.finvise-particle-static {
+  animation: none;
+  opacity: 0.24;
+  transform: translate3d(0, var(--particle-static-y), 0) scale(0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finvise-particle {
+    animation: none;
+    opacity: 0.24;
+    transform: translate3d(0, var(--particle-static-y), 0) scale(0.7);
   }
 }
 

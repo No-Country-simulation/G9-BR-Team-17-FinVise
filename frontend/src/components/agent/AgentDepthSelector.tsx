@@ -59,7 +59,7 @@ export function AgentDepthSelector({
         disabled={disabled}
         onClick={() => setIsOpen((current) => !current)}
         className={cn(
-          'flex h-9 min-w-0 items-center justify-between gap-1 rounded-full px-2 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:min-w-28 sm:gap-2 sm:px-3 sm:text-xs',
+          'flex h-11 min-w-0 items-center justify-between gap-1 rounded-full px-2 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-28 sm:gap-2 sm:px-3 sm:text-xs',
           isOpen && 'bg-slate-200 text-slate-900'
         )}
       >

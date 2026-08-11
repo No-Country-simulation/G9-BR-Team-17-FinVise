@@ -48,7 +48,10 @@ export function MainLayout() {
   }, []);
 
   useLayoutEffect(() => {
-    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    const resetScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.getElementById('main-content')?.focus({ preventScroll: true });
+    };
     resetScroll();
     const frame = window.requestAnimationFrame(resetScroll);
     return () => window.cancelAnimationFrame(frame);
@@ -84,11 +87,17 @@ export function MainLayout() {
       data-theme={resolvedTheme}
       className={cn(
         'auth-shell relative flex min-h-dvh w-full max-w-full overflow-x-hidden transition-[padding] duration-300',
-        isSidebarCollapsed ? 'lg:pl-[5.5rem]' : 'lg:pl-64',
+        isSidebarCollapsed ? 'lg:pl-[4.5rem]' : 'lg:pl-60',
         resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
       )}
     >
       <AuthBackground />
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[70] -translate-y-24 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-xl transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+      >
+        Pular para o conteúdo principal
+      </a>
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -97,11 +106,27 @@ export function MainLayout() {
       />
 
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <Header userName={userName} onMenuClick={() => setIsSidebarOpen(true)} />
+        <div
+          className={cn(
+            'fixed left-0 right-0 top-0 z-30 transition-[left] duration-300',
+            isSidebarCollapsed ? 'lg:left-[4.5rem]' : 'lg:left-60'
+          )}
+        >
+          <Header
+            userName={userName}
+            isMenuOpen={isSidebarOpen}
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+        </div>
+
+        <div className="mobile-safe-top h-16 shrink-0" aria-hidden="true" />
 
         <main
+          id="main-content"
+          tabIndex={-1}
+          aria-label="Conteúdo principal"
           className={cn(
-            'w-full min-w-0 max-w-full flex-1 overflow-x-hidden',
+            'w-full min-w-0 max-w-full flex-1 overflow-x-hidden outline-none',
             isAgentPage
               ? 'p-0 pb-16 lg:p-6 xl:p-8'
               : 'px-3 pb-24 pt-4 sm:px-5 sm:pt-5 lg:p-6 xl:p-8'

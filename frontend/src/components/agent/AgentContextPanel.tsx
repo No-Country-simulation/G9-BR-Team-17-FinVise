@@ -71,7 +71,7 @@ export function AgentContextPanel({
                 disabled={disabled}
                 onClick={() => onSourceChange(option.value)}
                 className={cn(
-                  'flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex min-h-11 w-full items-center gap-3 rounded-xl px-2.5 text-left text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
                   selected
                     ? 'bg-primary-50 text-primary-800'
                     : 'text-slate-700 hover:bg-slate-100'
@@ -103,7 +103,7 @@ export function AgentContextPanel({
         {!sourcesLoading && availableSources.length === 0 && (
           <Link
             to={source === 'CSV_IMPORT' ? '/import' : '/open-finance'}
-            className="flex min-h-10 items-center gap-3 rounded-xl px-2.5 text-xs font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            className="flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-xs font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           >
             {source === 'CSV_IMPORT'
               ? <FileText className="h-4 w-4" />
@@ -121,7 +121,7 @@ export function AgentContextPanel({
                 <label
                   key={item.id}
                   className={cn(
-                    'flex min-h-10 cursor-pointer items-center gap-3 rounded-xl px-2.5 text-xs transition-colors',
+                    'flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-2.5 text-xs transition-colors',
                     selected
                       ? 'bg-slate-100 font-semibold text-slate-900'
                       : 'text-slate-700 hover:bg-slate-50',
@@ -163,7 +163,7 @@ export function AgentContextPanel({
               type="button"
               disabled={disabled}
               onClick={onToggleAll}
-              className="flex min-h-9 w-full items-center rounded-xl px-2.5 text-left text-[11px] font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
+              className="flex min-h-11 w-full items-center rounded-xl px-2.5 text-left text-[11px] font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-50"
             >
               {allSelected ? 'Limpar seleção' : 'Selecionar todos'}
             </button>

@@ -106,15 +106,18 @@ describe('ImportSourcesPage', () => {
   });
 
   it('exige confirmação antes de excluir a fonte', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await screen.findAllByText('transacoes-julho.csv');
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Excluir transacoes-julho.csv' })[0]);
 
+    // modal de confirmação customizado deve aparecer
+    expect(await screen.findByText('Confirmar exclusão')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Excluir definitivamente' }));
+
     await waitFor(() => expect(importSourceService.delete).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'csv-1' }),
     ));
-    expect(confirm).toHaveBeenCalled();
   });
 });

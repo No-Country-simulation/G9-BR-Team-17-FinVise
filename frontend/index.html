@@ -3,12 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#f8fafc" />
     <meta name="description" content="FinVise - Assistente inteligente para suas finanças pessoais" />
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
     <link rel="manifest" href="/manifest.json" />
     <title>FinVise</title>
+    <script>
+      (() => {
+        try {
+          const savedTheme = window.localStorage.getItem('finvise-theme');
+          const resolvedTheme = savedTheme === 'dark'
+            || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+            ? 'dark'
+            : 'light';
+          document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+          document.documentElement.dataset.theme = resolvedTheme;
+          document.documentElement.style.colorScheme = resolvedTheme;
+          document.querySelector('meta[name="theme-color"]')?.setAttribute(
+            'content',
+            resolvedTheme === 'dark' ? '#071321' : '#f8fafc'
+          );
+        } catch {
+          document.documentElement.dataset.theme = 'light';
+          document.documentElement.style.colorScheme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>

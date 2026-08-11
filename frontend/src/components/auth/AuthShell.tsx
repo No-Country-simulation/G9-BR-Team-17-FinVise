@@ -1,27 +1,15 @@
 import { Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useTheme } from './useTheme';
 
 interface AuthShellProps {
   children: ReactNode;
   logo?: ReactNode;
 }
 
-const themeStorageKey = 'finvise-auth-theme';
-
 export function AuthShell({ children, logo }: AuthShellProps) {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-
-  useEffect(() => {
-    const savedTheme = window.localStorage.getItem(themeStorageKey);
-    if (savedTheme === 'light' || savedTheme === 'dark') {
-      setTheme(savedTheme);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(themeStorageKey, theme);
-  }, [theme]);
+  const { resolvedTheme: theme, setTheme } = useTheme();
 
   const themeClasses = useMemo(
     () => ({
@@ -78,7 +66,7 @@ export function AuthShell({ children, logo }: AuthShellProps) {
 
           <button
             type="button"
-            onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium backdrop-blur-xl transition-colors ${themeClasses.toggle}`}
             aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
             aria-pressed={theme === 'dark'}

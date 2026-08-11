@@ -15,6 +15,7 @@ import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { importSourceService } from '@/services/importSourceService';
 import { TransactionSource } from '@/types/transaction';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useTheme } from '@/components/auth/useTheme';
 
 function transactionSource(type: 'CSV' | 'OPEN_FINANCE'): TransactionSource {
   return type === 'CSV' ? 'CSV_IMPORT' : 'OPEN_FINANCE_PLUGGY';
@@ -57,6 +58,7 @@ interface TransactionFilters {
 }
 
 export function TransactionsPage() {
+  const { resolvedTheme } = useTheme();
   const { source: rememberedSource, setSource } = useTransactionSource();
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const { data: importSources = [], isLoading: sourcesLoading } = useQuery({
@@ -245,7 +247,16 @@ export function TransactionsPage() {
                     {formatDate(transaction.date)}
                   </time>
                   <div role="cell" className="col-start-2 row-start-2 text-right md:col-auto md:row-auto md:px-4 md:py-4 md:text-left">
-                    <Badge variant={transaction.type === 'INCOME' ? 'success' : 'danger'}>
+                    <Badge
+                      variant={transaction.type === 'INCOME' ? 'success' : 'danger'}
+                      className={
+                        resolvedTheme === 'dark'
+                          ? transaction.type === 'INCOME'
+                            ? 'border-emerald-300/30 bg-emerald-400/14 text-emerald-200'
+                            : 'border-red-300/35 bg-red-400/14 text-red-200'
+                          : ''
+                      }
+                    >
                       {transaction.type === 'INCOME' ? 'Receita' : 'Despesa'}
                     </Badge>
                   </div>

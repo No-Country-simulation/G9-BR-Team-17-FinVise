@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Download, Globe, KeyRound, Moon, Shield } from 'lucide-react';
+import { CircleCheckBig, Download, Eye, EyeOff, Globe, KeyRound, Moon, Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
@@ -21,6 +21,9 @@ export function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const changePassword = async (event: FormEvent) => {
     event.preventDefault();
@@ -74,7 +77,12 @@ export function SettingsPage() {
       </div>
 
       {feedback && (
-        <Alert variant={feedback.variant} role={feedback.variant === 'danger' ? 'alert' : 'status'}>
+        <Alert
+          variant={feedback.variant}
+          role={feedback.variant === 'danger' ? 'alert' : 'status'}
+          className={feedback.variant === 'success' ? 'border-emerald-300/80 bg-[linear-gradient(180deg,rgba(34,197,94,0.22)_0%,rgba(16,185,129,0.14)_100%)]' : undefined}
+        >
+          {feedback.variant === 'success' ? <CircleCheckBig className="h-5 w-5" aria-hidden="true" /> : null}
           <AlertTitle>{feedback.title}</AlertTitle>
           <AlertDescription>{feedback.message}</AlertDescription>
         </Alert>
@@ -126,35 +134,68 @@ export function SettingsPage() {
           <form onSubmit={changePassword} className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2 sm:col-span-2">
               <span className="text-sm font-medium text-slate-700">Senha atual</span>
-              <Input
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  className="pr-12"
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showCurrentPassword ? 'Ocultar senha atual' : 'Mostrar senha atual'}
+                  onClick={() => setShowCurrentPassword((current) => !current)}
+                  className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </label>
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700">Nova senha</span>
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                minLength={8}
-                required
-              />
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="pr-12"
+                  minLength={8}
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showNewPassword ? 'Ocultar nova senha' : 'Mostrar nova senha'}
+                  onClick={() => setShowNewPassword((current) => !current)}
+                  className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </label>
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700">Confirmar nova senha</span>
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                minLength={8}
-                required
-              />
+              <div className="relative">
+                <Input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  className="pr-12"
+                  minLength={8}
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'}
+                  onClick={() => setShowConfirmPassword((current) => !current)}
+                  className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </label>
             <div className="sm:col-span-2">
               <Button type="submit" isLoading={isChangingPassword} disabled={!currentPassword || !newPassword || !confirmPassword}>

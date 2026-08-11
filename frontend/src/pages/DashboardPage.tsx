@@ -17,6 +17,8 @@ import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { Select } from '@/components/ui/Select';
 import { importSourceService } from '@/services/importSourceService';
 import { TransactionSource } from '@/types/transaction';
+import { GenerateReportButton } from '@/components/ui/ButtonReport';
+
 
 function transactionSource(type: 'CSV' | 'OPEN_FINANCE'): TransactionSource {
   return type === 'CSV' ? 'CSV_IMPORT' : 'OPEN_FINANCE_PLUGGY';
@@ -179,12 +181,15 @@ export function DashboardPage() {
               />
             </label>
           )}
-          <Link to={newAnalysisUrl}>
-          <Button className="w-full whitespace-nowrap sm:w-auto">
-            Nova Análise
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-          </Link>
+          <div className="flex gap-2">
+            <GenerateReportButton source={source} importSourceId={importSourceId} />
+            <Link to={newAnalysisUrl}>
+              <Button className="w-full whitespace-nowrap sm:w-auto">
+                Nova Análise
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -256,13 +261,13 @@ export function DashboardPage() {
 
       <Link
         to="/agent"
-        className="flex min-h-20 items-center justify-between gap-3 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] p-4 text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)]"
+        className="contrast-on-cyan flex min-h-20 items-center justify-between gap-3 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] p-4 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)]"
       >
         <div className="flex items-center gap-3">
           <Bot className="h-6 w-6" />
           <div className="min-w-0">
             <p className="font-semibold">Falar com o Assistente Financeiro</p>
-            <p className="mt-0.5 text-xs text-slate-900/70">Tire dúvidas e receba dicas personalizadas</p>
+            <p className="mt-0.5 text-xs opacity-70">Tire dúvidas e receba dicas personalizadas</p>
           </div>
         </div>
         <ArrowRight className="h-5 w-5" />

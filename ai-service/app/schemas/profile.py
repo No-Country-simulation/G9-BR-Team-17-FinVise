@@ -17,7 +17,7 @@ class ProfileAnalyzeRequest(BaseModel):
     monthlyIncome: float = Field(..., gt=0)
     debtLevelPercentage: float = Field(..., ge=0.0, le=100.0)
     savingFrequency: str = ""
-    financialReserve: float = Field(..., ge=0.0)
+    financialReserve: float = Field(default=0.0)
     indicators: ProfileIndicators
 
 

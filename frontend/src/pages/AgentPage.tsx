@@ -446,7 +446,7 @@ export function AgentPage() {
                   disabled={isLoading || isStreaming}
                   onClick={() => setFiltersOpen((current) => !current)}
                   className={cn(
-                    'relative flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10',
+                    'relative flex h-11 w-11 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
                     filtersOpen && 'bg-primary-100 text-primary-700'
                   )}
                 >
@@ -505,7 +505,7 @@ export function AgentPage() {
                   }
                 }}
                 disabled={sourcesLoading || isLoading || isStreaming}
-                className="min-h-9 min-w-0 max-h-28 flex-1 resize-none bg-transparent px-1.5 py-2 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10 sm:max-h-32 sm:px-2 sm:py-2.5"
+                className="min-h-11 min-w-0 max-h-28 flex-1 resize-none bg-transparent px-1.5 py-2 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 sm:max-h-32 sm:px-2 sm:py-2.5"
               />
 
               <AgentDepthSelector
@@ -523,7 +523,7 @@ export function AgentPage() {
                   aria-label="Parar resposta"
                   title="Parar resposta"
                   onClick={stopResponse}
-                  className="h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
+                  className="h-11 w-11 shrink-0 rounded-full p-0"
                 >
                   <Square className="h-3.5 w-3.5 fill-current" />
                 </Button>
@@ -531,7 +531,7 @@ export function AgentPage() {
                 <Button
                   type="submit"
                   aria-label="Enviar mensagem"
-                  className="h-9 w-9 shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
+                  className="h-11 w-11 shrink-0 rounded-full p-0"
                   disabled={
                     sourcesLoading
                     || !input.trim()

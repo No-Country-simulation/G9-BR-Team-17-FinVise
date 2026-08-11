@@ -1,6 +1,7 @@
 package com.financeai.backend.analysis;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -50,5 +51,27 @@ public interface FinancialAnalysisRepository extends JpaRepository<FinancialAnal
     Optional<FinancialAnalysis> findLatestByUserAndSource(
         @Param("userId") UUID userId,
         @Param("source") String source,
+        @Param("importSourceId") String importSourceId);
+
+    @Modifying
+    @Query(value = """
+        WITH target_analyses AS (
+            SELECT id FROM financial_analyses
+            WHERE user_id = :userId
+              AND model_versions ->> 'importSourceId' = CAST(:importSourceId AS text)
+        ),
+        deleted_indicators AS (
+            DELETE FROM financial_indicators WHERE analysis_id IN (SELECT id FROM target_analyses)
+        ),
+        deleted_summaries AS (
+            DELETE FROM spending_summaries WHERE analysis_id IN (SELECT id FROM target_analyses)
+        ),
+        deleted_recommendations AS (
+            DELETE FROM recommendations WHERE analysis_id IN (SELECT id FROM target_analyses)
+        )
+        DELETE FROM financial_analyses WHERE id IN (SELECT id FROM target_analyses)
+        """, nativeQuery = true)
+    void deleteByUserIdAndImportSourceId(
+        @Param("userId") UUID userId,
         @Param("importSourceId") String importSourceId);
 }

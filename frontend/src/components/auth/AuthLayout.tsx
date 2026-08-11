@@ -54,7 +54,7 @@ export function AuthLayout({
       data-theme={theme}
       data-auth-variant={variant}
     >
-      <AuthBackground />
+      <AuthBackground showParticles />
 
       {variant !== 'split' ? (
         <header className="relative z-20 mx-auto flex min-h-[4.5rem] w-full max-w-[1680px] items-center justify-between gap-4 px-4 py-3 sm:min-h-20 sm:px-7 lg:px-10 xl:px-14">

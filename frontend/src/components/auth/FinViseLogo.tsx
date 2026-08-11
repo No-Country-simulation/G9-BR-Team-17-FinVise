@@ -1,5 +1,7 @@
 import { cn } from '@/lib/utils';
-import finViseLogoImage from '@/assets/branding/new-logo.jpg';
+import { useTheme } from './useTheme';
+import finViseDarkLogoImage from '@/assets/branding/new-logo-finvise-optimized.png';
+import finViseLightLogoImage from '@/assets/branding/new-logo-finvise-claro-optimized.png';
 
 interface FinViseLogoProps {
   className?: string;
@@ -11,18 +13,35 @@ interface FinViseLogoProps {
 
 interface FinViseMarkProps {
   className?: string;
+  theme?: 'dark' | 'light';
 }
 
-export function FinViseMark({ className }: FinViseMarkProps) {
+export function FinViseMark({ className, theme }: FinViseMarkProps) {
+  const { resolvedTheme } = useTheme();
+  const effectiveTheme = theme ?? resolvedTheme;
+
   return (
-    <img
-      src={finViseLogoImage}
-      alt=""
-      aria-hidden="true"
-      className={cn('rounded-lg object-cover', className)}
-      loading="eager"
-      decoding="async"
-    />
+    <span
+      className={cn(
+        'relative isolate flex items-center justify-center overflow-hidden rounded-[inherit]',
+        className
+      )}
+    >
+      <img
+        src={effectiveTheme === 'dark' ? finViseLightLogoImage : finViseDarkLogoImage}
+        alt=""
+        aria-hidden="true"
+        className={cn(
+          'relative z-10 h-full w-full object-contain p-[6%]',
+          effectiveTheme === 'dark'
+            ? 'brightness-110 drop-shadow-[0_10px_22px_rgba(8,17,31,0.34)]'
+            : 'brightness-100 drop-shadow-none'
+        )}
+        loading="eager"
+        decoding="async"
+        draggable={false}
+      />
+    </span>
   );
 }
 

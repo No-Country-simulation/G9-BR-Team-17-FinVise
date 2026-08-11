@@ -1,5 +1,6 @@
 package com.financeai.backend;
 
+import com.financeai.backend.analysis.FinancialAnalysisRepository;
 import com.financeai.backend.fact.FinancialFactSnapshotRepository;
 import com.financeai.backend.fact.FinancialFactsService;
 import com.financeai.backend.fact.FinancialSourceConsistencyService;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,6 +36,8 @@ class FinancialSourceConsistencyServiceTest {
     private RagIngestionService ragIngestionService;
     @Mock
     private RagDocumentRepository ragDocumentRepository;
+    @Mock
+    private FinancialAnalysisRepository analysisRepository;
     @InjectMocks
     private FinancialSourceConsistencyService service;
 
@@ -53,7 +57,7 @@ class FinancialSourceConsistencyServiceTest {
             .rebuild(userId, TransactionSource.CSV_IMPORT, sourceId);
         ordered.verify(transactionRepository)
             .findByUserIdAndImportSourceIdOrderByTransactionDateDesc(userId, sourceId);
-        ordered.verify(ragIngestionService).ingestTransactions(
+        verify(ragIngestionService).ingestTransactions(
             userId, "CSV_IMPORT", sourceId.toString(), "extrato.csv", transactions);
     }
 
@@ -69,5 +73,7 @@ class FinancialSourceConsistencyServiceTest {
             userId, "OPEN_FINANCE_PLUGGY", sourceId);
         verify(ragDocumentRepository).deleteByUserIdAndSourceTypeAndSourceId(
             userId, "OPEN_FINANCE", sourceId.toString());
+        verify(analysisRepository).deleteByUserIdAndImportSourceId(
+            userId, sourceId.toString());
     }
 }

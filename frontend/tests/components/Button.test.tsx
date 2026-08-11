@@ -19,6 +19,7 @@ describe('Button', () => {
     render(<Button isLoading>Carregando</Button>);
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
     expect(document.querySelector('svg')).toBeInTheDocument();
   });
 

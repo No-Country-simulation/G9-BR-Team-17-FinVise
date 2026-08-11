@@ -3,24 +3,24 @@ import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/auth/useTheme';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-[14px] text-sm font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center rounded-[14px] text-sm font-semibold tracking-tight transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:pointer-events-none disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none',
   {
     variants: {
       variant: {
         default:
-          'bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)]',
+          'app-primary-button relative overflow-hidden rounded-full border border-cyan-200/20 bg-[#078da2] text-white shadow-[0_10px_32px_-16px_rgba(0,188,214,0.55)] before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:bg-white/15 before:opacity-0 before:scale-75 before:transition-all before:duration-500 hover:-translate-y-0.5 hover:bg-[#079aae] hover:shadow-[0_14px_38px_-14px_rgba(0,188,214,0.48)] hover:before:scale-100 hover:before:opacity-100 active:translate-y-0 active:scale-[0.98] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_14px_38px_-14px_rgba(0,188,214,0.48)] motion-reduce:before:transition-none',
         destructive:
-          'bg-[linear-gradient(180deg,#fb7185_0%,#ef4444_100%)] text-white shadow-[0_12px_30px_rgba(239,68,68,0.20)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(239,68,68,0.26)]',
+          'bg-[linear-gradient(180deg,#dc2626_0%,#b91c1c_100%)] text-white shadow-[0_12px_30px_rgba(185,28,28,0.22)] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(185,28,28,0.28)] focus-visible:-translate-y-0.5 focus-visible:shadow-[0_16px_38px_rgba(185,28,28,0.28)]',
         outline:
-          'border border-white/12 bg-white/6 text-slate-100 hover:-translate-y-0.5 hover:bg-white/10',
+          'border border-white/12 bg-white/6 text-slate-100 hover:-translate-y-0.5 hover:bg-white/10 focus-visible:-translate-y-0.5 focus-visible:bg-white/10',
         secondary:
-          'border border-white/10 bg-white/8 text-slate-100 hover:-translate-y-0.5 hover:bg-white/12',
+          'border border-white/10 bg-white/8 text-slate-100 hover:-translate-y-0.5 hover:bg-white/12 focus-visible:-translate-y-0.5 focus-visible:bg-white/12',
         ghost: 'text-slate-300 hover:bg-white/8 hover:text-white',
         link: 'text-primary-600 underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-14 px-5 py-2 text-[16px]',
-        sm: 'h-10 px-3 text-xs sm:h-10',
+        default: 'h-11 px-5 py-2 text-sm',
+        sm: 'h-10 px-4 text-xs',
         lg: 'h-12 px-6 text-base',
         icon: 'h-11 w-11 rounded-full',
       },
@@ -51,12 +51,14 @@ function Button({ className, variant, size, isLoading, children, ref, ...props }
         resolvedTheme === 'light' && variant === 'ghost' && 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
         className
       )}
-      disabled={isLoading || props.disabled}
       {...props}
+      disabled={isLoading || props.disabled}
+      aria-busy={isLoading || undefined}
     >
       {isLoading && (
         <svg
           className="mr-2 h-4 w-4 animate-spin"
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"

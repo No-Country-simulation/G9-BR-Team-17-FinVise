@@ -61,6 +61,15 @@
     color: rgb(103 232 249) !important;
   }
 
+  .auth-shell[data-theme='dark'] .contrast-on-cyan,
+  .auth-shell[data-theme='dark'] .contrast-on-cyan * {
+    color: rgb(15 23 42) !important;
+  }
+
+  .auth-shell[data-theme='dark'] .chart-tooltip :is(p, li, span) {
+    color: rgb(15 23 42) !important;
+  }
+
   .auth-shell[data-theme='dark'] :is(.border-slate-200, .border-slate-100, .border-gray-200, .border-gray-100, .border-stone-200, .border-zinc-200) {
     border-color: rgb(148 163 184 / 0.14) !important;
   }
@@ -85,12 +94,66 @@
     color: rgb(248 250 252);
   }
 
+  .auth-shell[data-theme='dark'] .auth-glass-card :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    background-color: rgb(5 15 28 / 0.48) !important;
+    border-color: rgb(255 255 255 / 0.14) !important;
+  }
+
   .auth-shell[data-theme='light'] :is(.text-white, .text-slate-100, .text-slate-200, .text-gray-100, .text-gray-200, .text-stone-100, .text-zinc-100) {
     color: rgb(15 23 42) !important;
   }
 
   .auth-shell[data-theme='light'] :is(.text-slate-300, .text-slate-400, .text-gray-300, .text-gray-400, .text-stone-300, .text-stone-400, .text-zinc-300, .text-zinc-400) {
     color: rgb(71 85 105) !important;
+  }
+
+  .auth-shell[data-theme='light'] .auth-primary-button,
+  .auth-shell[data-theme='light'] .auth-primary-button *,
+  .auth-shell[data-theme='dark'] .auth-primary-button,
+  .auth-shell[data-theme='dark'] .auth-primary-button *,
+  .auth-shell[data-theme='light'] .app-primary-button,
+  .auth-shell[data-theme='light'] .app-primary-button *,
+  .auth-shell[data-theme='dark'] .app-primary-button,
+  .auth-shell[data-theme='dark'] .app-primary-button * {
+    color: rgb(255 255 255) !important;
+    -webkit-text-fill-color: rgb(255 255 255) !important;
+  }
+
+  .auth-shell[data-theme='light'] .auth-primary-button:disabled,
+  .auth-shell[data-theme='dark'] .auth-primary-button:disabled {
+    opacity: 1 !important;
+  }
+
+  .auth-glass-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at 14% 0%, rgb(255 255 255 / 0.16), transparent 31%),
+      linear-gradient(122deg, rgb(255 255 255 / 0.08), transparent 37%, rgb(255 255 255 / 0.035));
+  }
+
+  .auth-glass-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 9%;
+    left: 9%;
+    z-index: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.72), transparent);
+  }
+
+  .auth-wordmark {
+    font-family: 'Avenir Next', 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 760;
+    font-variation-settings: 'wght' 760;
+    letter-spacing: -0.06em;
+    text-rendering: geometricPrecision;
   }
 
   button,
@@ -100,37 +163,75 @@
   textarea {
     -webkit-tap-highlight-color: transparent;
   }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid rgb(8 145 178) !important;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
+  .auth-shell[data-theme='light'] .auth-grouped-input,
+  .auth-shell[data-theme='dark'] .auth-grouped-input {
+    border: 0 !important;
+    outline: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(15 23 42);
+    transition: background-color 9999s ease-in-out 0s;
+    box-shadow: 0 0 0 1000px rgb(255 255 255) inset;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark textarea:-webkit-autofill,
+  .dark textarea:-webkit-autofill:hover,
+  .dark textarea:-webkit-autofill:focus,
+  .dark select:-webkit-autofill,
+  .dark select:-webkit-autofill:hover,
+  .dark select:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(248 250 252);
+    box-shadow: 0 0 0 1000px rgb(15 23 42) inset;
+  }
+
+  .auth-shell[data-theme='light'] .auth-grouped-input:-webkit-autofill,
+  .auth-shell[data-theme='light'] .auth-grouped-input:-webkit-autofill:hover,
+  .auth-shell[data-theme='light'] .auth-grouped-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(15 23 42);
+    box-shadow: 0 0 0 1000px rgb(255 255 255 / 0.3) inset !important;
+  }
+
+  .auth-shell[data-theme='dark'] .auth-grouped-input:-webkit-autofill,
+  .auth-shell[data-theme='dark'] .auth-grouped-input:-webkit-autofill:hover,
+  .auth-shell[data-theme='dark'] .auth-grouped-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(248 250 252);
+    box-shadow: 0 0 0 1000px rgb(2 6 23 / 0.18) inset !important;
+  }
+
   .skeleton-shimmer {
-  
-    input:-webkit-autofill,
-    input:-webkit-autofill:hover,
-    input:-webkit-autofill:focus,
-    textarea:-webkit-autofill,
-    textarea:-webkit-autofill:hover,
-    textarea:-webkit-autofill:focus,
-    select:-webkit-autofill,
-    select:-webkit-autofill:hover,
-    select:-webkit-autofill:focus {
-      -webkit-text-fill-color: rgb(15 23 42);
-      transition: background-color 9999s ease-in-out 0s;
-      box-shadow: 0 0 0 1000px rgb(255 255 255) inset;
-    }
-  
-    .dark input:-webkit-autofill,
-    .dark input:-webkit-autofill:hover,
-    .dark input:-webkit-autofill:focus,
-    .dark textarea:-webkit-autofill,
-    .dark textarea:-webkit-autofill:hover,
-    .dark textarea:-webkit-autofill:focus,
-    .dark select:-webkit-autofill,
-    .dark select:-webkit-autofill:hover,
-    .dark select:-webkit-autofill:focus {
-      -webkit-text-fill-color: rgb(15 23 42);
-      box-shadow: 0 0 0 1000px rgb(255 255 255 / 0.9) inset;
-    }
     position: relative;
     isolation: isolate;
     overflow: hidden;
@@ -200,6 +301,44 @@
   68%,
   100% {
     transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes finvise-particle-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8vh, 0) scale(0.35);
+  }
+
+  12% {
+    opacity: var(--particle-opacity);
+  }
+
+  86% {
+    opacity: var(--particle-opacity);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--particle-drift), -112vh, 0) scale(0.7);
+  }
+}
+
+.finvise-particle {
+  animation: finvise-particle-rise var(--particle-duration) linear var(--particle-delay) infinite;
+}
+
+.finvise-particle-static {
+  animation: none;
+  opacity: 0.24;
+  transform: translate3d(0, var(--particle-static-y), 0) scale(0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finvise-particle {
+    animation: none;
+    opacity: 0.24;
+    transform: translate3d(0, var(--particle-static-y), 0) scale(0.7);
   }
 }
 

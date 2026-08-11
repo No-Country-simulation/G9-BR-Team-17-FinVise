@@ -17,7 +17,7 @@ const items = [
 
 export function MobileBottomNavigation({ onMoreClick, isMoreOpen }: MobileBottomNavigationProps) {
   const { resolvedTheme } = useTheme();
-  const itemClass = 'flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
+  const itemClass = 'flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:text-xs';
 
   return (
     <nav
@@ -29,7 +29,7 @@ export function MobileBottomNavigation({ onMoreClick, isMoreOpen }: MobileBottom
           : 'border-slate-200/80 bg-[rgba(248,250,252,0.84)] text-slate-900'
       )}
     >
-      <div className="mx-auto flex h-14 max-w-lg items-stretch gap-0.5">
+      <div className="mx-auto flex min-h-14 max-w-lg items-stretch gap-0.5">
         {items.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}

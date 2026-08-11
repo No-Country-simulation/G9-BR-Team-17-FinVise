@@ -70,6 +70,19 @@ describe('api client', () => {
     expect(localStorage.getItem('finance_ai_token')).toBeNull();
   });
 
+  it('does not reload the login page when the login request is rejected', async () => {
+    window.location.href = '';
+    const error = {
+      config: { url: '/auth/login' },
+      response: { status: 401, data: { message: 'Credenciais inválidas' } },
+      message: 'Request failed',
+    };
+
+    const interceptor = responseInterceptors[0];
+    await expect(interceptor(error)).rejects.toBeDefined();
+    expect(window.location.href).toBe('');
+  });
+
   it('extracts the message from a normalized API error', async () => {
     const { extractErrorMessage } = await import('@/lib/api');
 

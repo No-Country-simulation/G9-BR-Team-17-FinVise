@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
+  AlertTriangle,
   CheckCircle2,
   Database,
   FileSpreadsheet,
@@ -107,6 +108,7 @@ export function ImportSourcesPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<SourceFilter>('ALL');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'warning'; message: string } | null>(null);
+  const [sourcePendingDelete, setSourcePendingDelete] = useState<ImportSource | null>(null);
   const { data = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['import-sources'],
     queryFn: importSourceService.getAll,
@@ -158,16 +160,65 @@ export function ImportSourcesPage() {
     mutationFn: (source: ImportSource) => importSourceService.delete(source),
     onSuccess: async (_, source) => {
       await refreshData();
+      setSourcePendingDelete(null);
       setFeedback({ type: 'success', message: `${source.displayName} foi excluída com suas transações indexadas.` });
     },
   });
 
   const handleDelete = (source: ImportSource) => {
-    const confirmed = window.confirm(
-      `Excluir "${source.displayName}" e ${source.transactionCount.toLocaleString('pt-BR')} transações indexadas? Esta ação não pode ser desfeita.`,
-    );
-    if (confirmed) deleteMutation.mutate(source);
+    setSourcePendingDelete(source);
   };
+
+  const closeDeleteModal = () => {
+    if (!deleteMutation.isPending) {
+      setSourcePendingDelete(null);
+    }
+  };
+
+  const confirmDelete = () => {
+    if (sourcePendingDelete) {
+      deleteMutation.mutate(sourcePendingDelete);
+    }
+  };
+
+  useEffect(() => {
+    if (!sourcePendingDelete) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deleteMutation.isPending) {
+        setSourcePendingDelete(null);
+      }
+    };
+
+    const preventScroll = (event: Event) => {
+      event.preventDefault();
+    };
+
+    const preventScrollKeys = (event: KeyboardEvent) => {
+      const blockedKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar'];
+      if (blockedKeys.includes(event.key)) {
+        event.preventDefault();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('keydown', preventScrollKeys, { passive: false });
+    window.addEventListener('wheel', preventScroll, { passive: false });
+    window.addEventListener('touchmove', preventScroll, { passive: false });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscrollBehavior;
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('keydown', preventScrollKeys);
+      window.removeEventListener('wheel', preventScroll);
+      window.removeEventListener('touchmove', preventScroll);
+    };
+  }, [sourcePendingDelete, deleteMutation.isPending]);
 
   if (isLoading) return <ImportSourcesSkeleton />;
 
@@ -185,10 +236,11 @@ export function ImportSourcesPage() {
             <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} />
             Atualizar
           </Button>
-          <Link to="/import">
-            <Button className="w-full">
-              <Plus className="mr-2 h-4 w-4" />Nova importação
-            </Button>
+          <Link
+            to="/import"
+            className="inline-flex h-14 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] px-5 py-2 text-[16px] font-semibold tracking-tight text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)] focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <Plus className="mr-2 h-4 w-4" />Nova importação
           </Link>
         </div>
       </div>
@@ -246,10 +298,10 @@ export function ImportSourcesPage() {
             aria-selected={filter === option.value}
             onClick={() => setFilter(option.value)}
             className={cn(
-              'min-w-0 truncate rounded-lg px-1.5 py-2 text-[11px] font-medium transition-colors sm:shrink-0 sm:px-4 sm:text-sm',
+              'min-h-11 min-w-0 truncate rounded-lg px-1.5 py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:shrink-0 sm:px-4 sm:text-sm',
               filter === option.value
                 ? 'bg-primary-50 text-primary-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 focus-visible:bg-slate-50 focus-visible:text-slate-900',
             )}
           >
             {option.label}
@@ -379,6 +431,56 @@ export function ImportSourcesPage() {
             ))}
           </div>
         </Card>
+      )}
+
+      {sourcePendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={closeDeleteModal}
+            aria-label="Fechar confirmação de exclusão"
+          />
+          <div className="relative w-full max-w-xl overflow-hidden rounded-[30px] border border-white/20 bg-[linear-gradient(180deg,rgba(8,15,28,0.98)_0%,rgba(5,12,25,0.97)_100%)] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.55)] sm:p-7">
+            <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 h-52 w-52 rounded-full bg-emerald-300/15 blur-3xl" aria-hidden="true" />
+
+            <div className="relative flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-200/30 bg-red-500/20 text-red-100">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold tracking-tight text-slate-50">Confirmar exclusão</h2>
+                <p className="mt-2 text-sm leading-relaxed text-slate-200">
+                  Excluir <span className="font-semibold text-cyan-200">{sourcePendingDelete.displayName}</span> e{' '}
+                  <span className="font-semibold text-cyan-200">
+                    {sourcePendingDelete.transactionCount.toLocaleString('pt-BR')} transações indexadas
+                  </span>
+                  ? Esta ação não pode ser desfeita.
+                </p>
+              </div>
+            </div>
+
+            <div className="relative mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={closeDeleteModal}
+                disabled={deleteMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="w-full sm:w-auto"
+                onClick={confirmDelete}
+                isLoading={deleteMutation.isPending}
+              >
+                Excluir definitivamente
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

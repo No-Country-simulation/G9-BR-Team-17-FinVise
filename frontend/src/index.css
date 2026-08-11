@@ -37,16 +37,32 @@
     color: rgb(226 232 240) !important;
   }
 
-  .auth-shell[data-theme='dark'] :is(.bg-white, .bg-white\/5, .bg-white\/6, .bg-white\/8, .bg-white\/10, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100, .bg-stone-50, .bg-zinc-50, .bg-primary-50, .bg-emerald-50, .bg-amber-50, .bg-red-50, .bg-violet-50) {
+  .auth-shell[data-theme='dark'] :is(.bg-white, .bg-white\/5, .bg-white\/6, .bg-white\/8, .bg-white\/10, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100, .bg-stone-50, .bg-zinc-50) {
     background-color: rgb(8 15 28 / 0.78) !important;
   }
 
-  .auth-shell[data-theme='dark'] :is(.bg-slate-100\/80, .bg-slate-50\/50, .bg-white\/70, .bg-white\/78, .bg-white\/80, .bg-white\/84) {
+  .auth-shell[data-theme='dark'] :is(.bg-slate-100\/80, .bg-slate-50\/50, .bg-slate-50\/60, .bg-slate-50\/70, .bg-slate-50\/80, .bg-white\/40, .bg-white\/55, .bg-white\/58, .bg-white\/60, .bg-white\/65, .bg-white\/70, .bg-white\/75, .bg-white\/78, .bg-white\/80, .bg-white\/84, .bg-white\/85, .bg-white\/88, .bg-white\/90) {
     background-color: rgb(8 15 28 / 0.88) !important;
   }
 
-  .auth-shell[data-theme='dark'] :is(.bg-primary-50\/80, .bg-primary-50\/90, .bg-primary-100, .bg-emerald-100, .bg-amber-100, .bg-red-100, .bg-violet-100) {
+  .auth-shell[data-theme='dark'] :is(.bg-primary-50, .bg-primary-50\/80, .bg-primary-50\/90, .bg-primary-100, .bg-primary-200) {
     background-color: rgb(15 118 110 / 0.18) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-emerald-50, .bg-emerald-100) {
+    background-color: rgb(16 185 129 / 0.16) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-amber-50, .bg-amber-100) {
+    background-color: rgb(245 158 11 / 0.16) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-red-50, .bg-red-50\/55, .bg-red-100) {
+    background-color: rgb(239 68 68 / 0.16) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.bg-violet-50, .bg-violet-100) {
+    background-color: rgb(139 92 246 / 0.16) !important;
   }
 
   .auth-shell[data-theme='dark'] :is(.text-slate-400, .text-gray-400, .text-stone-400, .text-zinc-400) {
@@ -57,8 +73,20 @@
     color: rgb(191 219 254) !important;
   }
 
-  .auth-shell[data-theme='dark'] :is(.text-primary-600, .text-primary-700, .text-cyan-600, .text-cyan-700) {
+  .auth-shell[data-theme='dark'] :is(.text-primary-600, .text-primary-700, .text-primary-800, .text-cyan-600, .text-cyan-700, .text-cyan-800) {
     color: rgb(103 232 249) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-emerald-600, .text-emerald-700, .text-emerald-800) {
+    color: rgb(110 231 183) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-amber-600, .text-amber-700, .text-amber-800) {
+    color: rgb(252 211 77) !important;
+  }
+
+  .auth-shell[data-theme='dark'] :is(.text-red-600, .text-red-700, .text-red-800) {
+    color: rgb(252 165 165) !important;
   }
 
   .auth-shell[data-theme='dark'] .contrast-on-cyan,
@@ -70,7 +98,7 @@
     color: rgb(15 23 42) !important;
   }
 
-  .auth-shell[data-theme='dark'] :is(.border-slate-200, .border-slate-100, .border-gray-200, .border-gray-100, .border-stone-200, .border-zinc-200) {
+  .auth-shell[data-theme='dark'] :is(.border-slate-300, .border-slate-200, .border-slate-100, .border-gray-200, .border-gray-100, .border-stone-200, .border-zinc-200) {
     border-color: rgb(148 163 184 / 0.14) !important;
   }
 

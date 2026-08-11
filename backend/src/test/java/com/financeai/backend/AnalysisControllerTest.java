@@ -161,6 +161,8 @@ class AnalysisControllerTest extends PostgresTestSupport {
     void shouldAnalyzeStoredTransactionsWithSelectedModel() throws Exception {
         UUID analysisId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        UUID firstSourceId = UUID.randomUUID();
+        UUID secondSourceId = UUID.randomUUID();
         AnalysisResponse response = new AnalysisResponse(
             analysisId,
             userId,
@@ -173,7 +175,7 @@ class AnalysisControllerTest extends PostgresTestSupport {
             null
         );
         when(analysisService.analyzeStoredTransactions(
-            any(), any(), any(), any(), any(), any())).thenReturn(response);
+            any(), any(), any(), any(), any(), any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/financial-analyses/from-transactions")
                 .header("Authorization", authHeader)
@@ -182,15 +184,17 @@ class AnalysisControllerTest extends PostgresTestSupport {
                     {
                       "userId": "%s",
                       "model": "MACHINE_LEARNING",
-                      "source": "CSV_IMPORT"
+                      "source": "CSV_IMPORT",
+                      "importSourceIds": ["%s", "%s"]
                     }
-                    """.formatted(userId)))
+                    """.formatted(userId, firstSourceId, secondSourceId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.analysisId").value(analysisId.toString()))
             .andExpect(jsonPath("$.data.modelVersions.analysisModel").value("MACHINE_LEARNING"));
 
         verify(analysisService).analyzeStoredTransactions(
-            eq(authenticatedUserId), any(), any(), any(), any(), any());
+            eq(authenticatedUserId), any(), any(), any(),
+            eq(List.of(firstSourceId, secondSourceId)), any(), any());
     }
 
     @Test

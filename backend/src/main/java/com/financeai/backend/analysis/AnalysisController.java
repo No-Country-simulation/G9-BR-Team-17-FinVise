@@ -36,7 +36,7 @@ public class AnalysisController {
         @Valid @RequestBody AnalyzeStoredTransactionsRequest request) {
         AnalysisResponse response = analysisService.analyzeStoredTransactions(
             authenticatedUserProvider.getUserId(), request.model(), request.source(), request.importSourceId(),
-            request.startDate(), request.endDate());
+            request.importSourceIds(), request.startDate(), request.endDate());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

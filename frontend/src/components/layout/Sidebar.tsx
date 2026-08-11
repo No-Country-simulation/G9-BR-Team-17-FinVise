@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   List,
   Menu,
-  PlusCircle,
+  FileClock,
   FileUp,
   Database,
   Lightbulb,
@@ -25,8 +25,8 @@ import { FinViseMark } from '@/components/auth/FinViseLogo';
 const mainNavItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/transactions', icon: List, label: 'Transações' },
-  { to: '/analyses/new', icon: PlusCircle, label: 'Nova Análise' },
-  { to: '/history', icon: History, label: 'Histórico' },
+  { to: '/analyses', icon: FileClock, label: 'Histórico de análises', end: true },
+  { to: '/history', icon: History, label: 'Histórico mensal' },
 ];
 
 const importNavItems = [

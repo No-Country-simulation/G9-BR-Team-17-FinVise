@@ -5,6 +5,7 @@ import com.financeai.backend.agent.AgentMessageRepository;
 import com.financeai.backend.agent.AgentService;
 import com.financeai.backend.agent.SendMessageRequest;
 import com.financeai.backend.analysis.AnalysisService;
+import com.financeai.backend.analysis.FinancialAnalysis;
 import com.financeai.backend.analysis.FinancialAnalysisRepository;
 import com.financeai.backend.common.exception.ResourceNotFoundException;
 import com.financeai.backend.indicator.FinancialIndicatorRepository;
@@ -50,6 +51,40 @@ class ResourceOwnershipTest {
         assertThatThrownBy(() -> service.getAnalysis(userId, analysisId))
             .isInstanceOf(ResourceNotFoundException.class);
         verify(analysisRepository).findByIdAndUserId(analysisId, userId);
+    }
+
+    @Test
+    void shouldDeleteOnlyAnalysisOwnedByAuthenticatedUser() {
+        UUID userId = UUID.randomUUID();
+        UUID analysisId = UUID.randomUUID();
+        FinancialAnalysis analysis = new FinancialAnalysis();
+        analysis.setId(analysisId);
+        FinancialAnalysisRepository analysisRepository = mock(FinancialAnalysisRepository.class);
+        FinancialIndicatorRepository indicatorRepository = mock(FinancialIndicatorRepository.class);
+        SpendingSummaryRepository spendingSummaryRepository = mock(SpendingSummaryRepository.class);
+        RecommendationRepository recommendationRepository = mock(RecommendationRepository.class);
+        when(analysisRepository.findByIdAndUserId(analysisId, userId)).thenReturn(Optional.of(analysis));
+
+        AnalysisService service = new AnalysisService(
+            analysisRepository,
+            indicatorRepository,
+            spendingSummaryRepository,
+            recommendationRepository,
+            mock(TransactionRepository.class),
+            mock(TransactionCategoryRepository.class),
+            mock(UserRepository.class),
+            mock(AiServiceClient.class),
+            mock(RecommendationEngine.class),
+            mock(org.springframework.transaction.support.TransactionOperations.class)
+        );
+
+        service.deleteAnalysis(userId, analysisId);
+
+        verify(analysisRepository).findByIdAndUserId(analysisId, userId);
+        verify(recommendationRepository).deleteByAnalysisId(analysisId);
+        verify(spendingSummaryRepository).deleteByAnalysisId(analysisId);
+        verify(indicatorRepository).deleteByAnalysisId(analysisId);
+        verify(analysisRepository).delete(analysis);
     }
 
     @Test

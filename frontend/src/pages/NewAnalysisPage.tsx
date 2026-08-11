@@ -17,9 +17,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { InlineMetricsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { TransactionSourceSelector } from '@/components/transactions/TransactionSourceSelector';
+import { ImportSourceSelector } from '@/components/transactions/ImportSourceSelector';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
 import { analysisService } from '@/services/analysisService';
 import { importSourceService } from '@/services/importSourceService';
@@ -199,23 +199,15 @@ export function NewAnalysisPage() {
                   label="Origem das transações"
                 />
                 {compatibleSources.length > 0 && (
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Conta ou arquivo
-                    </span>
-                    <Select
-                      aria-label="Conta ou arquivo importado"
-                      value={effectiveImportSourceId ?? ''}
-                      onChange={(event) => {
-                        setSelectedImportSourceId(event.target.value);
+                  <ImportSourceSelector
+                    sources={compatibleSources}
+                    value={effectiveImportSourceId ?? ''}
+                    label="Conta ou arquivo"
+                    onChange={(sourceId) => {
+                        setSelectedImportSourceId(sourceId);
                         setError(null);
-                      }}
-                      options={compatibleSources.map((item) => ({
-                        value: item.id,
-                        label: `${item.defaultSource ? '★ ' : ''}${item.displayName}`,
-                      }))}
-                    />
-                  </label>
+                    }}
+                  />
                 )}
               </div>
 

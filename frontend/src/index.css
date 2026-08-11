@@ -127,7 +127,7 @@
     border-color: rgb(255 255 255 / 0.14) !important;
   }
 
-  .auth-shell[data-theme='light'] :is(.text-white, .text-slate-100, .text-slate-200, .text-gray-100, .text-gray-200, .text-stone-100, .text-zinc-100) {
+  .auth-shell[data-theme='light'] :is(.text-slate-100, .text-slate-200, .text-gray-100, .text-gray-200, .text-stone-100, .text-zinc-100) {
     color: rgb(15 23 42) !important;
   }
 

@@ -156,6 +156,10 @@ export const analysisService = {
     return mapAnalysis(response.data);
   },
 
+  async delete(id: string): Promise<void> {
+    await api.delete(`/financial-analyses/${id}`);
+  },
+
   async getLatest(
     source: TransactionSource,
     importSourceId?: string,

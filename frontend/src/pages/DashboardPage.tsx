@@ -14,10 +14,10 @@ import { FinancialAnalysisResponse } from '@/types/analysis';
 import { analysisService } from '@/services/analysisService';
 import { transactionService } from '@/services/transactionService';
 import { useTransactionSource } from '@/hooks/useTransactionSource';
-import { Select } from '@/components/ui/Select';
 import { importSourceService } from '@/services/importSourceService';
 import { TransactionSource } from '@/types/transaction';
 import { GenerateReportButton } from '@/components/ui/ButtonReport';
+import { ImportSourceSelector } from '@/components/transactions/ImportSourceSelector';
 
 
 function transactionSource(type: 'CSV' | 'OPEN_FINANCE'): TransactionSource {
@@ -162,24 +162,16 @@ export function DashboardPage() {
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(17rem,1fr)_auto] sm:items-end xl:shrink-0">
           {selectedImportSource && (
-            <label className="block min-w-0">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fonte dos dados
-              </span>
-              <Select
-                aria-label="Fonte dos dados"
-                value={selectedImportSource.id}
-                onChange={(event) => {
-                  const selected = importSources.find((item) => item.id === event.target.value);
-                  setSelectedSourceId(event.target.value);
+            <ImportSourceSelector
+              sources={importSources}
+              value={selectedImportSource.id}
+              onChange={(sourceId) => {
+                  const selected = importSources.find((item) => item.id === sourceId);
+                  setSelectedSourceId(sourceId);
                   if (selected) setSource(transactionSource(selected.type));
-                }}
-                options={importSources.map((item) => ({
-                  value: item.id,
-                  label: `${item.defaultSource ? '★ ' : ''}${item.displayName}`,
-                }))}
-              />
-            </label>
+              }}
+              className="min-w-0 sm:min-w-[17rem]"
+            />
           )}
           <div className="flex gap-2">
             <GenerateReportButton source={source} importSourceId={importSourceId} />
@@ -261,16 +253,20 @@ export function DashboardPage() {
 
       <Link
         to="/agent"
-        className="flex min-h-20 items-center justify-between gap-3 rounded-[28px] border border-cyan-200/20 bg-[#078da2] p-4 text-white shadow-[0_10px_32px_-16px_rgba(0,188,214,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#079aae] hover:shadow-[0_14px_38px_-14px_rgba(0,188,214,0.48)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        className="group relative isolate flex min-h-20 items-center justify-between gap-3 overflow-hidden rounded-[22px] border border-white/20 bg-[linear-gradient(115deg,#087a89_0%,#078da2_58%,#0a8290_100%)] p-4 text-white shadow-[0_14px_36px_-24px_rgba(2,132,151,0.72)] transition-all duration-300 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(circle_at_16%_0%,rgba(255,255,255,0.18),transparent_34%)] hover:-translate-y-0.5 hover:shadow-[0_18px_42px_-24px_rgba(2,132,151,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       >
         <div className="flex items-center gap-3">
-          <Bot className="h-6 w-6" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10">
+            <Bot className="h-5 w-5" aria-hidden="true" />
+          </span>
           <div className="min-w-0">
             <p className="font-semibold">Falar com o Assistente Financeiro</p>
-            <p className="mt-0.5 text-xs opacity-70">Tire dúvidas e receba dicas personalizadas</p>
+            <p className="mt-0.5 text-xs text-white/75">Tire dúvidas e receba dicas personalizadas</p>
           </div>
         </div>
-        <ArrowRight className="h-5 w-5" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.08] transition-transform duration-300 group-hover:translate-x-0.5">
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </span>
       </Link>
 
       <div className="grid gap-4 lg:grid-cols-2">

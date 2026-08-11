@@ -275,6 +275,17 @@ public class AnalysisService {
         return loadResponses(List.of(analysis)).getFirst();
     }
 
+    @Transactional
+    public void deleteAnalysis(UUID userId, UUID analysisId) {
+        FinancialAnalysis analysis = analysisRepository.findByIdAndUserId(analysisId, userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Análise", analysisId));
+
+        recommendationRepository.deleteByAnalysisId(analysisId);
+        spendingSummaryRepository.deleteByAnalysisId(analysisId);
+        indicatorRepository.deleteByAnalysisId(analysisId);
+        analysisRepository.delete(analysis);
+    }
+
     @Transactional(readOnly = true)
     public AnalysisResponse getLatestAnalysis(UUID userId,
                                               TransactionSource source,

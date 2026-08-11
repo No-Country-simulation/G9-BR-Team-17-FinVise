@@ -14,6 +14,8 @@ public interface SpendingSummaryRepository extends JpaRepository<SpendingSummary
 
     List<SpendingSummary> findByAnalysisId(UUID analysisId);
 
+    void deleteByAnalysisId(UUID analysisId);
+
     @Query("""
         SELECT
             summary.analysis.id AS analysisId,

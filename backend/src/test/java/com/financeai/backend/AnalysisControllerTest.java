@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -136,6 +137,17 @@ class AnalysisControllerTest extends PostgresTestSupport {
             .andExpect(jsonPath("$.data.analysisId").value(analysisId.toString()));
 
         verify(analysisService).getAnalysis(authenticatedUserId, analysisId);
+    }
+
+    @Test
+    void shouldDeleteAnalysisOwnedByAuthenticatedUser() throws Exception {
+        UUID analysisId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/v1/financial-analyses/{analysisId}", analysisId)
+                .header("Authorization", authHeader))
+            .andExpect(status().isNoContent());
+
+        verify(analysisService).deleteAnalysis(authenticatedUserId, analysisId);
     }
 
     @Test

@@ -15,6 +15,8 @@ public interface FinancialIndicatorRepository extends JpaRepository<FinancialInd
 
     Optional<FinancialIndicator> findByAnalysisId(UUID analysisId);
 
+    void deleteByAnalysisId(UUID analysisId);
+
     @Query("""
         SELECT
             indicator.analysis.id AS analysisId,

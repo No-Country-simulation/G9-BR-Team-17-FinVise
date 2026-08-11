@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   ArrowUpRight,
+  AlertTriangle,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
   CircleGauge,
+  FileSpreadsheet,
   FileClock,
+  Layers3,
+  Landmark,
+  Trash2,
   WalletCards,
 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
-import { Select } from '@/components/ui/Select';
+import { ChoiceSelect } from '@/components/ui/ChoiceSelect';
 import { Spinner } from '@/components/ui/Spinner';
+import { extractErrorMessage } from '@/lib/api';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
 import { analysisService } from '@/services/analysisService';
 import { FinancialAnalysisResponse } from '@/types/analysis';
@@ -25,9 +32,24 @@ type SourceFilter = 'ALL' | TransactionSource;
 const pageSize = 12;
 
 const sourceOptions = [
-  { value: 'ALL', label: 'Todas as fontes' },
-  { value: 'CSV_IMPORT', label: 'Arquivos importados' },
-  { value: 'OPEN_FINANCE_PLUGGY', label: 'Open Finance' },
+  {
+    value: 'ALL',
+    label: 'Todas as fontes',
+    description: 'Visão consolidada do histórico',
+    icon: Layers3,
+  },
+  {
+    value: 'CSV_IMPORT',
+    label: 'Arquivos importados',
+    description: 'Análises geradas com arquivos CSV',
+    icon: FileSpreadsheet,
+  },
+  {
+    value: 'OPEN_FINANCE_PLUGGY',
+    label: 'Open Finance',
+    description: 'Análises de contas conectadas',
+    icon: Landmark,
+  },
 ];
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -49,8 +71,11 @@ function getProfileBadge(riskLevel: FinancialAnalysisResponse['profile']['riskLe
 }
 
 export function AnalysisHistoryPage() {
+  const queryClient = useQueryClient();
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('ALL');
   const [page, setPage] = useState(0);
+  const [analysisPendingDelete, setAnalysisPendingDelete] = useState<FinancialAnalysisResponse | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'danger'; message: string } | null>(null);
   const selectedSource = sourceFilter === 'ALL' ? undefined : sourceFilter;
 
   useEffect(() => {
@@ -71,6 +96,42 @@ export function AnalysisHistoryPage() {
         analyses.reduce((total, analysis) => total + analysis.profile.score, 0) / analyses.length
       );
 
+  const deleteMutation = useMutation({
+    mutationFn: (analysis: FinancialAnalysisResponse) => analysisService.delete(analysis.id),
+    onSuccess: async (_, analysis) => {
+      if (analyses.length === 1 && page > 0) setPage((current) => current - 1);
+      await queryClient.invalidateQueries({ queryKey: ['analyses'] });
+      setAnalysisPendingDelete(null);
+      setFeedback({
+        type: 'success',
+        message: `A análise de ${dateFormatter.format(new Date(analysis.createdAt))} foi excluída.`,
+      });
+    },
+    onError: (mutationError) => {
+      setFeedback({ type: 'danger', message: extractErrorMessage(mutationError) });
+    },
+  });
+
+  const closeDeleteDialog = () => {
+    if (!deleteMutation.isPending) setAnalysisPendingDelete(null);
+  };
+
+  useEffect(() => {
+    if (!analysisPendingDelete) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deleteMutation.isPending) setAnalysisPendingDelete(null);
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [analysisPendingDelete, deleteMutation.isPending]);
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -87,18 +148,20 @@ export function AnalysisHistoryPage() {
           </p>
         </div>
 
-        <label className="block w-full sm:max-w-xs">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Origem dos dados
-          </span>
-          <Select
-            value={sourceFilter}
-            onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}
-            options={sourceOptions}
-            aria-label="Filtrar histórico por origem dos dados"
-          />
-        </label>
+        <ChoiceSelect
+          value={sourceFilter}
+          onChange={(value) => setSourceFilter(value as SourceFilter)}
+          options={sourceOptions}
+          label="Origem dos dados"
+          className="w-full sm:max-w-sm"
+        />
       </header>
+
+      {feedback && (
+        <Alert variant={feedback.type} role="status">
+          <AlertDescription>{feedback.message}</AlertDescription>
+        </Alert>
+      )}
 
       {!isLoading && !error && analyses.length > 0 && (
         <section className="grid gap-3 sm:grid-cols-2" aria-label="Resumo do histórico">
@@ -209,14 +272,29 @@ export function AnalysisHistoryPage() {
                   </div>
                 </dl>
 
-                <Link
-                  to={`/analyses/${analysis.id}`}
-                  className="mt-4 flex min-h-10 items-center justify-between rounded-xl px-3 text-sm font-semibold text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
-                  aria-label={`Ver detalhes da análise de ${dateFormatter.format(new Date(analysis.createdAt))}`}
-                >
-                  Ver análise completa
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
-                </Link>
+                <div className="mt-4 flex items-center gap-2">
+                  <Link
+                    to={`/analyses/${analysis.id}`}
+                    className="flex min-h-10 min-w-0 flex-1 items-center justify-between rounded-xl px-3 text-sm font-semibold text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+                    aria-label={`Ver detalhes da análise de ${dateFormatter.format(new Date(analysis.createdAt))}`}
+                  >
+                    <span className="truncate">Ver análise completa</span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+                  </Link>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    aria-label={`Excluir análise de ${dateFormatter.format(new Date(analysis.createdAt))}`}
+                    onClick={() => {
+                      setFeedback(null);
+                      setAnalysisPendingDelete(analysis);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -247,6 +325,62 @@ export function AnalysisHistoryPage() {
             <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" />
           </Button>
         </nav>
+      )}
+
+      {analysisPendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={closeDeleteDialog}
+            aria-label="Fechar confirmação de exclusão"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-analysis-title"
+            className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/20 bg-[linear-gradient(180deg,rgba(8,15,28,0.98)_0%,rgba(5,12,25,0.97)_100%)] p-6 text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,0.48)]"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-200/20 bg-red-500/15 text-red-200">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="delete-analysis-title" className="text-lg font-bold text-white">
+                  Excluir esta análise?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  O resultado de {dateFormatter.format(new Date(analysisPendingDelete.createdAt))} será removido permanentemente. Suas transações não serão alteradas.
+                </p>
+              </div>
+            </div>
+
+            {deleteMutation.isError && feedback && (
+              <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-200" role="alert">
+                {feedback.message}
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={closeDeleteDialog}
+                disabled={deleteMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="w-full sm:w-auto"
+                onClick={() => deleteMutation.mutate(analysisPendingDelete)}
+                isLoading={deleteMutation.isPending}
+              >
+                Excluir análise
+              </Button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );

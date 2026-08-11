@@ -80,4 +80,10 @@ public class AnalysisController {
             authenticatedUserProvider.getUserId(), analysisId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @DeleteMapping("/{analysisId}")
+    public ResponseEntity<Void> deleteAnalysis(@PathVariable UUID analysisId) {
+        analysisService.deleteAnalysis(authenticatedUserProvider.getUserId(), analysisId);
+        return ResponseEntity.noContent().build();
+    }
 }

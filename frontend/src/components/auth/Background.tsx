@@ -65,7 +65,7 @@ export function AuthBackground({ showParticles = false }: AuthBackgroundProps) {
         animate={shouldAnimate ? { opacity: [0.35, 0.65, 0.35], scale: [1, 1.05, 1] } : undefined}
         transition={shouldAnimate ? { duration: 14, repeat: Infinity, ease: 'easeInOut' } : undefined}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(45,212,191,0.08),transparent_32%),radial-gradient(circle_at_20%_80%,rgba(14,165,233,0.05),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(45,212,191,0.04),transparent_28%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(45,212,191,0.08),transparent_32%),radial-gradient(circle_at_20%_80%,rgba(7,141,162,0.05),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(45,212,191,0.04),transparent_28%)]" />
       {showParticles ? (
         <div className="absolute inset-0 overflow-hidden [contain:strict]">
           {backgroundParticles.map((particle, index) => (

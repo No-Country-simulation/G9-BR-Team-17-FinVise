@@ -65,14 +65,14 @@ describe('NewAnalysisPage', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('10')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /analisar com machine learning/i }));
+    expect(await screen.findByTitle('10')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /gerar análise/i }));
 
     await waitFor(() => {
       expect(mocks.analyzeStoredTransactions).toHaveBeenCalledWith(
         'MACHINE_LEARNING',
         'CSV_IMPORT',
-        { startDate: undefined, endDate: undefined },
+        undefined,
         'fonte-123',
       );
     });

@@ -59,7 +59,7 @@ export function LineChart({ data, title, emptyMessage = 'Sem dados para exibir' 
             <Legend />
             <Line type="linear" dataKey="income" name="Receitas" stroke="#10b981" strokeWidth={2} dot={showDots} activeDot={{ r: 5 }} />
             <Line type="linear" dataKey="expense" name="Despesas" stroke="#ef4444" strokeWidth={2} dot={showDots} activeDot={{ r: 5 }} />
-            <Line type="linear" dataKey="balance" name="Saldo" stroke="#3b82f6" strokeWidth={2} dot={showDots} activeDot={{ r: 5 }} />
+            <Line type="linear" dataKey="balance" name="Saldo" stroke="#078da2" strokeWidth={2} dot={showDots} activeDot={{ r: 5 }} />
           </ReLineChart>
         </ResponsiveContainer>
       ) : (

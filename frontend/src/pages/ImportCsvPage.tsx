@@ -1,25 +1,40 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, FileCheck, AlertTriangle, Landmark, Database, Cpu, Layers, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import {
+  AlertTriangle,
+  ArrowRight,
+  BrainCircuit,
+  Check,
+  CheckCircle2,
+  Database,
+  FileCheck2,
+  FileSpreadsheet,
+  Landmark,
+  LoaderCircle,
+  Scale,
+  Upload,
+  X,
+} from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/Alert';
-import { Spinner } from '@/components/ui/Spinner';
-import { Select } from '@/components/ui/Select';
-import { transactionService } from '@/services/transactionService';
-import { analysisService } from '@/services/analysisService';
-import { extractErrorMessage } from '@/lib/api';
-import { ProfileAnalysisModel } from '@/types/analysis';
-import { rememberTransactionSource } from '@/hooks/useTransactionSource';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useTheme } from '@/components/auth/useTheme';
+import { rememberTransactionSource } from '@/hooks/useTransactionSource';
+import { analysisService } from '@/services/analysisService';
+import { transactionService } from '@/services/transactionService';
+import { extractErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { ProfileAnalysisModel } from '@/types/analysis';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILES_PER_BATCH = 10;
 const CSV_CONTENT_TYPES = ['text/csv', 'application/csv', 'application/vnd.ms-excel'];
 const RAG_STATUS_POLL_INTERVAL_MS = 1000;
-const INDEXING_PROGRESS_START = 20;
-const INDEXING_PROGRESS_RANGE = 60;
+const UPLOAD_PROGRESS_START = 5;
+const UPLOAD_PROGRESS_RANGE = 25;
+const INDEXING_PROGRESS_START = 30;
+const INDEXING_PROGRESS_RANGE = 50;
 
 type ImportPhase = 'IDLE' | 'UPLOADING' | 'INDEXING' | 'ANALYZING' | 'COMPLETED';
 
@@ -33,7 +48,7 @@ function toAccessibleImportErrorMessage(rawMessage: string): string {
     || normalized.includes('silently rolled back')
     || normalized.includes('transaction rolled back')
   ) {
-    return 'Nao foi possivel concluir a importacao por uma inconsistencia temporaria no servidor. Tente novamente em alguns instantes.';
+    return 'Não foi possível concluir a importação devido a uma inconsistência temporária. Tente novamente em alguns instantes.';
   }
 
   if (
@@ -42,11 +57,11 @@ function toAccessibleImportErrorMessage(rawMessage: string): string {
     || normalized.includes('timeout')
     || normalized.includes('ecconnaborted')
   ) {
-    return 'Falha de conexao durante a importacao. Verifique sua rede e tente novamente.';
+    return 'A conexão foi interrompida durante a importação. Verifique sua rede e tente novamente.';
   }
 
   if (normalized.includes('payload too large') || normalized.includes('413')) {
-    return 'O arquivo enviado e maior do que o limite permitido. Use um CSV de ate 5 MB.';
+    return 'O arquivo é maior que o limite permitido. Selecione um CSV de até 5 MB.';
   }
 
   return rawMessage;
@@ -56,64 +71,81 @@ const wait = (milliseconds: number) => new Promise((resolve) => {
   window.setTimeout(resolve, milliseconds);
 });
 
+const modelOptions: Array<{
+  code: ProfileAnalysisModel;
+  name: string;
+  description: string;
+  icon: typeof BrainCircuit;
+}> = [
+  {
+    code: 'MACHINE_LEARNING',
+    name: 'Machine Learning',
+    description: 'Mais completo para identificar padrões de comportamento.',
+    icon: BrainCircuit,
+  },
+  {
+    code: 'FINANCIAL_RULES',
+    name: 'Regras financeiras',
+    description: 'Mais direto, conservador e fácil de explicar.',
+    icon: Scale,
+  },
+];
+
 export function ImportCsvPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { resolvedTheme } = useTheme();
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusStep, setStatusStep] = useState('');
-  const [batchInfo, setBatchInfo] = useState<string>('');
+  const [statusDetail, setStatusDetail] = useState('');
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const [model, setModel] = useState<ProfileAnalysisModel>('MACHINE_LEARNING');
   const [phase, setPhase] = useState<ImportPhase>('IDLE');
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateIndexingProgress = (
     indexedDocuments: number,
     totalDocuments: number,
-    remainingDocuments: number,
+    fileIndex: number,
+    totalFiles: number,
   ) => {
     const indexingRatio = totalDocuments > 0
       ? Math.min(1, indexedDocuments / totalDocuments)
       : 0;
+    const batchRatio = (fileIndex + indexingRatio) / totalFiles;
     setProgress(Math.min(
-      INDEXING_PROGRESS_START + INDEXING_PROGRESS_RANGE,
-      INDEXING_PROGRESS_START + Math.floor(indexingRatio * INDEXING_PROGRESS_RANGE),
+      80,
+      INDEXING_PROGRESS_START + Math.floor(batchRatio * INDEXING_PROGRESS_RANGE),
     ));
-    setBatchInfo(
-      `${indexedDocuments.toLocaleString('pt-BR')} de ${totalDocuments.toLocaleString('pt-BR')} documentos vetorizados`
-      + (remainingDocuments > 0
-        ? `; ${remainingDocuments.toLocaleString('pt-BR')} restantes.`
-        : '.'),
-    );
+    setStatusDetail('Estamos organizando as informações para gerar recomendações personalizadas.');
   };
 
-  const waitForRagIndexing = async (sourceId: string) => {
+  const waitForRagIndexing = async (
+    sourceId: string,
+    fileIndex: number,
+    totalFiles: number,
+    fileName: string,
+  ) => {
     let consecutiveReadFailures = 0;
     let indexingFinished = false;
 
     while (!indexingFinished) {
       try {
         const status = await transactionService.getRagIndexStatus(sourceId);
-        const remainingDocuments = status.pendingDocuments
-          + status.processingDocuments
-          + status.failedDocuments;
 
-        updateIndexingProgress(
-          status.indexedDocuments,
-          status.totalDocuments,
-          remainingDocuments,
-        );
+        updateIndexingProgress(status.indexedDocuments, status.totalDocuments, fileIndex, totalFiles);
         consecutiveReadFailures = 0;
 
         if (status.status === 'COMPLETE' || status.status === 'EMPTY') {
-          setProgress(INDEXING_PROGRESS_START + INDEXING_PROGRESS_RANGE);
-          setStatusStep('2/4 Indexação vetorial concluída.');
-          if (status.status === 'EMPTY') {
-            setBatchInfo('Nenhum documento precisava ser vetorizado.');
-          }
+          setProgress(
+            INDEXING_PROGRESS_START
+            + Math.floor(((fileIndex + 1) / totalFiles) * INDEXING_PROGRESS_RANGE),
+          );
+          setStatusStep(`Arquivo ${fileIndex + 1} de ${totalFiles} preparado`);
+          setStatusDetail(`${fileName} foi importado e preparado com segurança.`);
           indexingFinished = true;
           break;
         }
@@ -122,28 +154,31 @@ export function ImportCsvPage() {
           const queue = await transactionService.getRagIndexQueueStatus();
           if (queue.status === 'DEAD_LETTER') {
             throw new RagIndexingFailedError(
-              'A indexação vetorial falhou após esgotar as tentativas. Tente reprocessar a fonte em instantes.',
+              'Não foi possível preparar todos os dados. Aguarde alguns instantes e tente importar novamente.',
             );
           }
           if (queue.status === 'COMPLETED' || queue.status === 'EMPTY') {
             throw new RagIndexingFailedError(
-              'A fila foi concluída, mas ainda existem documentos sem vetor. Solicite o reprocessamento da fonte.',
+              'Alguns dados não puderam ser preparados. Tente novamente para concluir a importação.',
             );
           }
-          setStatusStep(`2/4 Reprocessando indexação vetorial (tentativa ${queue.attempts + 1})...`);
+          setStatusStep('Finalizando a preparação dos dados');
+          setStatusDetail('Essa etapa está levando um pouco mais de tempo, mas continua em andamento.');
         } else if (status.status === 'PROCESSING') {
-          setStatusStep('2/4 Indexando e vetorizando documentos...');
+          setStatusStep('Preparando seus dados');
+          setStatusDetail('Estamos organizando as informações para gerar recomendações personalizadas.');
         } else {
-          setStatusStep('2/4 Aguardando processamento da fila de indexação...');
+          setStatusStep('Aguardando o processamento');
+          setStatusDetail('Seu arquivo já foi recebido e será processado em seguida.');
         }
       } catch (error) {
-        if (error instanceof RagIndexingFailedError) {
-          throw error;
-        }
+        if (error instanceof RagIndexingFailedError) throw error;
         consecutiveReadFailures += 1;
-        setStatusStep('2/4 Reconectando ao acompanhamento da indexação...');
-        setBatchInfo(
-          `Não foi possível consultar o progresso (${consecutiveReadFailures} tentativa${consecutiveReadFailures === 1 ? '' : 's'}). Tentando novamente...`,
+        setStatusStep('Reconectando ao processamento');
+        setStatusDetail(
+          consecutiveReadFailures === 1
+            ? 'A conexão oscilou. Tentaremos novamente automaticamente.'
+            : `Tentativa de reconexão ${consecutiveReadFailures}. Seus dados permanecem seguros.`,
         );
       }
 
@@ -151,68 +186,121 @@ export function ImportCsvPage() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
+  const addFiles = (selectedFiles: File[]) => {
+    const currentKeys = new Set(files.map(fileKey));
+    const accepted: File[] = [];
+    const rejected: string[] = [];
 
-    const isCsv = selected.name.toLowerCase().endsWith('.csv')
-      || CSV_CONTENT_TYPES.includes(selected.type);
+    for (const selected of selectedFiles) {
+      const isCsv = selected.name.toLowerCase().endsWith('.csv')
+        || CSV_CONTENT_TYPES.includes(selected.type);
 
-    if (!isCsv) {
-      setFile(null);
-      setResult({ success: false, message: 'Selecione um arquivo no formato CSV.' });
-      e.target.value = '';
-      return;
+      if (!isCsv) {
+        rejected.push(`${selected.name}: formato inválido`);
+        continue;
+      }
+      if (selected.size > MAX_FILE_SIZE) {
+        rejected.push(`${selected.name}: excede 5 MB`);
+        continue;
+      }
+      if (currentKeys.has(fileKey(selected)) || accepted.some((file) => fileKey(file) === fileKey(selected))) {
+        continue;
+      }
+      if (files.length + accepted.length >= MAX_FILES_PER_BATCH) {
+        rejected.push(`o lote aceita até ${MAX_FILES_PER_BATCH} arquivos`);
+        break;
+      }
+      accepted.push(selected);
     }
 
-    if (selected.size > MAX_FILE_SIZE) {
-      setFile(null);
-      setResult({ success: false, message: 'O arquivo excede o tamanho máximo de 5 MB.' });
-      e.target.value = '';
-      return;
+    if (accepted.length > 0) {
+      setFiles((current) => [...current, ...accepted]);
+      setPhase('IDLE');
     }
+    setResult(rejected.length > 0
+      ? { success: false, message: `Alguns arquivos não foram adicionados: ${rejected.join('; ')}.` }
+      : null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
 
-    setFile(selected);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(event.target.files ?? []));
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
     setResult(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) return;
+  const clearFiles = () => {
+    setFiles([]);
+    setResult(null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (files.length === 0) return;
+
     setIsLoading(true);
     setPhase('UPLOADING');
     setResult(null);
-    setProgress(10);
-    setStatusStep('1/4 Lendo arquivo e importando transações...');
-    setBatchInfo('Enviando dados do arquivo CSV...');
+    setProgress(UPLOAD_PROGRESS_START);
+    setStatusStep(`Importando arquivo 1 de ${files.length}`);
+    setStatusDetail('Estamos validando e salvando o primeiro arquivo do lote.');
+
+    let completedFiles = 0;
 
     try {
-      // 1. Upload CSV
-      const { sourceId, importedCount, categorizedCount } = await transactionService.importCsv(file);
+      const importedSources: Array<{ sourceId: string; fileName: string }> = [];
+      let importedCount = 0;
+      let categorizedCount = 0;
+
+      for (const [index, currentFile] of files.entries()) {
+        setStatusStep(`Importando arquivo ${index + 1} de ${files.length}`);
+        setStatusDetail(`Validando e salvando ${currentFile.name}.`);
+
+        const imported = await transactionService.importCsv(currentFile);
+        importedSources.push({ sourceId: imported.sourceId, fileName: currentFile.name });
+        importedCount += imported.importedCount;
+        categorizedCount += imported.categorizedCount;
+        completedFiles = index + 1;
+        setProgress(
+          UPLOAD_PROGRESS_START
+          + Math.floor(((index + 1) / files.length) * UPLOAD_PROGRESS_RANGE),
+        );
+      }
 
       setPhase('INDEXING');
-      setProgress(INDEXING_PROGRESS_START);
-      setStatusStep('2/4 Aguardando processamento da fila de indexação...');
-      setBatchInfo('Consultando documentos pendentes desta importação...');
+      for (const [index, importedSource] of importedSources.entries()) {
+        setStatusStep(`Preparando arquivo ${index + 1} de ${files.length}`);
+        setStatusDetail('Essa etapa pode levar alguns minutos em arquivos maiores.');
 
-      await waitForRagIndexing(sourceId);
+        await waitForRagIndexing(
+          importedSource.sourceId,
+          index,
+          files.length,
+          importedSource.fileName,
+        );
+      }
 
       setPhase('ANALYZING');
       setProgress(85);
-      setStatusStep('3/4 Gerando diagnóstico financeiro e perfil IA...');
-      setBatchInfo(`${importedCount} transações salvas e vetorizadas; preparando o perfil financeiro.`);
+      setStatusStep('Criando a análise consolidada');
+      setStatusDetail(`${importedCount.toLocaleString('pt-BR')} transações de ${files.length} arquivo${files.length > 1 ? 's' : ''} foram importadas.`);
 
-      // 3. Generate Analysis
       const analysis = await analysisService.analyzeStoredTransactions(
         model,
         'CSV_IMPORT',
         undefined,
-        sourceId,
+        undefined,
+        importedSources.map((source) => source.sourceId),
       );
 
       setProgress(100);
       setPhase('COMPLETED');
-      setStatusStep('4/4 Sucesso! Redirecionando para o painel de análise...');
+      setStatusStep('Sua análise está pronta');
+      setStatusDetail('Abrindo o resultado completo...');
       rememberTransactionSource('CSV_IMPORT');
 
       await Promise.all([
@@ -223,176 +311,368 @@ export function ImportCsvPage() {
 
       setResult({
         success: true,
-        message: `${importedCount} transações importadas, ${categorizedCount} categorizadas e a indexação vetorial foi concluída.`,
+        message: `${files.length} arquivo${files.length > 1 ? 's' : ''}, ${importedCount.toLocaleString('pt-BR')} transações importadas e ${categorizedCount.toLocaleString('pt-BR')} categorizadas.`,
       });
-      setFile(null);
-      if (inputRef.current) inputRef.current.value = '';
 
-      setTimeout(() => {
-        navigate(`/analyses/${analysis.id}`);
-      }, 700);
+      navigate(`/analyses/${analysis.id}`);
     } catch (err) {
       setProgress(0);
       setPhase('IDLE');
       setStatusStep('');
-      setBatchInfo('');
+      setStatusDetail('');
       setResult({
         success: false,
-        message: toAccessibleImportErrorMessage(extractErrorMessage(err)),
+        message: `${completedFiles > 0 ? `${completedFiles} de ${files.length} arquivos foram importados antes da interrupção. ` : ''}${toAccessibleImportErrorMessage(extractErrorMessage(err))}`,
       });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const currentFlowStep = files.length === 0 ? 1 : phase === 'ANALYZING' || phase === 'COMPLETED' ? 3 : 2;
+
   return (
-    <div className="mx-auto w-full max-w-none space-y-4 sm:space-y-6">
-      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900">Importar transações</h1>
-          <p className="text-sm text-slate-500 sm:text-base">Escolha CSV ou conecte sua instituição pelo Open Finance</p>
+    <div className="mx-auto w-full max-w-6xl space-y-5 sm:space-y-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-cyan-700">
+            <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+            Importação por arquivo
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Importar arquivos CSV</h1>
+          <p className="mt-1 text-sm leading-6 text-slate-500 sm:text-base">
+            Envie um ou vários arquivos e receba uma análise financeira consolidada.
+          </p>
         </div>
-        <div className="grid gap-2 min-[420px]:grid-cols-2 xl:shrink-0">
-          <Link
-            to="/import/sources"
-            className={cn(
-              'inline-flex h-14 w-full items-center justify-center whitespace-nowrap rounded-[14px] border px-5 py-2 text-[16px] font-semibold tracking-tight transition-all duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
-              resolvedTheme === 'dark' ? 'border-white/12 bg-white/6 text-slate-100 hover:bg-white/10' : 'border-slate-300 bg-white/80 text-slate-700 hover:bg-slate-50'
-            )}
-          >
-            <Database className="mr-2 h-4 w-4" />
-            Ver fontes
-          </Link>
-          <Link
-            to="/open-finance"
-            className={cn(
-              'inline-flex h-14 w-full items-center justify-center whitespace-nowrap rounded-[14px] border px-5 py-2 text-[16px] font-semibold tracking-tight transition-all duration-200 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
-              resolvedTheme === 'dark' ? 'border-white/12 bg-white/6 text-slate-100 hover:bg-white/10' : 'border-slate-300 bg-white/80 text-slate-700 hover:bg-slate-50'
-            )}
-          >
-            <Landmark className="mr-2 h-4 w-4" />
-            Conectar Open Finance
-          </Link>
+        <Link
+          to="/import/sources"
+          className="inline-flex min-h-10 items-center text-sm font-semibold text-cyan-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        >
+          <Database className="mr-2 h-4 w-4" aria-hidden="true" />
+          Gerenciar fontes importadas
+        </Link>
+      </header>
+
+      <ol className="grid grid-cols-3 gap-2" aria-label="Etapas da importação">
+        <FlowStep number={1} label="Arquivos" current={currentFlowStep} />
+        <FlowStep number={2} label="Preparação" current={currentFlowStep} />
+        <FlowStep number={3} label="Resultado" current={currentFlowStep} />
+      </ol>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-stretch">
+        <Card className="flex h-full flex-col">
+          <CardHeader>
+            <CardTitle>{isLoading ? 'Processando sua importação' : files.length > 0 ? 'Revise antes de continuar' : 'Selecione seus arquivos'}</CardTitle>
+            <CardDescription>
+              {isLoading
+                ? 'Você pode acompanhar o progresso sem precisar atualizar a página.'
+                : files.length > 0
+                  ? 'Confirme o lote e escolha como deseja gerar a análise.'
+                  : `Envie até ${MAX_FILES_PER_BATCH} arquivos CSV de no máximo 5 MB cada.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-1">
+            <form onSubmit={handleSubmit} className="flex w-full flex-1 flex-col gap-5">
+              <input
+                id="transaction-csv-file"
+                ref={inputRef}
+                type="file"
+                accept=".csv,text/csv"
+                multiple
+                disabled={isLoading}
+                className="sr-only"
+                onChange={handleFileChange}
+              />
+
+              {files.length === 0 ? (
+                <label
+                  htmlFor="transaction-csv-file"
+                  onDragEnter={() => setIsDragging(true)}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDragging(false);
+                    addFiles(Array.from(event.dataTransfer.files ?? []));
+                  }}
+                  className={cn(
+                    'flex min-h-60 flex-1 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all focus-within:outline-none focus-within:ring-2 focus-within:ring-cyan-400 sm:p-8',
+                    isDragging
+                      ? 'scale-[0.995] border-cyan-500 bg-[rgba(7,141,162,0.10)]'
+                      : resolvedTheme === 'dark'
+                        ? 'border-cyan-300/20 bg-white/5 hover:border-cyan-300/40 hover:bg-cyan-300/5'
+                        : 'border-slate-300 bg-slate-50/70 hover:border-cyan-500 hover:bg-[rgba(7,141,162,0.06)]'
+                  )}
+                >
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(7,141,162,0.12)] text-cyan-700">
+                    <Upload className="h-7 w-7" aria-hidden="true" />
+                  </div>
+                  <p className="mt-4 font-semibold text-slate-900">Arraste seus CSVs para cá</p>
+                  <p className="mt-1 text-sm text-slate-500">ou clique para selecionar um ou vários arquivos</p>
+                  <span className="mt-4 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                    Até {MAX_FILES_PER_BATCH} CSVs · 5 MB por arquivo
+                  </span>
+                </label>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {files.length} arquivo{files.length > 1 ? 's' : ''} no lote
+                    </p>
+                    {!isLoading && (
+                      <div className="flex items-center gap-1">
+                        {files.length < MAX_FILES_PER_BATCH && (
+                          <button
+                            type="button"
+                            onClick={() => inputRef.current?.click()}
+                            className="rounded-lg px-2.5 py-2 text-xs font-semibold text-cyan-700 hover:bg-[rgba(7,141,162,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                          >
+                            Adicionar arquivos
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={clearFiles}
+                          className="rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                        >
+                          Limpar lote
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <ul className="max-h-60 space-y-2 overflow-y-auto pr-1" aria-label="Arquivos selecionados">
+                    {files.map((file, index) => (
+                      <li key={fileKey(file)} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                          <FileCheck2 className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-900" title={file.name}>{file.name}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">{formatFileSize(file.size)} · pronto para importar</p>
+                        </div>
+                        {!isLoading && (
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                            aria-label={`Remover ${file.name}`}
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result && (
+                <Alert variant={result.success ? 'success' : 'danger'}>
+                  {result.success
+                    ? <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+                    : <AlertTriangle className="h-5 w-5" aria-hidden="true" />}
+                  <AlertTitle>{result.success ? 'Importação concluída' : 'Não foi possível importar'}</AlertTitle>
+                  <AlertDescription>{result.message}</AlertDescription>
+                </Alert>
+              )}
+
+              {files.length > 0 && !isLoading && (
+                <fieldset>
+                  <legend className="text-sm font-semibold text-slate-900">Como deseja analisar os dados?</legend>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Você poderá gerar outra análise depois, sem importar o arquivo novamente.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {modelOptions.map((option) => {
+                      const Icon = option.icon;
+                      const selected = model === option.code;
+                      return (
+                        <button
+                          key={option.code}
+                          type="button"
+                          onClick={() => setModel(option.code)}
+                          className={cn(
+                            'relative rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400',
+                            selected ? 'border-cyan-500 bg-[rgba(7,141,162,0.10)]' : 'border-slate-200 bg-white/40 hover:border-cyan-300'
+                          )}
+                          aria-pressed={selected}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <Icon className={cn('h-5 w-5', selected ? 'text-cyan-700' : 'text-slate-500')} aria-hidden="true" />
+                            {selected && (
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#078da2] text-white">
+                                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-3 text-sm font-semibold text-slate-900">{option.name}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">{option.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+
+              {isLoading && (
+                <ImportProgress phase={phase} progress={progress} title={statusStep} detail={statusDetail} />
+              )}
+
+              {files.length > 0 && !isLoading && (
+                <Button type="submit" className="w-full" size="lg">
+                  Importar {files.length} arquivo{files.length > 1 ? 's' : ''} e gerar análise
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Button>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+
+        <aside className="space-y-4 lg:sticky lg:top-24">
+          <Card className="rounded-[22px]">
+            <CardHeader>
+              <CardTitle className="text-base">Antes de começar</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <ul className="space-y-3 text-slate-600">
+                <GuideItem>Uma transação por linha.</GuideItem>
+                <GuideItem>Datas no formato AAAA-MM-DD.</GuideItem>
+                <GuideItem>Tipos aceitos: INCOME e EXPENSE.</GuideItem>
+                <GuideItem>Até {MAX_FILES_PER_BATCH} arquivos por lote.</GuideItem>
+                <GuideItem>Cada arquivo pode ter no máximo 5 MB.</GuideItem>
+              </ul>
+
+              <details className="group rounded-xl border border-slate-200 bg-slate-50/60">
+                <summary className="cursor-pointer list-none px-3 py-3 text-sm font-semibold text-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
+                  Ver exemplo do CSV
+                </summary>
+                <div className="border-t border-slate-200 p-3">
+                  <code className="block overflow-x-auto whitespace-pre text-[11px] leading-5 text-slate-700">{`description,amount,date,type
+Salário,5000,2026-06-01,INCOME
+Mercado,800,2026-06-05,EXPENSE`}</code>
+                </div>
+              </details>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[22px]">
+            <CardContent className="p-4 sm:p-5">
+              <Landmark className="h-5 w-5 text-cyan-700" aria-hidden="true" />
+              <h2 className="mt-3 font-semibold text-slate-900">Prefere conectar seu banco?</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">Use o Open Finance e sincronize as transações sem arquivo.</p>
+              <Link
+                to="/open-finance"
+                className="mt-3 inline-flex min-h-10 items-center text-sm font-semibold text-cyan-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                Conectar Open Finance
+                <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
+              </Link>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function FlowStep({ number, label, current }: { number: number; label: string; current: number }) {
+  const completed = number < current;
+  const active = number === current;
+  return (
+    <li className={cn(
+      'flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-xs font-semibold sm:px-4 sm:text-sm',
+      completed || active
+        ? 'border-cyan-300/60 bg-[rgba(7,141,162,0.08)] text-cyan-700'
+        : 'border-slate-200 bg-white/40 text-slate-400'
+    )}>
+      <span className={cn(
+        'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px]',
+        completed || active ? 'bg-[#078da2] text-white' : 'bg-slate-100 text-slate-500'
+      )}>
+        {completed ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : number}
+      </span>
+      <span className="truncate">{label}</span>
+    </li>
+  );
+}
+
+function ImportProgress({ phase, progress, title, detail }: {
+  phase: ImportPhase;
+  progress: number;
+  title: string;
+  detail: string;
+}) {
+  const stages = [
+    { phase: 'UPLOADING', label: 'Importando arquivo' },
+    { phase: 'INDEXING', label: 'Preparando dados' },
+    { phase: 'ANALYZING', label: 'Gerando análise' },
+  ] as const;
+  const phaseOrder: Record<ImportPhase, number> = {
+    IDLE: 0,
+    UPLOADING: 1,
+    INDEXING: 2,
+    ANALYZING: 3,
+    COMPLETED: 4,
+  };
+
+  return (
+    <div className="rounded-2xl border border-cyan-300/50 bg-[rgba(7,141,162,0.08)] p-4 sm:p-5" role="status" aria-live="polite">
+      <div className="flex items-start gap-3">
+        {phase === 'COMPLETED'
+          ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+          : <LoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-cyan-700 motion-reduce:animate-none" aria-hidden="true" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold text-slate-900">{title}</p>
+            <span className="text-xs font-bold tabular-nums text-cyan-700">{progress}%</span>
+          </div>
+          <p className="mt-1 text-sm leading-5 text-slate-500">{detail}</p>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload de Arquivo</CardTitle>
-          <CardDescription>O arquivo deve conter as colunas: descrição, valor, data e tipo</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Modelo para analisar após a importação</label>
-              <Select
-                value={model}
-                onChange={(event) => setModel(event.target.value as ProfileAnalysisModel)}
-                options={[
-                  { value: 'MACHINE_LEARNING', label: 'Machine Learning' },
-                  { value: 'FINANCIAL_RULES', label: 'Regras financeiras' },
-                ]}
-              />
-            </div>
-            <label
-              htmlFor="transaction-csv-file"
-              className={cn(
-                'flex min-h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2 sm:p-8',
-                isLoading
-                  ? resolvedTheme === 'dark'
-                    ? 'cursor-not-allowed border-white/10 bg-white/5 opacity-60'
-                    : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
-                  : resolvedTheme === 'dark'
-                    ? 'cursor-pointer border-cyan-300/20 bg-[rgba(255,255,255,0.04)] hover:border-cyan-300/40 hover:bg-[rgba(34,211,238,0.08)] active:bg-[rgba(34,211,238,0.12)]'
-                    : 'cursor-pointer border-slate-300 bg-slate-50 hover:border-primary-400 hover:bg-primary-50 active:bg-primary-50'
-              )}
-            >
-              {file ? (
-                <FileCheck className={cn('h-10 w-10', resolvedTheme === 'dark' ? 'text-cyan-200' : 'text-primary-600')} />
-              ) : (
-                <Upload className={cn('h-10 w-10', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-400')} />
-              )}
-              <p className={cn('mt-3 text-sm font-medium', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-700')}>
-                {file ? file.name : 'Clique para selecionar o arquivo CSV'}
-              </p>
-              <p className={cn('text-xs', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-500')}>Arquivos .csv de até 5 MB</p>
-              <input id="transaction-csv-file" ref={inputRef} type="file" accept=".csv" disabled={isLoading} className="sr-only" onChange={handleFileChange} />
-            </label>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-[rgba(7,141,162,0.14)]">
+        <div
+          role="progressbar"
+          aria-label="Progresso da importação"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
+          className="h-full rounded-full bg-[#078da2] transition-[width] duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
 
-            {isLoading && (
-              <div className="space-y-3 rounded-xl border border-primary-200 bg-primary-50/80 p-4 transition-all shadow-sm">
-                <div className="flex items-center justify-between text-xs font-semibold text-primary-900">
-                  <div className="flex items-center gap-2">
-                    <Spinner size="sm" className="text-primary-600" />
-                    <span>{statusStep}</span>
-                  </div>
-                  <span className="font-mono text-xs font-bold text-primary-700">{progress}%</span>
-                </div>
-                
-                {/* Progress bar line */}
-                <div className="h-3 w-full overflow-hidden rounded-full bg-primary-200/80 p-0.5">
-                  <div
-                    role="progressbar"
-                    aria-label="Progresso da importação e indexação"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={progress}
-                    className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-700 transition-all duration-300 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-primary-800">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Layers className="h-3.5 w-3.5 shrink-0 text-primary-600" />
-                    <span>{batchInfo}</span>
-                  </div>
-                  <div className="flex items-center gap-1 font-mono text-[10px] text-primary-600">
-                    <Cpu className="h-3 w-3 text-primary-500" />
-                    <span>pgvector 1536d</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {result && (
-              <Alert variant={result.success ? 'success' : 'danger'}>
-                {result.success ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertTriangle className="h-5 w-5" />}
-                <AlertTitle>{result.success ? 'Sucesso' : 'Erro'}</AlertTitle>
-                <AlertDescription>{result.message}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={!file || isLoading} isLoading={isLoading}>
-              {isLoading ? <Spinner size="sm" className="mr-2" /> : <Upload className="mr-2 h-4 w-4" />}
-              {isLoading
-                ? {
-                    UPLOADING: 'Importando transações...',
-                    INDEXING: 'Indexando e vetorizando no pgvector...',
-                    ANALYZING: 'Gerando análise financeira...',
-                    COMPLETED: 'Finalizando...',
-                    IDLE: 'Importar e analisar',
-                  }[phase]
-                : 'Importar e analisar'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Formato Esperado</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <code className="block rounded-xl bg-slate-900 p-4 text-xs leading-6 text-[rgb(241,245,249)] sm:p-5 sm:text-sm">
-            description,amount,date,type
-            <br />
-            Salário,5000,2026-06-01,INCOME
-            <br />
-            Supermercado,800,2026-06-05,EXPENSE
-          </code>
-        </CardContent>
-      </Card>
+      <ol className="mt-4 grid grid-cols-3 gap-2">
+        {stages.map((stage, index) => {
+          const completed = phaseOrder[phase] > index + 1;
+          const active = phaseOrder[phase] === index + 1;
+          return (
+            <li key={stage.phase} className={cn('text-center text-[10px] font-medium sm:text-xs', completed || active ? 'text-cyan-700' : 'text-slate-400')}>
+              <span className={cn('mx-auto mb-1 flex h-5 w-5 items-center justify-center rounded-full border', completed ? 'border-[#078da2] bg-[#078da2] text-white' : active ? 'border-[#078da2] bg-[#078da2] text-white' : 'border-slate-300 bg-white text-slate-400')}>
+                {completed ? <Check className="h-3 w-3" aria-hidden="true" /> : index + 1}
+              </span>
+              {stage.label}
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
+}
+
+function GuideItem({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2">
+      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" aria-hidden="true" />
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) return `${size} bytes`;
+  if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+}
+
+function fileKey(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
 }

@@ -134,6 +134,7 @@ public class AnalysisService {
                                                       ProfileAnalysisModel model,
                                                       TransactionSource source,
                                                       UUID importSourceId,
+                                                      List<UUID> importSourceIds,
                                                       LocalDate startDate,
                                                       LocalDate endDate) {
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
@@ -143,12 +144,16 @@ public class AnalysisService {
         userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("Usuário", userId));
 
+        List<UUID> selectedSourceIds = importSourceIds != null && !importSourceIds.isEmpty()
+            ? importSourceIds.stream().filter(Objects::nonNull).distinct().toList()
+            : importSourceId != null ? List.of(importSourceId) : List.of();
+
         List<Transaction> transactions;
-        if (importSourceId != null) {
+        if (!selectedSourceIds.isEmpty()) {
             transactions = transactionRepository
-                .findByUserIdAndImportSourceIdOrderByTransactionDateDesc(userId, importSourceId)
+                .findByUserIdAndSourceAndImportSourceIdInOrderByTransactionDateDesc(
+                    userId, source.name(), selectedSourceIds)
                 .stream()
-                .filter(transaction -> source.name().equals(transaction.getSource()))
                 .filter(transaction -> startDate == null
                     || !transaction.getTransactionDate().isBefore(startDate))
                 .filter(transaction -> endDate == null
@@ -239,8 +244,13 @@ public class AnalysisService {
         modelVersions.put("transactionClassifier", "PERSISTED_CATEGORIES");
         modelVersions.put("analysisModel", model.name());
         modelVersions.put("transactionSource", source.name());
-        if (importSourceId != null) {
-            modelVersions.put("importSourceId", importSourceId.toString());
+        if (selectedSourceIds.size() == 1) {
+            modelVersions.put("importSourceId", selectedSourceIds.getFirst().toString());
+        } else if (!selectedSourceIds.isEmpty()) {
+            modelVersions.put("importSourceIds", selectedSourceIds.stream()
+                .map(UUID::toString)
+                .collect(Collectors.joining(",")));
+            modelVersions.put("importSourceCount", Integer.toString(selectedSourceIds.size()));
         }
 
         return Objects.requireNonNull(transactionOperations.execute(status -> {

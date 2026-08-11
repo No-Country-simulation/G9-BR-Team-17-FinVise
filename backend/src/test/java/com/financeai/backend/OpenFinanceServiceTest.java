@@ -108,7 +108,7 @@ class OpenFinanceServiceTest {
             userId, "PLUGGY", itemId, "Conta principal", transactions.getValue());
         verify(analysisService).analyzeStoredTransactions(
             eq(userId), eq(ProfileAnalysisModel.FINANCIAL_RULES),
-            any(), eq(connectionId), eq(null), eq(null));
+            any(), eq(connectionId), eq(null), eq(null), eq(null));
     }
 
     @Test

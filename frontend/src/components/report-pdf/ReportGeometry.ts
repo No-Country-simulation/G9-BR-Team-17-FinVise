@@ -13,7 +13,7 @@ export const COLORS = {
   muted: "#64748B",
   positive: "#0F9D58",
   negative: "#D93025",
-  accent: "#0EA5B7", // ciano do FinVise
+  accent: "#078DA2", // ciano do FinVise
   border: "#E2E8F0",
   headerBg: "#0B1220",
   headerText: "#FFFFFF",

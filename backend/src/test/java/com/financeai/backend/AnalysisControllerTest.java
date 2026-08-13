@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -139,6 +140,17 @@ class AnalysisControllerTest extends PostgresTestSupport {
     }
 
     @Test
+    void shouldDeleteAnalysisOwnedByAuthenticatedUser() throws Exception {
+        UUID analysisId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/v1/financial-analyses/{analysisId}", analysisId)
+                .header("Authorization", authHeader))
+            .andExpect(status().isNoContent());
+
+        verify(analysisService).deleteAnalysis(authenticatedUserId, analysisId);
+    }
+
+    @Test
     void shouldReturnSuccessfulEmptyResponseWhenThereIsNoLatestAnalysis() throws Exception {
         mockMvc.perform(get("/api/v1/financial-analyses/latest")
                 .header("Authorization", authHeader))
@@ -161,6 +173,8 @@ class AnalysisControllerTest extends PostgresTestSupport {
     void shouldAnalyzeStoredTransactionsWithSelectedModel() throws Exception {
         UUID analysisId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        UUID firstSourceId = UUID.randomUUID();
+        UUID secondSourceId = UUID.randomUUID();
         AnalysisResponse response = new AnalysisResponse(
             analysisId,
             userId,
@@ -173,7 +187,7 @@ class AnalysisControllerTest extends PostgresTestSupport {
             null
         );
         when(analysisService.analyzeStoredTransactions(
-            any(), any(), any(), any(), any(), any())).thenReturn(response);
+            any(), any(), any(), any(), any(), any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/financial-analyses/from-transactions")
                 .header("Authorization", authHeader)
@@ -182,15 +196,17 @@ class AnalysisControllerTest extends PostgresTestSupport {
                     {
                       "userId": "%s",
                       "model": "MACHINE_LEARNING",
-                      "source": "CSV_IMPORT"
+                      "source": "CSV_IMPORT",
+                      "importSourceIds": ["%s", "%s"]
                     }
-                    """.formatted(userId)))
+                    """.formatted(userId, firstSourceId, secondSourceId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.analysisId").value(analysisId.toString()))
             .andExpect(jsonPath("$.data.modelVersions.analysisModel").value("MACHINE_LEARNING"));
 
         verify(analysisService).analyzeStoredTransactions(
-            eq(authenticatedUserId), any(), any(), any(), any(), any());
+            eq(authenticatedUserId), any(), any(), any(),
+            eq(List.of(firstSourceId, secondSourceId)), any(), any());
     }
 
     @Test

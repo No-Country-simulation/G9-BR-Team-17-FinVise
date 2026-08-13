@@ -125,6 +125,7 @@ export const analysisService = {
     source: TransactionSource,
     period?: { startDate?: string; endDate?: string },
     importSourceId?: string,
+    importSourceIds?: string[],
   ): Promise<FinancialAnalysisResponse> {
     const { data: response } = await api.post<ApiResponse<BackendAnalysisResponse>>(
       '/financial-analyses/from-transactions',
@@ -132,6 +133,7 @@ export const analysisService = {
         model,
         source,
         importSourceId,
+        importSourceIds,
         startDate: period?.startDate || undefined,
         endDate: period?.endDate || undefined,
       }
@@ -154,6 +156,10 @@ export const analysisService = {
     return mapAnalysis(response.data);
   },
 
+  async delete(id: string): Promise<void> {
+    await api.delete(`/financial-analyses/${id}`);
+  },
+
   async getLatest(
     source: TransactionSource,
     importSourceId?: string,
@@ -166,7 +172,7 @@ export const analysisService = {
   },
 
   async getAll(
-    source: TransactionSource,
+    source?: TransactionSource,
     page = 0,
     size = 20,
   ): Promise<PaginatedResponse<FinancialAnalysisResponse>> {

@@ -16,6 +16,7 @@ import { importSourceService } from '@/services/importSourceService';
 import { TransactionSource } from '@/types/transaction';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/components/auth/useTheme';
+import { ImportSourceSelector } from '@/components/transactions/ImportSourceSelector';
 
 function transactionSource(type: 'CSV' | 'OPEN_FINANCE'): TransactionSource {
   return type === 'CSV' ? 'CSV_IMPORT' : 'OPEN_FINANCE_PLUGGY';
@@ -120,25 +121,17 @@ export function TransactionsPage() {
         </div>
         <div className="grid gap-2 md:grid-cols-[minmax(15rem,1fr)_auto_auto] md:items-end xl:shrink-0">
           {selectedImportSource && (
-            <label className="block min-w-0">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fonte dos dados
-              </span>
-              <Select
-                aria-label="Fonte dos dados"
-                value={selectedImportSource.id}
-                onChange={(event) => {
-                  const selected = importSources.find((item) => item.id === event.target.value);
-                  setSelectedSourceId(event.target.value);
+            <ImportSourceSelector
+              sources={importSources}
+              value={selectedImportSource.id}
+              onChange={(sourceId) => {
+                  const selected = importSources.find((item) => item.id === sourceId);
+                  setSelectedSourceId(sourceId);
                   if (selected) setSource(transactionSource(selected.type));
                   setPage(0);
-                }}
-                options={importSources.map((item) => ({
-                  value: item.id,
-                  label: `${item.defaultSource ? '★ ' : ''}${item.displayName}`,
-                }))}
-              />
-            </label>
+              }}
+              className="min-w-0 md:min-w-[15rem]"
+            />
           )}
           <Link to="/import">
             <Button variant="outline" className="w-full whitespace-nowrap md:w-auto">

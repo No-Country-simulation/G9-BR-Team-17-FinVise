@@ -15,8 +15,8 @@ export function AuthShell({ children, logo }: AuthShellProps) {
     () => ({
       page:
         theme === 'dark'
-          ? 'bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.22),transparent_24%),radial-gradient(circle_at_80%_40%,rgba(14,165,233,0.14),transparent_25%),linear-gradient(135deg,#04111d_0%,#0b1a2b_55%,#12324a_100%)] text-white'
-          : 'bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.12),transparent_24%),radial-gradient(circle_at_80%_40%,rgba(14,165,233,0.08),transparent_25%),linear-gradient(135deg,#eef4f9_0%,#dfe8f0_55%,#cbd7e3_100%)] text-slate-900',
+          ? 'bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.22),transparent_24%),radial-gradient(circle_at_80%_40%,rgba(7,141,162,0.14),transparent_25%),linear-gradient(135deg,#04111d_0%,#0b1a2b_55%,#12324a_100%)] text-white'
+          : 'bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.12),transparent_24%),radial-gradient(circle_at_80%_40%,rgba(7,141,162,0.08),transparent_25%),linear-gradient(135deg,#eef4f9_0%,#dfe8f0_55%,#cbd7e3_100%)] text-slate-900',
       card:
         theme === 'dark'
           ? 'border-white/12 bg-white/8 text-white shadow-[0_30px_90px_rgba(2,8,23,0.38)]'
@@ -47,9 +47,9 @@ export function AuthShell({ children, logo }: AuthShellProps) {
       <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute left-[-8%] top-[18%] h-[28rem] w-[28rem] rounded-full bg-cyan-400/20 blur-3xl" />
-          <div className="absolute right-[-10%] top-[8%] h-[26rem] w-[26rem] rounded-full bg-sky-400/12 blur-3xl" />
+          <div className="absolute right-[-10%] top-[8%] h-[26rem] w-[26rem] rounded-full bg-cyan-400/12 blur-3xl" />
           <div className="absolute left-[14%] top-[48%] h-px w-[18rem] bg-cyan-300/30" />
-          <div className="absolute right-[8%] top-[60%] h-px w-[14rem] bg-sky-300/20" />
+          <div className="absolute right-[8%] top-[60%] h-px w-[14rem] bg-cyan-300/20" />
           <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
         </div>
 

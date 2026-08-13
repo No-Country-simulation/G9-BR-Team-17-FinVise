@@ -238,7 +238,7 @@ export function ImportSourcesPage() {
           </Button>
           <Link
             to="/import"
-            className="inline-flex h-14 w-full items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#5fe6ea_0%,#2fcbd7_100%)] px-5 py-2 text-[16px] font-semibold tracking-tight text-slate-950 shadow-[0_12px_30px_rgba(45,212,191,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(45,212,191,0.24)] focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            className="app-primary-button inline-flex h-11 w-full items-center justify-center rounded-full border border-cyan-200/20 bg-[#078da2] px-5 py-2 text-sm font-semibold tracking-tight text-white shadow-[0_10px_32px_-16px_rgba(0,188,214,0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#079aae] hover:shadow-[0_14px_38px_-14px_rgba(0,188,214,0.48)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
           >
             <Plus className="mr-2 h-4 w-4" />Nova importação
           </Link>

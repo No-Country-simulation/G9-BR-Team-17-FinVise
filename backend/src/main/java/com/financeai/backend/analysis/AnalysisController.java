@@ -36,7 +36,7 @@ public class AnalysisController {
         @Valid @RequestBody AnalyzeStoredTransactionsRequest request) {
         AnalysisResponse response = analysisService.analyzeStoredTransactions(
             authenticatedUserProvider.getUserId(), request.model(), request.source(), request.importSourceId(),
-            request.startDate(), request.endDate());
+            request.importSourceIds(), request.startDate(), request.endDate());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -79,5 +79,11 @@ public class AnalysisController {
         AnalysisResponse response = analysisService.getAnalysis(
             authenticatedUserProvider.getUserId(), analysisId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{analysisId}")
+    public ResponseEntity<Void> deleteAnalysis(@PathVariable UUID analysisId) {
+        analysisService.deleteAnalysis(authenticatedUserProvider.getUserId(), analysisId);
+        return ResponseEntity.noContent().build();
     }
 }

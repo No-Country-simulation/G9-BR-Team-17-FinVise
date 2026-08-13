@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { generateUUID } from '@/lib/utils';
 import {
   AgentRequest,
   AgentResponse,
@@ -91,7 +92,7 @@ async function createConversation(request: AgentRequest): Promise<string> {
 export const agentService = {
   async sendMessage(request: AgentRequest): Promise<AgentResponse> {
     const conversationId = request.conversationId || await createConversation(request);
-    const clientMessageId = request.clientMessageId || crypto.randomUUID();
+    const clientMessageId = request.clientMessageId || generateUUID();
     const { data: response } = await api.post<ApiResponse<BackendConversation>>(
       `/agent/conversations/${conversationId}/messages`,
       { content: request.message, clientMessageId }
@@ -113,7 +114,7 @@ export const agentService = {
     signal?: AbortSignal
   ): Promise<AgentResponse> {
     const conversationId = request.conversationId || await createConversation(request);
-    const clientMessageId = request.clientMessageId || crypto.randomUUID();
+    const clientMessageId = request.clientMessageId || generateUUID();
     handlers.onConversation?.(conversationId);
 
     const token = localStorage.getItem('finance_ai_token');

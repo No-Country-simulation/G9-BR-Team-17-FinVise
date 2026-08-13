@@ -23,7 +23,7 @@ import { importSourceService, ImportSource } from '@/services/importSourceServic
 import { AgentMessage, RagSource } from '@/types/agent';
 import { TransactionSource } from '@/types/transaction';
 import { extractErrorMessage } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, generateUUID } from '@/lib/utils';
 
 const welcomeMessage: AgentMessage = {
   id: 'welcome',
@@ -173,7 +173,7 @@ export function AgentPage() {
     }
 
     const userMessage: AgentMessage = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       role: 'user',
       content: text,
       timestamp: new Date().toISOString(),

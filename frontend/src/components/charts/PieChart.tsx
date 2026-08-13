@@ -25,7 +25,7 @@ interface PreparedPieChartData extends PieChartData {
 }
 
 const defaultColors = [
-  '#2563eb',
+  '#078da2',
   '#7c3aed',
   '#059669',
   '#ea580c',

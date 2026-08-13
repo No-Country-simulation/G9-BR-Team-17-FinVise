@@ -33,7 +33,7 @@ function LoginExperience({ isDark, reduceMotion }: ExperienceProps) {
             <linearGradient id="login-flow-primary" x1="20" y1="300" x2="680" y2="65" gradientUnits="userSpaceOnUse">
               <stop stopColor="#22d3ee" stopOpacity="0.04" />
               <stop offset="0.5" stopColor="#2dd4bf" />
-              <stop offset="1" stopColor="#2563eb" stopOpacity="0.22" />
+              <stop offset="1" stopColor="#078da2" stopOpacity="0.22" />
             </linearGradient>
           </defs>
           <motion.path
@@ -169,7 +169,7 @@ export function AuthExperiencePanel({ mode = 'login' }: AuthExperiencePanelProps
       )}
     >
       <div aria-hidden="true" className={cn('absolute left-[8%] top-[16%] h-64 w-64 rounded-full blur-3xl', isDark ? 'bg-cyan-400/10' : 'bg-cyan-300/22')} />
-      <div aria-hidden="true" className={cn('absolute bottom-[8%] right-[4%] h-72 w-72 rounded-full blur-3xl', isDark ? 'bg-teal-400/8' : 'bg-blue-300/16')} />
+      <div aria-hidden="true" className={cn('absolute bottom-[8%] right-[4%] h-72 w-72 rounded-full blur-3xl', isDark ? 'bg-teal-400/8' : 'bg-cyan-300/16')} />
       {mode === 'login' ? <LoginExperience isDark={isDark} reduceMotion={reduceMotion} /> : null}
       {mode === 'register' ? <RegisterExperience isDark={isDark} reduceMotion={reduceMotion} /> : null}
       {mode === 'recovery' ? <RecoveryExperience isDark={isDark} reduceMotion={reduceMotion} /> : null}

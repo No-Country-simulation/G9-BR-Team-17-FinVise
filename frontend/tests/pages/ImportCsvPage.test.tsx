@@ -65,8 +65,8 @@ describe('ImportCsvPage', () => {
 
     fireEvent.change(input, { target: { files: [file] } });
 
-    expect(screen.getByText('O arquivo excede o tamanho máximo de 5 MB.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /importar/i })).toBeDisabled();
+    expect(screen.getByText(/large\.csv: excede 5 MB/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /importar .* gerar análise/i })).not.toBeInTheDocument();
   });
 
   it('acompanha a indexação até concluir antes de gerar a análise', async () => {
@@ -107,16 +107,16 @@ describe('ImportCsvPage', () => {
     );
 
     fireEvent.change(input, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: /^importar e analisar$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /importar 1 arquivo e gerar análise/i }));
 
     await waitFor(() => {
       expect(mocks.getRagIndexStatus).toHaveBeenCalledTimes(2);
     }, { timeout: 2500 });
     expect(mocks.analyzeStoredTransactions).not.toHaveBeenCalled();
     expect(screen.getByRole('progressbar', {
-      name: /progresso da importação e indexação/i,
-    })).toHaveAttribute('aria-valuenow', '50');
-    expect(screen.getByText(/2 de 4 documentos vetorizados; 2 restantes/i)).toBeInTheDocument();
+      name: /progresso da importação/i,
+    })).toHaveAttribute('aria-valuenow', '55');
+    expect(screen.getByText(/seu arquivo já foi recebido e será processado em seguida/i)).toBeInTheDocument();
 
     await act(async () => {
       completeIndexing({
@@ -138,10 +138,11 @@ describe('ImportCsvPage', () => {
       'MACHINE_LEARNING',
       'CSV_IMPORT',
       undefined,
-      'fonte-123',
+      undefined,
+      ['fonte-123'],
     );
-    expect(screen.getByText(/2 transações importadas, 2 categorizadas/i)).toBeInTheDocument();
-    expect(screen.getByText(/indexação vetorial foi concluída/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 arquivo, 2 transações importadas e 2 categorizadas/i)).toBeInTheDocument();
+    expect(screen.getByText(/importação concluída/i)).toBeInTheDocument();
   });
 
   it('interrompe a análise quando a fila entra em dead-letter', async () => {
@@ -172,9 +173,63 @@ describe('ImportCsvPage', () => {
     );
 
     fireEvent.change(input, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: /^importar e analisar$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /importar 1 arquivo e gerar análise/i }));
 
-    expect(await screen.findByText(/falhou após esgotar as tentativas/i)).toBeInTheDocument();
+    expect(await screen.findByText(/não foi possível preparar todos os dados/i)).toBeInTheDocument();
     expect(mocks.analyzeStoredTransactions).not.toHaveBeenCalled();
+  });
+
+  it('importa vários CSVs e gera uma análise consolidada para o lote', async () => {
+    mocks.importCsv
+      .mockResolvedValueOnce({
+        sourceId: 'fonte-1',
+        importedCount: 2,
+        categorizedCount: 2,
+      })
+      .mockResolvedValueOnce({
+        sourceId: 'fonte-2',
+        importedCount: 3,
+        categorizedCount: 3,
+      });
+    mocks.getRagIndexStatus.mockResolvedValue({
+      status: 'COMPLETE',
+      totalDocuments: 2,
+      pendingDocuments: 0,
+      processingDocuments: 0,
+      indexedDocuments: 2,
+      failedDocuments: 0,
+    });
+    mocks.analyzeStoredTransactions.mockResolvedValue({ id: 'analise-lote' });
+
+    const { container } = renderPage();
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const firstFile = new File(
+      ['description,amount,date,type\nMercado,100,2026-07-01,EXPENSE'],
+      'janeiro.csv',
+      { type: 'text/csv' },
+    );
+    const secondFile = new File(
+      ['description,amount,date,type\nSalário,5000,2026-08-01,INCOME'],
+      'fevereiro.csv',
+      { type: 'text/csv' },
+    );
+
+    fireEvent.change(input, { target: { files: [firstFile, secondFile] } });
+    fireEvent.click(screen.getByRole('button', { name: /importar 2 arquivos e gerar análise/i }));
+
+    await waitFor(() => {
+      expect(mocks.analyzeStoredTransactions).toHaveBeenCalledWith(
+        'MACHINE_LEARNING',
+        'CSV_IMPORT',
+        undefined,
+        undefined,
+        ['fonte-1', 'fonte-2'],
+      );
+    });
+    expect(mocks.importCsv).toHaveBeenNthCalledWith(1, firstFile);
+    expect(mocks.importCsv).toHaveBeenNthCalledWith(2, secondFile);
+    expect(mocks.getRagIndexStatus).toHaveBeenNthCalledWith(1, 'fonte-1');
+    expect(mocks.getRagIndexStatus).toHaveBeenNthCalledWith(2, 'fonte-2');
+    expect(screen.getByText(/2 arquivos, 5 transações importadas e 5 categorizadas/i)).toBeInTheDocument();
   });
 });

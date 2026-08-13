@@ -114,7 +114,7 @@ public class OpenFinanceService {
 
         AnalysisResponse analysis = analysisService.analyzeStoredTransactions(
             userId, model, TransactionSource.OPEN_FINANCE_PLUGGY,
-            persisted.connectionId(), null, null);
+            persisted.connectionId(), null, null, null);
         return new OpenFinanceSyncResponse(
             persisted.insertedCount(),
             providerTransactions.size() - persisted.insertedCount(),

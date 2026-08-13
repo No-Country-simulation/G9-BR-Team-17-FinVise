@@ -26,6 +26,9 @@ const NewAnalysisPage = lazy(() =>
 const AnalysisResultPage = lazy(() =>
   import('@/pages/AnalysisResultPage').then((module) => ({ default: module.AnalysisResultPage }))
 );
+const AnalysisHistoryPage = lazy(() =>
+  import('@/pages/AnalysisHistoryPage').then((module) => ({ default: module.AnalysisHistoryPage }))
+);
 const ImportCsvPage = lazy(() =>
   import('@/pages/ImportCsvPage').then((module) => ({ default: module.ImportCsvPage }))
 );
@@ -91,6 +94,7 @@ export function AppRoutes() {
             }
           />
           <Route path="transactions" element={<TransactionsPage />} />
+          <Route path="analyses" element={<AnalysisHistoryPage />} />
           <Route path="analyses/new" element={<NewAnalysisPage />} />
           <Route path="analyses/:analysisId" element={<AnalysisResultPage />} />
           <Route path="import" element={<ImportCsvPage />} />

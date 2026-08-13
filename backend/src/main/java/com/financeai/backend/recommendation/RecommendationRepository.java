@@ -14,6 +14,8 @@ public interface RecommendationRepository extends JpaRepository<Recommendation, 
 
     List<Recommendation> findByAnalysisIdOrderByPriorityDesc(UUID analysisId);
 
+    void deleteByAnalysisId(UUID analysisId);
+
     List<Recommendation> findByAnalysis_UserIdOrderByCreatedAtDesc(UUID userId);
 
     @Query("""

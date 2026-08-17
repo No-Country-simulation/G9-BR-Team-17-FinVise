@@ -61,6 +61,8 @@ feature/* ou fix/* -> dev -> homolog -> main (produção)
 
 O workflow `Branch policy` valida automaticamente o caminho de promoção. O arquivo
 `CODEOWNERS` define o proprietário responsável pela aprovação de produção.
+Consulte também a [Estratégia de CI/CD](ci-cd.md) para os jobs, gatilhos,
+espelhamento e limites do deploy.
 
 ## Convenção de commits
 
@@ -75,6 +77,7 @@ docs: documenta processo de homologação
 ## Correção urgente em produção
 
 Crie `hotfix/<descricao>` a partir de `dev`, valide normalmente e promova pelo mesmo
-caminho. Se a urgência exigir exceção ao fluxo, registre a justificativa no PR e faça
-a mudança somente com aprovação explícita do proprietário.
+caminho. O workflow atual rejeita PR direto de `hotfix/*` para `main`. Se a urgência
+exigir uma exceção administrativa, registre justificativa, risco e rollback no PR e
+prossiga somente com aprovação explícita do proprietário.
 

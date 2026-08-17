@@ -186,7 +186,7 @@ O workflow de política de branches valida a promoção. O fluxo esperado é:
 feature/*, fix/*, docs/* -> dev -> homolog -> main
 ```
 
-Detalhes: [Estratégia de branches](BRANCHING.md).
+O pipeline versionado valida e promove código, mas não faz deploy. Detalhes, responsabilidades manuais e limites: [Estratégia de CI/CD](ci-cd.md). Regras de nomes e promoção: [Estratégia de branches](BRANCHING.md).
 
 ## Modelos
 

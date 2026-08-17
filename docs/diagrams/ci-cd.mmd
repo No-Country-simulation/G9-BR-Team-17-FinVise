@@ -1,0 +1,24 @@
+flowchart LR
+    W["Branch de trabalho<br/>feature, fix, docs, chore,<br/>refactor ou hotfix"] --> PRD["Pull request<br/>para dev"]
+
+    subgraph GH["GitHub Actions"]
+        POLICY["Branch policy<br/>valida origem e destino"]
+        BACK["Backend<br/>Java 21 + Maven tests"]
+        FRONT["Frontend<br/>Node 22 + lint,<br/>coverage e build"]
+        AI["AI Service<br/>Python 3.11 + Ruff<br/>e Pytest"]
+    end
+
+    PRD --> POLICY
+    PRD --> BACK
+    PRD --> FRONT
+    PRD --> AI
+    POLICY --> DEV[dev]
+    BACK --> DEV
+    FRONT --> DEV
+    AI --> DEV
+    DEV -->|PR e CI| HOM[homolog]
+    HOM -->|aceite, PR e CI| MAIN[main]
+    DEV -.-> MIRROR["Repositório privado<br/>sincronização best effort"]
+    HOM -.-> MIRROR
+    MAIN -.-> MIRROR
+    MAIN -->|processo fora do GitHub Actions| DEPLOY["Deploy<br/>Dockploy ou Docker Compose"]

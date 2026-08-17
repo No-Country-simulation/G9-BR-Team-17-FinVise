@@ -1,6 +1,6 @@
 # Deploy na OCI
 
-> Antes do deploy, revise o [catálogo de configuração](configuration.md), o [checklist de segurança](security.md) e o [índice da documentação](README.md).
+> Antes do deploy, revise o [catálogo de configuração](configuration.md), o [checklist de segurança](security.md), a [estratégia de CI/CD](ci-cd.md) e o [índice da documentação](README.md). A CI valida o código e a promoção, mas não executa este deploy.
 
 ## Visão geral
 

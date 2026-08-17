@@ -253,7 +253,7 @@ npm run test:coverage -- --run
 npm run build
 ```
 
-Esses comandos refletem as verificações do workflow `.github/workflows/ci.yml`.
+Esses comandos refletem as verificações do workflow `.github/workflows/ci.yml`. A promoção entre branches, o espelhamento e o limite atual do deploy estão descritos em [Estratégia de CI/CD](docs/ci-cd.md).
 
 ## Variáveis de ambiente
 
@@ -289,6 +289,7 @@ O catálogo com padrões, diferenças entre Compose e execução isolada e depen
 - [Ciência de dados](docs/data-science.md)
 - [Segurança](docs/security.md)
 - [Deploy na OCI](docs/deployment-oci.md)
+- [Estratégia de CI/CD](docs/ci-cd.md)
 - [Estratégia de branches](docs/BRANCHING.md)
 - [Decisões arquiteturais](docs/adr/)
 - [Notebook de ciência de dados](<notebooks/finance_ai_data_science .ipynb>)

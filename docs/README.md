@@ -10,6 +10,7 @@ Este diretório reúne a documentação funcional, técnica e operacional do Fin
 | Configurar variáveis e integrações | [Configuração](configuration.md) |
 | Conhecer os fluxos disponíveis na interface | [Guia de uso](user-guide.md) |
 | Desenvolver e testar localmente | [Desenvolvimento e operação local](development.md) |
+| Entender integração, promoção e deploy | [Estratégia de CI/CD](ci-cd.md) |
 | Consultar endpoints, payloads e erros | [API](api.md) |
 | Entender os componentes e fluxos internos | [Arquitetura](architecture.md) |
 | Publicar em uma instância OCI | [Deploy na OCI](deployment-oci.md) |
@@ -39,6 +40,7 @@ Este diretório reúne a documentação funcional, técnica e operacional do Fin
 
 - [Configuração](configuration.md): catálogo consolidado de variáveis por componente.
 - [Desenvolvimento e operação local](development.md): Docker, execução isolada, CI, backup, restore e diagnóstico.
+- [Estratégia de CI/CD](ci-cd.md): GitHub Actions, gates, promoção de branches, espelhamento privado e deploy externo.
 - [Segurança](security.md): controles implementados, segredos e limites conhecidos.
 - [Deploy na OCI](deployment-oci.md): preparação da instância e operação em produção.
 

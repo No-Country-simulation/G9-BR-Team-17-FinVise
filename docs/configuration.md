@@ -53,7 +53,7 @@ Na topologia padrão, as duas senhas do banco precisam ser iguais. No perfil `pr
 | `NGINX_HTTP_PORT` | `8080` | porta HTTP publicada pelo Compose base |
 | `VITE_API_BASE_URL` | `/api/v1` | base incorporada no build do frontend |
 
-O override de produção publica Nginx em `80:80`, independentemente de `NGINX_HTTP_PORT`. O estado versionado não publica PostgreSQL, backend ou AI Service no host.
+O Compose base publica o PostgreSQL apenas no loopback (`127.0.0.1:5432`) para facilitar o desenvolvimento, sem expô-lo na rede externa do host. O override de produção remove essa publicação e expõe somente o Nginx em `80:80`, independentemente de `NGINX_HTTP_PORT`. Backend e AI Service não publicam portas no host em nenhum dos dois arquivos versionados.
 
 ## PostgreSQL
 

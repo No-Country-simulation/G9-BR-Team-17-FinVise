@@ -50,7 +50,7 @@ URLs:
 - backend health: `http://localhost:8080/actuator/health`;
 - Swagger: `http://localhost:8080/api/v1/swagger-ui.html`.
 
-No estado versionado, somente o Nginx publica porta no host. Use `docker compose exec` para acessar serviços internos.
+No Compose base, o Nginx publica `8080` e o PostgreSQL publica `5432` exclusivamente em `127.0.0.1`, permitindo o uso seguro de clientes SQL locais. Backend e AI Service não publicam portas; use `docker compose exec` para acessá-los diretamente.
 
 ## Ciclo Docker
 
@@ -92,7 +92,7 @@ docker compose down -v --remove-orphans
 
 ### Banco
 
-Você pode iniciar apenas PostgreSQL com Compose. Se o estado versionado não publicar a porta, use um override local não commitado ou execute o backend no próprio Compose. Não altere o Compose oficial somente para uma necessidade pessoal sem separar esse escopo.
+Você pode iniciar apenas o PostgreSQL com Compose. A porta versionada aceita conexões locais em `127.0.0.1:5432`; mantenha esse bind de loopback e não publique o banco em `0.0.0.0`.
 
 ### Backend
 

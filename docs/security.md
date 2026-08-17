@@ -8,7 +8,7 @@ Os controles implementados cobrem proxy/rede, autenticação JWT, isolamento por
 
 ### Docker Compose
 
-- No Compose base, somente o Nginx é publicado no host, em `${NGINX_HTTP_PORT:-8080}:80`; PostgreSQL, backend e AI Service não publicam portas.
+- No Compose base, o Nginx é publicado em `${NGINX_HTTP_PORT:-8080}:80` e o PostgreSQL exclusivamente no loopback, em `127.0.0.1:5432`; essa porta do banco não aceita conexões pela interface externa do host.
 - Backend, frontend e AI Service não publicam portas no host.
 - O override de produção remove a porta do PostgreSQL e publica somente Nginx em `80:80`.
 - Todos os serviços compartilham `finvise_internal`. Apesar do nome, a rede usa `internal: false` para permitir saída à internet, necessária a Pluggy, Resend, API de LLM e pull de dependências/imagens.

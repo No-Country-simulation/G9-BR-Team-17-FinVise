@@ -8,5 +8,5 @@ graph TB
     B --> P[(PostgreSQL + volumes)]
     B --> A[AI Service]
     A -->|SQL RAG| P
-    A --> M[Modelos montados read-only]
+    A --> M[Modelos Joblib incorporados à imagem]
     B -.->|CSV opcional; credenciais ainda requerem estratégia| OBS[OCI Object Storage]

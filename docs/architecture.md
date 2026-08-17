@@ -11,6 +11,41 @@ O FinVise é um monorepo composto por três aplicações e uma camada de infraes
 3. **AI Service** — Python 3.11+, FastAPI 0.115.6, Scikit-learn e agente com ferramentas.
 4. **Infraestrutura** — PostgreSQL 16 com `pgvector`, Nginx e Docker Compose.
 
+```mermaid
+flowchart LR
+    U["Usuário<br/>Navegador ou PWA"] -->|HTTPS| TLS["TLS externo<br/>Dockploy, proxy ou load balancer"]
+
+    subgraph FINVISE["Docker Compose — FinVise"]
+        N["Nginx<br/>gateway HTTP"]
+        F["Frontend<br/>React + Vite<br/>SPA/PWA"]
+        B["Backend API<br/>Spring Boot<br/>regras, autenticação e worker RAG"]
+        A["AI Service<br/>FastAPI<br/>ML, agente e embeddings"]
+        DB[("PostgreSQL 16<br/>dados, fila RAG e pgvector")]
+        UP[("uploads_data")]
+        ML[("Modelos Joblib<br/>incorporados à imagem")]
+
+        N -->|/ e assets| F
+        N -->|/api e /actuator/health| B
+        B -->|JPA, JDBC e Flyway| DB
+        B -->|Bearer interno + identidade| A
+        A -->|SQL restrito ao RAG| DB
+        B -->|CSV local| UP
+        A -->|inferência| ML
+    end
+
+    TLS -->|HTTP interno| N
+    N -.->|/internal bloqueado| DENY[403]
+    B -->|Open Finance| PLUGGY[Pluggy]
+    B -.->|e-mail| RESEND[Resend]
+    B -.->|CSV opcional| OCI[OCI Object Storage]
+    A -.->|chat e embeddings opcionais| LLM[API compatível com OpenAI]
+```
+
+As setas tracejadas representam integrações opcionais. A fonte isolada e reutilizável do desenho está em [`docs/diagrams/architecture.mmd`](diagrams/architecture.mmd).
+
+<details>
+<summary>Visão textual alternativa</summary>
+
 ```text
 Navegador
    │
@@ -28,7 +63,9 @@ Nginx
                          └──────── SQL de RAG ────────────────────────────────▲
 ```
 
-No Compose local, somente o Nginx é publicado no host, por padrão em `8080`. No override de produção, apenas o Nginx é publicado em `80`; PostgreSQL, backend e AI Service permanecem restritos à rede interna.
+</details>
+
+No Compose local, o Nginx é publicado no host em `8080` e o PostgreSQL somente no loopback (`127.0.0.1:5432`) para acesso por ferramentas locais. No override de produção, apenas o Nginx é publicado em `80`; PostgreSQL, backend e AI Service permanecem restritos à rede Docker.
 
 ## Princípios arquiteturais
 
@@ -92,7 +129,7 @@ Não há LangChain, SDK oficial da OpenAI nem SHAP nas dependências atuais. Cha
 
 ### PostgreSQL e persistência
 
-O schema efetivo é a composição das migrações `V1`–`V21`:
+O schema efetivo é a composição das migrações `V1`–`V28`:
 
 | Grupo | Tabelas | Finalidade |
 | --- | --- | --- |
@@ -120,7 +157,7 @@ Serviços do `docker-compose.yml`:
 
 | Serviço | Imagem/build | Exposição local |
 | --- | --- | --- |
-| `postgres` | `pgvector/pgvector:pg16` | nenhuma porta publicada no Compose base ou no override de produção |
+| `postgres` | `pgvector/pgvector:pg16` | `127.0.0.1:5432` no Compose base; nenhuma porta no override de produção |
 | `backend` | build de `backend/Dockerfile` | somente rede Docker |
 | `ai-service` | build de `ai-service/Dockerfile` | somente rede Docker |
 | `frontend` | build e Nginx próprio | somente rede Docker |

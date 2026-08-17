@@ -25,7 +25,7 @@ Este diretório reúne a documentação funcional, técnica e operacional do Fin
 ### Backend e dados
 
 - [Backend](../backend/README.md): módulos Spring Boot, banco, integrações, execução e testes.
-- [Arquitetura](architecture.md): limites entre frontend, backend, AI Service, PostgreSQL e integrações externas.
+- [Arquitetura](architecture.md): diagrama renderizado no GitHub e limites entre frontend, backend, AI Service, PostgreSQL e integrações externas.
 - [Arquitetura RAG](rag-architecture.md): ingestão, fila durável, embeddings, busca híbrida e SSE.
 - [Dados](../data/README.md): datasets, amostras, scripts e diferença entre treino e upload.
 

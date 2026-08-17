@@ -34,6 +34,41 @@ O **FinVise** é uma aplicação financeira em monorepo. O usuário pode cadastr
 
 ## 🏗️ Arquitetura
 
+```mermaid
+flowchart LR
+    U["Usuário<br/>Navegador ou PWA"] -->|HTTPS| TLS["TLS externo<br/>Dockploy, proxy ou load balancer"]
+
+    subgraph FINVISE["Docker Compose — FinVise"]
+        N["Nginx<br/>gateway HTTP"]
+        F["Frontend<br/>React + Vite<br/>SPA/PWA"]
+        B["Backend API<br/>Spring Boot<br/>regras, autenticação e worker RAG"]
+        A["AI Service<br/>FastAPI<br/>ML, agente e embeddings"]
+        DB[("PostgreSQL 16<br/>dados, fila RAG e pgvector")]
+        UP[("uploads_data")]
+        ML[("Modelos Joblib<br/>incorporados à imagem")]
+
+        N -->|/ e assets| F
+        N -->|/api e /actuator/health| B
+        B -->|JPA, JDBC e Flyway| DB
+        B -->|Bearer interno + identidade| A
+        A -->|SQL restrito ao RAG| DB
+        B -->|CSV local| UP
+        A -->|inferência| ML
+    end
+
+    TLS -->|HTTP interno| N
+    N -.->|/internal bloqueado| DENY[403]
+    B -->|Open Finance| PLUGGY[Pluggy]
+    B -.->|e-mail| RESEND[Resend]
+    B -.->|CSV opcional| OCI[OCI Object Storage]
+    A -.->|chat e embeddings opcionais| LLM[API compatível com OpenAI]
+```
+
+As setas tracejadas representam integrações opcionais. O navegador acessa somente o gateway; o AI Service não possui rota pública. Veja a [arquitetura detalhada](docs/architecture.md) e a [fonte Mermaid do diagrama](docs/diagrams/architecture.mmd).
+
+<details>
+<summary>Visão textual alternativa</summary>
+
 ```text
 Navegador
    │ HTTP local ou HTTPS com terminação TLS externa
@@ -51,6 +86,8 @@ Nginx :8080 (desenvolvimento) / :80 (produção)
                            ├── API compatível com OpenAI             │
                            └── SQL direto restrito a RAG ────────────┘
 ```
+
+</details>
 
 ### Componentes
 
@@ -96,7 +133,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-A aplicação fica disponível em `http://localhost:8080`. No Compose versionado, PostgreSQL, backend e AI Service não publicam portas no host; o acesso externo ocorre somente pelo Nginx.
+A aplicação fica disponível em `http://localhost:8080`. No Compose base, o PostgreSQL também é publicado exclusivamente no loopback do host (`127.0.0.1:5432`) para ferramentas locais; backend e AI Service permanecem acessíveis somente pela rede Docker. O override de produção remove a porta do PostgreSQL e publica apenas o Nginx.
 
 Requisitos dos segredos:
 

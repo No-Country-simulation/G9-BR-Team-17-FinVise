@@ -1,11 +1,27 @@
-graph LR
-    U[Usuário] -->|HTTP local ou HTTPS via TLS externo| N[Nginx]
-    N -->|/| F[Frontend React]
-    N -->|/api e /actuator/health| B[Backend Spring Boot]
-    N -->|/internal| X[403]
-    B -->|HTTP interno| A[AI Service FastAPI]
-    B -->|JDBC e Flyway| P[(PostgreSQL 16 + pgvector)]
-    A -->|SQL restrito a RAG| P
-    A -->|Joblib| M[Modelos ML opcionais]
-    A -.->|Chat e embeddings opcionais| L[API compatível com OpenAI]
-    F -.->|PWA| C[Service Worker]
+flowchart LR
+    U["Usuário<br/>Navegador ou PWA"] -->|HTTPS| TLS["TLS externo<br/>Dockploy, proxy ou load balancer"]
+
+    subgraph FINVISE["Docker Compose — FinVise"]
+        N["Nginx<br/>gateway HTTP"]
+        F["Frontend<br/>React + Vite<br/>SPA/PWA"]
+        B["Backend API<br/>Spring Boot<br/>regras, autenticação e worker RAG"]
+        A["AI Service<br/>FastAPI<br/>ML, agente e embeddings"]
+        DB[("PostgreSQL 16<br/>dados, fila RAG e pgvector")]
+        UP[("uploads_data")]
+        ML[("Modelos Joblib<br/>incorporados à imagem")]
+
+        N -->|/ e assets| F
+        N -->|/api e /actuator/health| B
+        B -->|JPA, JDBC e Flyway| DB
+        B -->|Bearer interno + identidade| A
+        A -->|SQL restrito ao RAG| DB
+        B -->|CSV local| UP
+        A -->|inferência| ML
+    end
+
+    TLS -->|HTTP interno| N
+    N -.->|/internal bloqueado| DENY[403]
+    B -->|Open Finance| PLUGGY[Pluggy]
+    B -.->|e-mail| RESEND[Resend]
+    B -.->|CSV opcional| OCI[OCI Object Storage]
+    A -.->|chat e embeddings opcionais| LLM[API compatível com OpenAI]

@@ -63,6 +63,7 @@ ai-service/models/**/*.pkl
 ai-service/models/**/*.json
 
 # IDE
+.claude
 .idea/
 *.iml
 .vscode/

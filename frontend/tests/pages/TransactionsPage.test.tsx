@@ -112,4 +112,16 @@ describe('TransactionsPage', () => {
       importSourceId: 'open-finance-1',
     }));
   });
+
+  it('mantém as ações de importação agrupadas quando não existem fontes', async () => {
+    vi.mocked(importSourceService.getAll).mockResolvedValue([]);
+    renderPage();
+
+    await screen.findByText('Mercado página 1');
+    const actions = screen.getByRole('group', { name: 'Ações de importação' });
+
+    expect(actions).toHaveClass('flex', 'gap-2', 'sm:flex-row');
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'Importar CSV' }));
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'Open Finance' }));
+  });
 });

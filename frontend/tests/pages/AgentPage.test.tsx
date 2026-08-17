@@ -180,6 +180,9 @@ describe('AgentPage streaming feedback', () => {
     const depthSelector = screen.getByRole('combobox', {
       name: 'Profundidade da recuperação',
     });
+    const chatInput = screen.getByPlaceholderText('Pergunte sobre seus dados...');
+    expect(chatInput).toHaveClass('focus-visible:!outline-none', 'focus-visible:ring-0');
+    expect(chatInput.closest('form')).not.toHaveClass('focus-within:ring-2');
     expect(depthSelector).toHaveTextContent('Equilibrado');
     expect(screen.queryByRole('listbox', { name: 'Opções de profundidade' }))
       .not.toBeInTheDocument();

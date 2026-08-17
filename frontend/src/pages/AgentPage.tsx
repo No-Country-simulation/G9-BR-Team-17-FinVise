@@ -431,7 +431,7 @@ export function AgentPage() {
                 handleSend(input);
               }}
               className={cn(
-                'flex min-h-12 min-w-0 items-center gap-0.5 rounded-full border border-slate-300 bg-slate-50 p-1 shadow-sm transition-shadow focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100 sm:min-h-14 sm:gap-1 sm:p-1.5',
+                'flex min-h-12 min-w-0 items-center gap-0.5 rounded-full border border-slate-300 bg-slate-50 p-1 shadow-sm sm:min-h-14 sm:gap-1 sm:p-1.5',
                 isEmptyState && 'lg:min-h-16 lg:border-slate-200 lg:bg-white lg:px-2 lg:shadow-lg lg:shadow-slate-300/30'
               )}
             >
@@ -505,7 +505,7 @@ export function AgentPage() {
                   }
                 }}
                 disabled={sourcesLoading || isLoading || isStreaming}
-                className="min-h-11 min-w-0 max-h-28 flex-1 resize-none bg-transparent px-1.5 py-2 text-sm leading-5 text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 sm:max-h-32 sm:px-2 sm:py-2.5"
+                className="min-h-11 min-w-0 max-h-28 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-sm leading-5 text-slate-900 shadow-none outline-none placeholder:text-slate-400 focus:border-0 focus:ring-0 focus-visible:!outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 sm:max-h-32 sm:px-2 sm:py-2.5"
               />
 
               <AgentDepthSelector

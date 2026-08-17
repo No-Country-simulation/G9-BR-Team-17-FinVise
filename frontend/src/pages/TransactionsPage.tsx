@@ -119,7 +119,7 @@ export function TransactionsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Transações</h1>
           <p className="text-sm text-slate-500 sm:text-base">Acompanhe todas as suas movimentações</p>
         </div>
-        <div className="grid gap-2 md:grid-cols-[minmax(15rem,1fr)_auto_auto] md:items-end xl:shrink-0">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end xl:shrink-0">
           {selectedImportSource && (
             <ImportSourceSelector
               sources={importSources}
@@ -133,16 +133,22 @@ export function TransactionsPage() {
               className="min-w-0 md:min-w-[15rem]"
             />
           )}
-          <Link to="/import">
-            <Button variant="outline" className="w-full whitespace-nowrap md:w-auto">
-              <FileUp className="mr-2 h-4 w-4" />Importar CSV
-            </Button>
-          </Link>
-          <Link to="/open-finance">
-            <Button className="w-full whitespace-nowrap md:w-auto">
-              <Landmark className="mr-2 h-4 w-4" />Open Finance
-            </Button>
-          </Link>
+          <div
+            role="group"
+            aria-label="Ações de importação"
+            className="flex flex-col gap-2 sm:flex-row"
+          >
+            <Link to="/import" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full whitespace-nowrap sm:w-auto">
+                <FileUp className="mr-2 h-4 w-4" />Importar CSV
+              </Button>
+            </Link>
+            <Link to="/open-finance" className="w-full sm:w-auto">
+              <Button className="w-full whitespace-nowrap sm:w-auto">
+                <Landmark className="mr-2 h-4 w-4" />Open Finance
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
